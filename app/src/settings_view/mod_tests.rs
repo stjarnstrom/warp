@@ -118,7 +118,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::Features,
     SettingsSection::Keybindings,
     SettingsSection::Privacy,
-    SettingsSection::Referrals,
     SettingsSection::Scripting,
     SettingsSection::SharedBlocks,
     SettingsSection::Teams,
@@ -151,7 +150,6 @@ fn all_sections_list_is_exhaustive() {
             | SettingsSection::Features
             | SettingsSection::Keybindings
             | SettingsSection::Privacy
-            | SettingsSection::Referrals
             | SettingsSection::Scripting
             | SettingsSection::SharedBlocks
             | SettingsSection::Teams

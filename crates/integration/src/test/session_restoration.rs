@@ -529,7 +529,10 @@ pub fn test_restore_snapshot_with_code_file() -> Builder {
 ///
 /// The snapshot has a single window with one tab, containing:
 /// * A terminal pane
-/// * A settings pane (with page set to "Referrals")
+/// * A settings pane, whose stored page is "Referrals" — a page this build no
+///   longer has, so restoration falls back to the default section rather than
+///   failing. That fallback is the thing worth pinning: the stored page name is
+///   a contract with old databases, and pages do get removed.
 pub fn test_restore_snapshot_with_settings_page() -> Builder {
     new_builder()
         .with_setup(|_utils| {
@@ -546,7 +549,6 @@ pub fn test_restore_snapshot_with_settings_page() -> Builder {
             TestStep::new("Verify settings pane restoration")
                 .add_assertion(assert_pane_title(0, 1, "Settings"))
                 .add_assertion(move |app, window_id| {
-                    // Verify the settings view exists and is on the Referrals page.
                     let settings_views: Vec<ViewHandle<SettingsView>> = app
                         .views_of_type(window_id)
                         .expect("Settings view must exist");
@@ -556,7 +558,7 @@ pub fn test_restore_snapshot_with_settings_page() -> Builder {
                     settings_view.read(app, |view, _| {
                         async_assert_eq!(
                             view.current_settings_section(),
-                            SettingsSection::Referrals
+                            SettingsSection::default()
                         )
                     })
                 }),

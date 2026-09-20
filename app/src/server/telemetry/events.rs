@@ -1328,7 +1328,6 @@ pub enum TelemetryEvent {
         duration_since_start: Duration,
     },
     BootstrappingSucceeded(BootstrappingInfo),
-    CopyInviteLink,
     OpenThemeChooser,
     ThemeSelection {
         theme: String,
@@ -4016,7 +4015,6 @@ impl TelemetryEvent {
             | TelemetryEvent::Login
             | TelemetryEvent::ContextMenuInsertSelectedText
             | TelemetryEvent::JumpToPreviousCommand
-            | TelemetryEvent::CopyInviteLink
             | TelemetryEvent::OpenThemeChooser
             | TelemetryEvent::OpenThemeCreatorModal
             | TelemetryEvent::CreateCustomTheme
@@ -4750,7 +4748,6 @@ impl TelemetryEvent {
             | TelemetryEvent::BootstrappingSlow(_)
             | TelemetryEvent::SessionAbandonedBeforeBootstrap { .. }
             | TelemetryEvent::BootstrappingSucceeded(_)
-            | TelemetryEvent::CopyInviteLink
             | TelemetryEvent::OpenThemeChooser
             | TelemetryEvent::ThemeSelection { .. }
             | TelemetryEvent::AppIconSelection { .. }
@@ -5292,7 +5289,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::BootstrappingSlowContents => EnablementState::Always,
             Self::SessionAbandonedBeforeBootstrap => EnablementState::Always,
             Self::BootstrappingSucceeded => EnablementState::Always,
-            Self::CopyInviteLink => EnablementState::Always,
             Self::OpenThemeChooser => EnablementState::Always,
             Self::ThemeSelection => EnablementState::Always,
             Self::AppIconSelection => EnablementState::Always,
@@ -5776,7 +5772,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ContextMenuToggleGitPromptDirtyIndicator => {
                 "Context Menu Toggle Git Prompt Dirty Indicator"
             }
-            Self::CopyInviteLink => "Copy Invite Link",
             Self::OpenThemeChooser => "Open Theme Chooser",
             Self::ThemeSelection => "Select Theme",
             Self::AppIconSelection => "Select App Icon",
@@ -6322,7 +6317,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Abandoned session before the bootstrapping completes"
             }
             Self::BootstrappingSucceeded => "Successful bootstrap for session",
-            Self::CopyInviteLink => "Clicked \"Copy Link\" on Referral Modal",
             Self::OpenThemeChooser => {
                 "Opened theme chooser (list of different themes and visualizations of those themes)"
             }
