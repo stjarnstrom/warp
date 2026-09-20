@@ -1128,9 +1128,6 @@ pub enum Event {
         document_id: AIDocumentId,
         document_version: AIDocumentVersion,
     },
-    OpenAutoReloadModal {
-        purchased_credits: i32,
-    },
     AuthSecretDeleteConfirmationDialogToggled {
         is_open: bool,
     },
