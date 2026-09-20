@@ -16,12 +16,8 @@ use crate::server::graphql::{get_request_context, get_user_facing_error_message}
 pub struct ReferralInfo {
     /// Shareable URL that the user can use to invite friends
     pub url: String,
-    /// The underlying referral code associated with the user
-    pub code: String,
     /// Number of other users who have signed up with this user's referral code
     pub number_claimed: usize,
-    /// Whether the user has been referred by another user
-    pub is_referred: bool,
 }
 
 #[cfg_attr(test, automock)]
@@ -53,10 +49,8 @@ impl ReferralsClient for ServerApi {
                         ChannelState::server_root_url(),
                         user_output.user.referrals.referral_code
                     ),
-                    code: user_output.user.referrals.referral_code,
                     number_claimed: usize::try_from(user_output.user.referrals.number_claimed)
                         .expect("Negative referral count"),
-                    is_referred: user_output.user.referrals.is_referred,
                 })
             }
             warp_graphql::queries::get_referral_info::UserResult::Unknown => {
