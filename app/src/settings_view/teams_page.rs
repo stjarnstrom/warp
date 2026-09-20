@@ -350,7 +350,6 @@ struct TeamsWidgetMouseHandles {
     approve_domains_button: MouseStateHandle,
     reset_invite_links_button: MouseStateHandle,
     invite_by_link_toggle_state: SwitchStateHandle,
-    upgrade_link: MouseStateHandle,
     stripe_billing_portal_link: MouseStateHandle,
     manage_plan_link: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
@@ -2980,36 +2979,12 @@ impl TeamsWidget {
                     .with_margin_left(12.)
                     .finish(),
             );
-        } else {
-            // If the team is upgradeable to self-serve tier, show them the upgrade link.
-            if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                let description = if team.billing_metadata.can_upgrade_to_build_plan() {
-                    "Upgrade to Build"
-                } else {
-                    match team.billing_metadata.customer_type {
-                        CustomerType::Prosumer => "Upgrade to Turbo plan",
-                        CustomerType::Turbo => "Upgrade to Lightspeed plan",
-                        _ => "Compare plans",
-                    }
-                };
-                billing_links.add_child(
-                    Container::new(self.render_compare_plans_button(
-                        description,
-                        self.mouse_state_handles.upgrade_link.clone(),
-                        team_uid,
-                        appearance,
-                        None,
-                    ))
+        } else if team.has_billing_history {
+            billing_links.add_child(
+                Container::new(self.render_manage_billing_button(team_uid, appearance))
                     .with_margin_left(12.)
                     .finish(),
-                );
-            } else if team.has_billing_history {
-                billing_links.add_child(
-                    Container::new(self.render_manage_billing_button(team_uid, appearance))
-                        .with_margin_left(12.)
-                        .finish(),
-                );
-            }
+            );
         }
 
         billing_links.add_child(
@@ -4813,43 +4788,6 @@ impl TeamsWidget {
         } else {
             element.finish()
         }
-    }
-
-    fn render_compare_plans_button(
-        &self,
-        text: &str,
-        mouse_state_handle: MouseStateHandle,
-        team_uid: ServerId,
-        appearance: &Appearance,
-        style: Option<UiComponentStyles>,
-    ) -> Box<dyn Element> {
-        let icon_color = appearance.theme().accent();
-
-        let mut button = appearance
-            .ui_builder()
-            .button(ButtonVariant::Link, mouse_state_handle)
-            .with_text_and_icon_label(
-                TextAndIcon::new(
-                    TextAndIconAlignment::IconFirst,
-                    text.to_string(),
-                    Icon::CoinsStacked.to_warpui_icon(icon_color),
-                    MainAxisSize::Min,
-                    MainAxisAlignment::Center,
-                    vec2f(14., 14.),
-                )
-                .with_inner_padding(4.),
-            );
-
-        if let Some(style) = style {
-            button = button.with_style(style);
-        }
-
-        button
-            .build()
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(TeamsPageAction::GenerateUpgradeLink { team_uid });
-            })
-            .finish()
     }
 
     fn render_button(

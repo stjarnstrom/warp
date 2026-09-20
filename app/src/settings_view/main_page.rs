@@ -3,11 +3,9 @@ use std::sync::{Arc, Mutex};
 use ::settings::{Setting, ToggleableSetting};
 use lazy_static::lazy_static;
 use pathfinder_color::ColorU;
-use pathfinder_geometry::vector::vec2f;
 use warp_core::channel::ChannelState;
 use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
-use warp_core::ui::icons::Icon;
 use warp_errors::{report_error, report_if_error};
 #[cfg(not(target_family = "wasm"))]
 use warp_server_client::iap::{IapCredentialsState, IapManager, IapManagerEvent};
@@ -20,7 +18,7 @@ use warpui::elements::{
 use warpui::fonts::Weight;
 use warpui::keymap::ContextPredicate;
 use warpui::platform::Cursor;
-use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
+use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{
@@ -37,10 +35,10 @@ use super::{
     SettingsAction, SettingsSection, ToggleSettingActionPair, flags, plan_header_presentation,
 };
 use crate::appearance::Appearance;
+use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthViewVariant;
-use crate::auth::{AuthStateProvider, UserUid};
 use crate::autoupdate::{self, AutoupdateStage, AutoupdateState};
 use crate::server::ids::ServerId;
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
@@ -118,10 +116,6 @@ pub enum MainPageAction {
     DownloadUpdate,
     CheckForUpdate,
     ToggleSettingsSync,
-    Upgrade {
-        team_uid: Option<ServerId>,
-        user_id: UserUid,
-    },
     GenerateStripeBillingPortalLink {
         team_uid: ServerId,
     },
@@ -136,7 +130,7 @@ impl MainPageAction {
         use MainPageAction::*;
         matches!(
             self,
-            Upgrade { .. } | GenerateStripeBillingPortalLink { .. } | ToggleSettingsSync,
+            GenerateStripeBillingPortalLink { .. } | ToggleSettingsSync,
         )
     }
 }
@@ -145,7 +139,6 @@ impl From<&MainPageAction> for LoginGatedFeature {
     fn from(val: &MainPageAction) -> LoginGatedFeature {
         use MainPageAction::*;
         match val {
-            Upgrade { .. } => "Upgrade Plan",
             GenerateStripeBillingPortalLink { .. } => "Generate Stripe Billing Portal Link",
             ToggleSettingsSync => "Toggle Settings Sync",
             _ => "Unknown reason",
@@ -220,14 +213,6 @@ impl TypedActionView for MainSettingsPageView {
                 );
                 ctx.notify();
             }
-            MainPageAction::Upgrade { team_uid, user_id } => match team_uid {
-                Some(team_uid) => {
-                    ctx.open_url(&UserWorkspaces::upgrade_link_for_team(*team_uid));
-                }
-                None => {
-                    ctx.open_url(&UserWorkspaces::upgrade_link(*user_id));
-                }
-            },
             MainPageAction::GenerateStripeBillingPortalLink { team_uid } => {
                 UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
                     user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
@@ -323,7 +308,6 @@ impl MainSettingsPageView {
 
 #[derive(Default)]
 struct AccountWidgetStateHandles {
-    upgrade_link: MouseStateHandle,
     anonymous_user_sign_up_button: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
     stripe_billing_portal_link: MouseStateHandle,
@@ -335,11 +319,7 @@ struct AccountWidget {
 }
 
 impl AccountWidget {
-    fn render_anonymous_account_info(
-        &self,
-        auth_state: &AuthState,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
+    fn render_anonymous_account_info(&self, appearance: &Appearance) -> Box<dyn Element> {
         let button_styles = UiComponentStyles {
             font_size: Some(14.),
             font_weight: Some(Weight::Semibold),
@@ -370,43 +350,11 @@ impl AccountWidget {
         let mut plan_info = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::SpaceEvenly)
             .with_cross_axis_alignment(CrossAxisAlignment::End);
-        let current_user_id = auth_state.user_id().unwrap_or_default();
 
-        let presentation = plan_header_presentation(None, false, true);
+        let presentation = plan_header_presentation(None, true);
         if let Some(badge_label) = presentation.badge_label {
             plan_info.add_child(render_customer_type_badge(appearance, badge_label));
         }
-        plan_info.add_child(
-            Container::new(
-                appearance
-                    .ui_builder()
-                    .button(
-                        ButtonVariant::Link,
-                        self.ui_state_handles.upgrade_link.clone(),
-                    )
-                    .with_text_and_icon_label(
-                        TextAndIcon::new(
-                            TextAndIconAlignment::IconFirst,
-                            "Compare plans",
-                            Icon::CoinsStacked.to_warpui_icon(appearance.theme().accent()),
-                            MainAxisSize::Min,
-                            MainAxisAlignment::Center,
-                            vec2f(14., 14.),
-                        )
-                        .with_inner_padding(4.),
-                    )
-                    .build()
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(MainPageAction::Upgrade {
-                            team_uid: None,
-                            user_id: current_user_id,
-                        });
-                    })
-                    .finish(),
-            )
-            .with_margin_top(8.)
-            .finish(),
-        );
 
         Flex::row()
             .with_child(
@@ -506,12 +454,11 @@ impl AccountWidget {
         let mut plan_info = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::SpaceEvenly)
             .with_cross_axis_alignment(CrossAxisAlignment::End);
-        let current_user_id = auth_state.user_id().unwrap_or_default();
         let workspaces = UserWorkspaces::as_ref(app);
         let workspace = workspaces.current_workspace();
         let billing_metadata = workspace.map(|workspace| &workspace.billing_metadata);
         let team = workspaces.team_for_view_handle(&view.self_handle, app);
-        let presentation = plan_header_presentation(billing_metadata, team.is_some(), false);
+        let presentation = plan_header_presentation(billing_metadata, false);
         if let Some(badge_label) = presentation.badge_label {
             plan_info.add_child(render_customer_type_badge(appearance, badge_label));
         }
@@ -536,83 +483,30 @@ impl AccountWidget {
                             .with_margin_top(8.)
                             .finish(),
                     );
-                } else {
-                    if workspace.is_some_and(|workspace| workspace.has_billing_history) {
-                        let team_uid = team.uid;
-                        plan_info.add_child(
-                            appearance
-                                .ui_builder()
-                                .link(
-                                    "Manage billing".into(),
-                                    None,
-                                    Some(Box::new(move |ctx| {
-                                        ctx.dispatch_typed_action(
-                                            MainPageAction::GenerateStripeBillingPortalLink {
-                                                team_uid,
-                                            },
-                                        );
-                                    })),
-                                    self.ui_state_handles.stripe_billing_portal_link.clone(),
-                                )
-                                .soft_wrap(false)
-                                .build()
-                                .with_margin_top(8.)
-                                .finish(),
-                        );
-                    }
-
-                    // If the team is upgradeable to self-serve tier, show them the upgrade link.
-                    if let Some(billing_metadata) = billing_metadata
-                        .filter(|metadata| metadata.can_upgrade_to_higher_tier_plan())
-                    {
-                        let description = match billing_metadata.customer_type {
-                            CustomerType::Prosumer => "Upgrade to Turbo plan",
-                            CustomerType::Turbo => "Upgrade to Lightspeed plan",
-                            _ => "Compare plans",
-                        };
-                        let team_uid = team.uid;
-                        plan_info.add_child(
-                            appearance
-                                .ui_builder()
-                                .link(
-                                    description.into(),
-                                    None,
-                                    Some(Box::new(move |ctx| {
-                                        ctx.dispatch_typed_action(MainPageAction::Upgrade {
-                                            team_uid: Some(team_uid),
-                                            user_id: current_user_id,
-                                        });
-                                    })),
-                                    self.ui_state_handles.upgrade_link.clone(),
-                                )
-                                .soft_wrap(false)
-                                .build()
-                                .with_margin_top(8.)
-                                .finish(),
-                        );
-                    }
+                } else if workspace.is_some_and(|workspace| workspace.has_billing_history) {
+                    let team_uid = team.uid;
+                    plan_info.add_child(
+                        appearance
+                            .ui_builder()
+                            .link(
+                                "Manage billing".into(),
+                                None,
+                                Some(Box::new(move |ctx| {
+                                    ctx.dispatch_typed_action(
+                                        MainPageAction::GenerateStripeBillingPortalLink {
+                                            team_uid,
+                                        },
+                                    );
+                                })),
+                                self.ui_state_handles.stripe_billing_portal_link.clone(),
+                            )
+                            .soft_wrap(false)
+                            .build()
+                            .with_margin_top(8.)
+                            .finish(),
+                    );
                 }
             }
-        } else if presentation.show_personal_upgrade {
-            plan_info.add_child(
-                appearance
-                    .ui_builder()
-                    .link(
-                        "Compare plans".into(),
-                        None,
-                        Some(Box::new(move |ctx| {
-                            ctx.dispatch_typed_action(MainPageAction::Upgrade {
-                                team_uid: None,
-                                user_id: current_user_id,
-                            });
-                        })),
-                        self.ui_state_handles.upgrade_link.clone(),
-                    )
-                    .soft_wrap(false)
-                    .build()
-                    .with_margin_top(8.)
-                    .finish(),
-            );
         }
 
         let mut row = Flex::row()
@@ -643,7 +537,7 @@ impl SettingsWidget for AccountWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let account_info = if view.auth_state.is_anonymous_or_logged_out() {
-            self.render_anonymous_account_info(view.auth_state.as_ref(), appearance)
+            self.render_anonymous_account_info(appearance)
         } else {
             let profile_image_source = view.auth_state.user_photo_url().map(|url| {
                 asset_cache::url_source_with_persistence(url, &warp_core::paths::cache_dir())

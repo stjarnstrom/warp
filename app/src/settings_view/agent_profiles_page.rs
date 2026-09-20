@@ -60,9 +60,6 @@ use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::ai::paths::host_native_absolute_path;
 use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
-use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::cloud_object::GenericStringObjectFormat::Json;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::{JsonObjectType, ObjectType};
@@ -1488,7 +1485,6 @@ impl Entity for AgentProfilesPageView {
 pub enum AgentProfilesPageAction {
     HyperlinkClick(HyperlinkUrl),
     ToggleCodebaseContext,
-    AttemptLoginGatedUpgrade,
     RemoveFromCommandExecutionAllowlist(AgentModeCommandExecutionPredicate),
     RemoveFromCommandExecutionDenylist(AgentModeCommandExecutionPredicate),
     OpenMCPServerCollection,
@@ -1520,16 +1516,6 @@ pub enum AgentProfilesPageAction {
     CreateProfile,
 }
 
-impl From<&AgentProfilesPageAction> for LoginGatedFeature {
-    fn from(val: &AgentProfilesPageAction) -> LoginGatedFeature {
-        use AgentProfilesPageAction::*;
-        match val {
-            AttemptLoginGatedUpgrade => "Upgrade AI Usage",
-            _ => "Unknown reason",
-        }
-    }
-}
-
 impl TypedActionView for AgentProfilesPageView {
     type Action = AgentProfilesPageAction;
 
@@ -1556,15 +1542,6 @@ impl TypedActionView for AgentProfilesPageView {
             AgentProfilesPageAction::HyperlinkClick(hyperlink) => {
                 ctx.notify();
                 ctx.open_url(&hyperlink.url);
-            }
-            AgentProfilesPageAction::AttemptLoginGatedUpgrade => {
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.attempt_login_gated_feature(
-                        action.into(),
-                        AuthViewVariant::RequireLoginCloseable,
-                        ctx,
-                    )
-                });
             }
             AgentProfilesPageAction::RemoveFromCommandExecutionAllowlist(cmd) => {
                 BlocklistAIPermissions::handle(ctx).update(ctx, |model, ctx| {
@@ -1901,14 +1878,12 @@ fn render_ai_list(
 
 struct UsageWidget {
     view_handle: WeakViewHandle<AgentProfilesPageView>,
-    requests_highlight_index: HighlightedHyperlink,
 }
 
 impl UsageWidget {
     fn new(ctx: &ViewContext<AgentProfilesPageView>) -> Self {
         Self {
             view_handle: ctx.handle(),
-            requests_highlight_index: Default::default(),
         }
     }
     fn render_request_usage_count(
@@ -2122,72 +2097,11 @@ impl SettingsWidget for UsageWidget {
             appearance,
         );
 
-        let auth_state = AuthStateProvider::as_ref(app).get();
-        let upgrade_cta_text_fragments = if let Some(team) =
-            UserWorkspaces::as_ref(app).team_for_view_handle(&self.view_handle, app)
-        {
-            let current_user_email = auth_state.user_email().unwrap_or_default();
-            let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-            if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
-                if has_admin_permissions {
-                    vec![
-                        FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
-                        FormattedTextFragment::plain_text(" to get more AI usage."),
-                    ]
-                } else {
-                    // The /upgrade page says to contact their administrator.
-                    vec![
-                        FormattedTextFragment::hyperlink("Compare plans", upgrade_url),
-                        FormattedTextFragment::plain_text(" for more AI usage."),
-                    ]
-                }
-            } else {
-                vec![
-                    FormattedTextFragment::hyperlink("Contact support", "mailto:support@warp.dev"),
-                    FormattedTextFragment::plain_text(" for more AI usage."),
-                ]
-            }
-        } else {
-            let user_id = auth_state.user_id().unwrap_or_default();
-            let upgrade_url = UserWorkspaces::upgrade_link(user_id);
-            vec![
-                FormattedTextFragment::hyperlink("Upgrade", upgrade_url),
-                FormattedTextFragment::plain_text(" to get more AI usage."),
-            ]
-        };
-
-        let mut upgrade_cta = FormattedTextElement::new(
-            FormattedText::new([FormattedTextLine::Line(upgrade_cta_text_fragments)]),
-            appearance.ui_font_size(),
-            appearance.ui_font_family(),
-            appearance.ui_font_family(),
-            styles::description_font_color(true, app).into(),
-            self.requests_highlight_index.clone(),
-        )
-        .with_hyperlink_font_color(appearance.theme().accent().into_solid());
-
-        if AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out()
-        {
-            upgrade_cta = upgrade_cta.register_default_click_handlers(|_, ctx, _| {
-                ctx.dispatch_typed_action(AgentProfilesPageAction::AttemptLoginGatedUpgrade);
-            });
-        } else {
-            upgrade_cta = upgrade_cta.register_default_click_handlers(|url, ctx, _| {
-                ctx.dispatch_typed_action(AgentProfilesPageAction::HyperlinkClick(url));
-            })
-        }
-
         Flex::column()
             .with_children([
                 render_separator(appearance),
                 usage_header,
                 request_usage_row,
-                Container::new(upgrade_cta.finish())
-                    .with_margin_bottom(16.)
-                    .finish(),
             ])
             .finish()
     }

@@ -164,12 +164,10 @@ const POSITION_ID: &str = "settings_pane";
 
 struct PlanHeaderPresentation {
     badge_label: Option<String>,
-    show_personal_upgrade: bool,
 }
 
 fn plan_header_presentation(
     billing_metadata: Option<&BillingMetadata>,
-    has_team: bool,
     is_anonymous: bool,
 ) -> PlanHeaderPresentation {
     let badge_label = if is_anonymous || billing_metadata.is_none() {
@@ -180,12 +178,7 @@ fn plan_header_presentation(
             .map(|billing_metadata| billing_metadata.customer_type.to_display_string())
     };
 
-    PlanHeaderPresentation {
-        badge_label,
-        show_personal_upgrade: is_anonymous
-            || (!has_team
-                && billing_metadata.is_none_or(BillingMetadata::can_upgrade_to_build_plan)),
-    }
+    PlanHeaderPresentation { badge_label }
 }
 
 /// Saved-position id for the settings search input.

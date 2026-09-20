@@ -24,46 +24,32 @@ fn billing_metadata(customer_type: CustomerType) -> BillingMetadata {
 fn paid_workspace_without_team_shows_only_workspace_badge() {
     let billing_metadata = billing_metadata(CustomerType::Enterprise);
 
-    let presentation = plan_header_presentation(Some(&billing_metadata), false, false);
+    let presentation = plan_header_presentation(Some(&billing_metadata), false);
 
     assert_eq!(presentation.badge_label.as_deref(), Some("Enterprise"));
-    assert!(!presentation.show_personal_upgrade);
 }
 
 #[test]
 fn free_workspace_without_team_shows_free_badge_once() {
     let billing_metadata = billing_metadata(CustomerType::Free);
 
-    let presentation = plan_header_presentation(Some(&billing_metadata), false, false);
+    let presentation = plan_header_presentation(Some(&billing_metadata), false);
 
     assert_eq!(presentation.badge_label.as_deref(), Some("Free"));
-    assert!(presentation.show_personal_upgrade);
-}
-
-#[test]
-fn paid_workspace_with_team_shows_only_workspace_badge() {
-    let billing_metadata = billing_metadata(CustomerType::Enterprise);
-
-    let presentation = plan_header_presentation(Some(&billing_metadata), true, false);
-
-    assert_eq!(presentation.badge_label.as_deref(), Some("Enterprise"));
-    assert!(!presentation.show_personal_upgrade);
 }
 
 #[test]
 fn anonymous_account_shows_free_badge_once() {
-    let presentation = plan_header_presentation(None, false, true);
+    let presentation = plan_header_presentation(None, true);
 
     assert_eq!(presentation.badge_label.as_deref(), Some("Free"));
-    assert!(presentation.show_personal_upgrade);
 }
 
 #[test]
 fn signed_in_account_without_workspace_shows_free_badge_once() {
-    let presentation = plan_header_presentation(None, false, false);
+    let presentation = plan_header_presentation(None, false);
 
     assert_eq!(presentation.badge_label.as_deref(), Some("Free"));
-    assert!(presentation.show_personal_upgrade);
 }
 
 // ── MatchData behavior ──────────────────────────────────────────────────────
