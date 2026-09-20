@@ -78,8 +78,7 @@ use crate::ai::blocklist::inline_action::requested_action::RenderableAction;
 use crate::ai::blocklist::model::{AIBlockModel, AIBlockModelHelper};
 use crate::ai::blocklist::secret_redaction::{SecretRedactionState, redact_secrets_in_element};
 use crate::ai::blocklist::view_util::{
-    FailedOutputPresentation, OUT_OF_CREDITS_SUBSCRIBE_LABEL, error_color,
-    failed_output_presentation,
+    FailedOutputPresentation, error_color, failed_output_presentation,
 };
 use crate::ai::blocklist::{BlocklistAIActionModel, ShellCommandExecutor, TextLocation};
 use crate::ai::loading::shimmering_warp_loading_text;
@@ -3068,7 +3067,6 @@ pub(crate) fn resolve_absolute_file_path(
 pub struct FailedOutputProps<'a> {
     pub error: &'a RenderableAIError,
     pub invalid_api_key_button_handle: &'a MouseStateHandle,
-    pub subscribe_button_handle: &'a MouseStateHandle,
     pub aws_bedrock_credentials_error_view: Option<&'a ViewHandle<AwsBedrockCredentialsErrorView>>,
     pub gemini_enterprise_credentials_error_view:
         Option<&'a ViewHandle<GeminiEnterpriseCredentialsErrorView>>,
@@ -3087,7 +3085,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
         FailedOutputPresentation::OutOfCredits { message, .. } => {
             return render_out_of_credits_error(
                 &message,
-                props.subscribe_button_handle,
                 props.is_ai_input_enabled,
                 props.icon_right_margin,
                 app,
@@ -3169,42 +3166,9 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
         )
         .finish()
 }
-/// Builds an out-of-credits CTA button, styled like the invalid-API-key error's button.
-fn out_of_credits_cta_button(
-    label: &str,
-    state_handle: &MouseStateHandle,
-    app: &AppContext,
-) -> Button {
-    let appearance = Appearance::as_ref(app);
-    let theme = appearance.theme();
-
-    appearance
-        .ui_builder()
-        .button(
-            warpui::ui_components::button::ButtonVariant::Outlined,
-            state_handle.clone(),
-        )
-        .with_style(UiComponentStyles {
-            font_size: Some(14.),
-            border_color: Some(internal_colors::neutral_4(theme).into()),
-            ..Default::default()
-        })
-        .with_hovered_styles(UiComponentStyles {
-            background: Some(internal_colors::fg_overlay_2(theme).into()),
-            ..Default::default()
-        })
-        .with_clicked_styles(UiComponentStyles {
-            background: Some(internal_colors::fg_overlay_3(theme).into()),
-            ..Default::default()
-        })
-        .with_text_label(label.to_string())
-        .with_cursor(Some(Cursor::PointingHand))
-}
-
-/// Renders the out-of-credits failure: alert icon + message with a Subscribe CTA below.
+/// Renders the out-of-credits failure: alert icon + message.
 fn render_out_of_credits_error(
     message: &str,
-    subscribe_button_handle: &MouseStateHandle,
     is_ai_input_enabled: bool,
     icon_right_margin: f32,
     app: &AppContext,
@@ -3245,34 +3209,9 @@ fn render_out_of_credits_error(
     })
     .finish();
 
-    let subscribe_button =
-        out_of_credits_cta_button(OUT_OF_CREDITS_SUBSCRIBE_LABEL, subscribe_button_handle, app)
-            .build()
-            .on_click(|ctx, _, _| {
-                ctx.dispatch_typed_action(WorkspaceAction::ShowUpgrade);
-            })
-            .finish();
-
-    Flex::column()
-        .with_cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_spacing(12.)
-        .with_child(
-            Flex::row()
-                .with_child(icon)
-                .with_child(Shrinkable::new(1., text).finish())
-                .finish(),
-        )
-        .with_child(
-            Container::new(
-                Flex::row()
-                    .with_main_axis_size(MainAxisSize::Min)
-                    .with_main_axis_alignment(MainAxisAlignment::Start)
-                    .with_child(subscribe_button)
-                    .finish(),
-            )
-            .with_margin_left(icon_size(app) + icon_right_margin)
-            .finish(),
-        )
+    Flex::row()
+        .with_child(icon)
+        .with_child(Shrinkable::new(1., text).finish())
         .finish()
 }
 

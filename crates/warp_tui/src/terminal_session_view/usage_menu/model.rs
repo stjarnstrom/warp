@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{Local, Utc};
 use warp::tui_export::{
     AIRequestUsageModel, AiCreditsUsageAndCostType, AuthStateProvider, BonusGrantType,
     UsageVisibilityGranularity, UserWorkspaces,
@@ -41,7 +41,8 @@ impl TuiUsageSnapshot {
             .zip(user_email.as_deref())
             .is_some_and(|(team, email)| team.has_admin_permissions(email));
         let refresh_time = ai_model
-            .next_refresh_time_local()
+            .next_refresh_time()
+            .with_timezone(&Local)
             .format("%B %-d at %-I:%M%P");
 
         let base_credits = (ai_model.request_limit() > 0).then(|| TuiUsageCreditBar {

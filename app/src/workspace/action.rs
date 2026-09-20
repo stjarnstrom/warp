@@ -303,7 +303,6 @@ pub enum WorkspaceAction {
         mode: PaletteMode,
         source: PaletteSource,
     },
-    ShowUpgrade,
     JoinSlack,
     ViewUserDocs,
     ViewLatestChangelog,
@@ -1016,7 +1015,6 @@ impl WorkspaceAction {
             | ResetZoom
             | OpenPalette { .. }
             | TogglePalette { mode: _, source: _ }
-            | ShowUpgrade
             | JoinSlack
             | ViewUserDocs
             | ViewLatestChangelog

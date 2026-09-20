@@ -2199,7 +2199,6 @@ pub enum TelemetryEvent {
     SettingsImportResetButtonClicked,
     /// When parsing iTerm for settings it contained multiple hotkey bindings.
     ITermMultipleHotkeys,
-    UserMenuUpgradeClicked,
     ToggleWorkspaceDecorationVisibility {
         previous_value: WorkspaceDecorationVisibility,
         new_value: WorkspaceDecorationVisibility,
@@ -4109,7 +4108,6 @@ impl TelemetryEvent {
             | TelemetryEvent::SettingsImportInitiated
             | TelemetryEvent::GrepToolSucceeded
             | TelemetryEvent::FileGlobToolSucceeded
-            | TelemetryEvent::UserMenuUpgradeClicked
             | TelemetryEvent::AIExecutionProfileCreated
             | TelemetryEvent::AIExecutionProfileDeleted
             | TelemetryEvent::FileTreeItemCreated
@@ -5044,7 +5042,6 @@ impl TelemetryEvent {
             | TelemetryEvent::InputUXModeChanged { .. }
             | TelemetryEvent::VoiceInputUsed { .. }
             | TelemetryEvent::AtMenuInteracted { .. }
-            | TelemetryEvent::UserMenuUpgradeClicked
             | TelemetryEvent::TabCloseButtonPositionUpdated { .. }
             | TelemetryEvent::ExpandedCodeSuggestions { .. }
             | TelemetryEvent::AIExecutionProfileCreated
@@ -5587,7 +5584,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::InputUXModeChanged { .. } => EnablementState::Always,
             Self::VoiceInputUsed { .. } => EnablementState::Always,
             Self::AtMenuInteracted { .. } => EnablementState::Always,
-            Self::UserMenuUpgradeClicked => EnablementState::Always,
             Self::TabCloseButtonPositionUpdated { .. } => EnablementState::Always,
             Self::ExpandedCodeSuggestions { .. } => EnablementState::Always,
             Self::AIExecutionProfileCreated
@@ -6129,7 +6125,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::InputUXModeChanged { .. } => "Input.InputUXModeChanged",
             Self::VoiceInputUsed { .. } => "Input.VoiceInputUsed",
             Self::AtMenuInteracted { .. } => "Input.AtMenuInteracted",
-            Self::UserMenuUpgradeClicked => "User Menu Upgrade Clicked",
             Self::TabCloseButtonPositionUpdated { .. } => "Update Tab Close Button Position",
             Self::ExpandedCodeSuggestions { .. } => "Expanded Code Suggestion",
             Self::AIExecutionProfileCreated => "AI Execution Profile Created",
@@ -6906,7 +6901,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::InputUXModeChanged { .. } => "Changed the input UX mode",
             Self::VoiceInputUsed { .. } => "Used voice input",
             Self::AtMenuInteracted { .. } => "Interacted with the @ menu",
-            Self::UserMenuUpgradeClicked => "Clicked the 'Upgrade' menu item in the user menu",
             Self::TabCloseButtonPositionUpdated { .. } => "Updated the tab close button position",
             Self::ExpandedCodeSuggestions { .. } => "Expanded the passive code diff suggestion",
             Self::AIExecutionProfileCreated => "A new AI execution profile was created",
