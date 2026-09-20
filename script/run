@@ -19,12 +19,18 @@ cd "${REPO_ROOT}"
 OS_TYPE="$(uname -s)"
 
 FEATURES="gui"
-INSTALL_COMMON_SKILLS=1
+# Fork default: off. The common skills are Warp's contribution workflow
+# (create-pr, review-pr, write-*-spec), which this fork does not use, and the
+# installer prompts on stdin every launch. Pass --install-common-skills to
+# override for a one-off run.
+INSTALL_COMMON_SKILLS=0
 FORCE_COMMON_SKILLS=0
 COMMON_SKILLS_TARGET="${WARP_COMMON_SKILLS_INSTALL_TARGET:-}"
 
-./script/install_channel_config || echo "Skipping internal channel config installation (no repo access)."
-
+# Upstream installs warp-channel-config here. It lives in a Warp-internal SSH
+# repo, so for this fork the attempt is a guaranteed-failing `git ls-remote` on
+# every launch. The detection below already falls through to the OSS channel
+# when the binary is absent, which is the channel this fork builds.
 
 # If warp_channel_config is on PATH, build the Local channel binary; otherwise build the OSS channel.
 if command -v warp-channel-config &>/dev/null; then
