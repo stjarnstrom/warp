@@ -63,7 +63,6 @@ use crate::editor::{
 use crate::menu::{self, Menu, MenuItem, MenuItemFields};
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::NetworkStatus;
-use crate::pricing::PricingInfoModel;
 use crate::send_telemetry_from_ctx;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ServerId;
@@ -80,7 +79,7 @@ use crate::workspaces::team::{DiscoverableTeam, MembershipRole, Team, TeamDelete
 use crate::workspaces::update_manager::{TeamUpdateManager, TeamUpdateManagerEvent};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::{
-    BillingMetadata, CustomerType, DelinquencyStatus, Workspace, WorkspaceSizePolicy, WorkspaceUid,
+    BillingMetadata, CustomerType, DelinquencyStatus, Workspace, WorkspaceUid,
 };
 
 const TEAM_MEMBERS_HEADER_POSITION_ID: &str = "team_settings:team_members_header";
@@ -544,7 +543,6 @@ pub struct TeamsPageView {
     // ModelHandle<UserWorkspaces>. That's because eventually we'll be handling more than one workspace.
     user_workspaces: ModelHandle<UserWorkspaces>,
     ai_request_usage_model: ModelHandle<AIRequestUsageModel>,
-    pricing_info_model: ModelHandle<PricingInfoModel>,
     cloud_model: ModelHandle<CloudModel>,
     invite_view: TeamsInviteOption,
     team_members_mouse_states: Vec<ItemMouseStates>,
@@ -821,8 +819,6 @@ impl TeamsPageView {
             me.update_approved_domains_state(ctx);
         });
 
-        let pricing_info_model = PricingInfoModel::handle(ctx);
-
         let appearance = Appearance::as_ref(ctx);
         let font_size = appearance.ui_font_size();
         let create_team_editor = Self::editor(
@@ -991,7 +987,6 @@ impl TeamsPageView {
             },
             user_workspaces,
             ai_request_usage_model: AIRequestUsageModel::handle(ctx),
-            pricing_info_model,
             cloud_model,
             invite_view: TeamsInviteOption::default(),
             team_members_mouse_states,
@@ -2319,20 +2314,6 @@ struct TeamsWidget {
 }
 
 impl TeamsWidget {
-    /// Gets the per-seat costs (monthly and yearly) for the current team plan.
-    /// Returns None if pricing info is unavailable or the plan doesn't support per-seat pricing.
-    fn get_per_seat_costs(
-        &self,
-        team_metadata: &Team,
-        pricing_info_model: &PricingInfoModel,
-    ) -> Option<(f64, f64)> {
-        let stripe_subscription_plan = (&team_metadata.billing_metadata).try_into().ok()?;
-        let plan_pricing = pricing_info_model.plan_pricing(&stripe_subscription_plan)?;
-        let monthly_cost = plan_pricing.monthly_plan_price_per_month_usd_cents as f64 / 100.;
-        let yearly_cost = plan_pricing.yearly_plan_price_per_month_usd_cents as f64 * 12. / 100.;
-        Some((monthly_cost, yearly_cost))
-    }
-
     fn grow_team_warning(team: &Team) -> Option<GrowTeamWarning> {
         match team.billing_metadata.delinquency_status {
             DelinquencyStatus::PastDue => return Some(GrowTeamWarning::PaymentPastDue),
@@ -2361,7 +2342,6 @@ impl TeamsWidget {
         warning: GrowTeamWarning,
         has_admin_permissions: bool,
         billing_metadata: &BillingMetadata,
-        pricing_info: &PricingInfoModel,
     ) -> GrowTeamWarningCta {
         if !has_admin_permissions {
             return GrowTeamWarningCta::None;
@@ -2382,33 +2362,9 @@ impl TeamsWidget {
                 if billing_metadata.customer_type == CustomerType::Business {
                     return GrowTeamWarningCta::Upgrade;
                 }
-                if billing_metadata.is_enterprise_plan() {
-                    return GrowTeamWarningCta::None;
-                }
-                let Some(policy) = billing_metadata.tier.workspace_size_policy else {
-                    return GrowTeamWarningCta::None;
-                };
-                if Self::has_higher_seat_cap_plan_available(&policy, pricing_info) {
-                    GrowTeamWarningCta::Upgrade
-                } else {
-                    GrowTeamWarningCta::None
-                }
+                GrowTeamWarningCta::None
             }
         }
-    }
-
-    fn has_higher_seat_cap_plan_available(
-        workspace_size_policy: &WorkspaceSizePolicy,
-        pricing_info: &PricingInfoModel,
-    ) -> bool {
-        if workspace_size_policy.is_unlimited {
-            return false;
-        }
-        pricing_info
-            .plans()
-            .iter()
-            .filter_map(|plan| plan.max_team_size)
-            .any(|max| i64::from(max) > workspace_size_policy.limit)
     }
 
     /// Renders the red warning alert at the top of the invite section.
@@ -2417,7 +2373,6 @@ impl TeamsWidget {
         team: &Team,
         warning: GrowTeamWarning,
         has_admin_permissions: bool,
-        pricing_info: &PricingInfoModel,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let horizontal_padding = 16.;
@@ -2445,12 +2400,8 @@ impl TeamsWidget {
         };
         let title_element = self.render_subsection_header(title.to_owned(), appearance);
 
-        let cta = Self::grow_team_warning_cta(
-            warning,
-            has_admin_permissions,
-            &team.billing_metadata,
-            pricing_info,
-        );
+        let cta =
+            Self::grow_team_warning_cta(warning, has_admin_permissions, &team.billing_metadata);
 
         let body_prefix = match warning {
             GrowTeamWarning::SeatCapReached => "You've reached your plan's member limit.",
@@ -2594,8 +2545,6 @@ impl TeamsWidget {
 
     fn render_team_member_cost_info(
         &self,
-        team_metadata: &Team,
-        pricing_info_model: &PricingInfoModel,
         appearance: &Appearance,
         has_admin_permissions: bool,
     ) -> Box<dyn Element> {
@@ -2605,17 +2554,9 @@ impl TeamsWidget {
             "Your admin will be charged for a portion of the team member's usage of Warp."
         };
 
-        let additional_members_cost_money_msg = if let Some((monthly_cost, yearly_cost)) =
-            self.get_per_seat_costs(team_metadata, pricing_info_model)
-        {
-            format!(
-                "Additional members are billed at your plan's per-user rate: ${monthly_cost:.0}/month or ${yearly_cost:.0}/year, depending on your billing interval. {prorated_message}"
-            )
-        } else {
-            format!(
-                "Additional members are billed at your plan's per-user rate. {prorated_message}"
-            )
-        };
+        let additional_members_cost_money_msg = format!(
+            "Additional members are billed at your plan's per-user rate. {prorated_message}"
+        );
 
         let horizontal_padding = 16.;
         let theme = appearance.theme();
@@ -2747,13 +2688,9 @@ impl TeamsWidget {
         ));
 
         // 6) Optional outgrow CTA
-        let pricing_info_model = view.pricing_info_model.as_ref(app);
-        if let Some(cta) = self.render_outgrow_upgrade_cta(
-            team_metadata,
-            has_admin_permissions,
-            pricing_info_model,
-            appearance,
-        ) {
+        if let Some(cta) =
+            self.render_outgrow_upgrade_cta(team_metadata, has_admin_permissions, appearance)
+        {
             main_content.add_child(
                 Container::new(cta)
                     .with_padding_top(CONTENT_SEPARATION_PADDING)
@@ -3175,13 +3112,11 @@ impl TeamsWidget {
 
         // "team is full" or "billing issue" or some other alert thats restricting you from adding team members
         let warning = Self::grow_team_warning(team_metadata);
-        let pricing_info_model = view.pricing_info_model.as_ref(app);
         if let Some(warning) = warning {
             let alert = self.render_grow_team_warning_alert(
                 team_metadata,
                 warning,
                 permissions.has_admin_permissions,
-                pricing_info_model,
                 appearance,
             );
             invitation_section.add_child(Container::new(alert).with_padding_bottom(24.).finish());
@@ -3196,12 +3131,8 @@ impl TeamsWidget {
         );
 
         if team_metadata.billing_metadata.is_on_stripe_paid_plan() {
-            let pricing_alert = self.render_team_member_cost_info(
-                team_metadata,
-                pricing_info_model,
-                appearance,
-                permissions.has_admin_permissions,
-            );
+            let pricing_alert =
+                self.render_team_member_cost_info(appearance, permissions.has_admin_permissions);
             invitation_section.add_child(
                 Container::new(pricing_alert)
                     .with_padding_bottom(24.)
@@ -3594,7 +3525,6 @@ impl TeamsWidget {
         &self,
         team: &Team,
         has_admin_permissions: bool,
-        pricing_info: &PricingInfoModel,
         appearance: &Appearance,
     ) -> Option<Box<dyn Element>> {
         if team.billing_metadata.is_delinquent_due_to_payment_issue() {
@@ -3604,7 +3534,6 @@ impl TeamsWidget {
             GrowTeamWarning::SeatCapReached,
             has_admin_permissions,
             &team.billing_metadata,
-            pricing_info,
         ) {
             GrowTeamWarningCta::UpdateBilling
             | GrowTeamWarningCta::ContactSupport
