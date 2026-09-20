@@ -20,7 +20,6 @@ use crate::auth::AuthStateProvider;
 use crate::cloud_object::CloudObjectEventEntrypoint;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::persistence::ModelEvent;
-use crate::pricing::PricingInfoModel;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ServerId;
 use crate::server::retry_strategies::{
@@ -346,12 +345,6 @@ impl TeamUpdateManager {
     ) {
         match result {
             Ok(response) => {
-                if let Some(pricing_info) = response.pricing_info {
-                    PricingInfoModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.update_pricing_info(pricing_info, ctx);
-                    });
-                }
-
                 if let Some(availability) = response.metadata.ai_credit_availability {
                     AIRequestUsageModel::handle(ctx).update(ctx, |usage_model, ctx| {
                         usage_model.apply_server_availability(Ok(availability), ctx);
@@ -422,12 +415,6 @@ impl TeamUpdateManager {
         match result {
             Err(_) => ctx.emit(TeamUpdateManagerEvent::RenameTeamError),
             Ok(response) => {
-                if let Some(pricing_info) = response.pricing_info.clone() {
-                    PricingInfoModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.update_pricing_info(pricing_info, ctx);
-                    });
-                }
-
                 self.on_workspaces_updated(Ok(response.metadata.clone()), ctx);
 
                 // Update sqlite
@@ -448,12 +435,6 @@ impl TeamUpdateManager {
     ) -> Option<Result<()>> {
         match request_state {
             RequestState::RequestSucceeded(response) => {
-                if let Some(pricing_info) = response.pricing_info.clone() {
-                    PricingInfoModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.update_pricing_info(pricing_info, ctx);
-                    });
-                }
-
                 // Right now, this function is coupled with how we handle leaving a team.
                 // TODO(zheng) refactor so we can separate these two cases and have clearer logic.
                 self.on_workspaces_updated(Ok(response.metadata), ctx);

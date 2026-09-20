@@ -17,7 +17,6 @@ use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::credit_availability::{AICreditAvailability, AICreditDenialReason};
 use crate::auth::AuthStateProvider;
-use crate::pricing::PricingInfoModel;
 use crate::server::server_api::ai::AIClient;
 use crate::settings::AISettings;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
@@ -575,20 +574,6 @@ impl AIRequestUsageModel {
             .is_some_and(|w| w.billing_metadata.is_enterprise_pay_as_you_go_enabled());
         let is_enterprise_auto_reload_enabled = current_workspace
             .is_some_and(|w| w.billing_metadata.is_enterprise_auto_reload_enabled());
-        let is_self_serve_auto_reload_enabled = current_workspace.is_some_and(|workspace| {
-            workspace
-                .billing_metadata
-                .is_purchase_add_on_credits_policy_enabled()
-                && workspace
-                    .settings
-                    .addon_credits_settings
-                    .auto_reload_enabled
-                && PricingInfoModel::as_ref(ctx)
-                    .addon_credits_options()
-                    .and_then(|options| workspace.get_auto_reload_price_cents(options))
-                    .is_some_and(|price| !workspace.would_addon_purchase_reach_limit(price))
-        });
-
         // If you have provided your own API key or connected a Grok
         // subscription, it doesn't matter if you are out of warp-provided requests.
         let has_byo_credentials = Self::has_usable_member_byo_inference_path(scope, ctx);
@@ -598,7 +583,6 @@ impl AIRequestUsageModel {
             || workspace_has_overages
             || is_payg_enabled
             || is_enterprise_auto_reload_enabled
-            || is_self_serve_auto_reload_enabled
             || has_byo_credentials
     }
 

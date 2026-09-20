@@ -39,7 +39,6 @@ fn initialize_app_with_workspaces(app: &mut App, workspaces: Vec<Workspace>) {
         warpui_extras::secure_storage::register_noop("test", ctx);
         ctx.add_singleton_model(ApiKeyManager::new);
     });
-    app.add_singleton_model(|_| crate::pricing::PricingInfoModel::new());
     app.add_singleton_model(|ctx| {
         AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
     });
