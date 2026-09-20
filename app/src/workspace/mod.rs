@@ -94,7 +94,6 @@ pub fn init(app: &mut AppContext) {
     view::agent_cli_launch_modal::init(app);
     view::feature_intro_modal::init(app);
     view::auto_handoff_sleep_modal::init(app);
-    view::cloud_agent_capacity_modal::init(app);
     view::codex_modal::init(app);
     view::free_ai_removal_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
