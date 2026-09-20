@@ -289,7 +289,9 @@ impl LocalAgentTaskSyncModel {
             CLIAgentSessionsModelEvent::Started { .. }
             | CLIAgentSessionsModelEvent::InputSessionChanged { .. }
             | CLIAgentSessionsModelEvent::Ended { .. }
-            | CLIAgentSessionsModelEvent::SessionUpdated { .. } => {}
+            | CLIAgentSessionsModelEvent::SessionUpdated { .. }
+            // Conn consumes RawEvent; task sync only mirrors status.
+            | CLIAgentSessionsModelEvent::RawEvent { .. } => {}
         }
     }
 

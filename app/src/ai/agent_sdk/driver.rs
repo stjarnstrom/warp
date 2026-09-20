@@ -4288,7 +4288,9 @@ impl AgentDriver {
                 }
                 CLIAgentSessionsModelEvent::Started { .. }
                 | CLIAgentSessionsModelEvent::InputSessionChanged { .. }
-                | CLIAgentSessionsModelEvent::Ended { .. } => {}
+                | CLIAgentSessionsModelEvent::Ended { .. }
+                // Conn consumes RawEvent; the harness only needs status transitions.
+                | CLIAgentSessionsModelEvent::RawEvent { .. } => {}
             });
     }
     fn request_harness_save(&self, ctx: &mut ModelContext<Self>) {
