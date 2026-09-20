@@ -1029,9 +1029,8 @@ impl Input {
             SlashCommandKind::Rewind => {
                 self.open_rewind_menu(ctx);
             }
-            SlashCommandKind::Usage => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenBillingAndUsagePane);
-            }
+            // `/usage` renders inline in the TUI; the GUI had nowhere left to send it.
+            SlashCommandKind::Usage => return false,
             SlashCommandKind::RemoteControl => {
                 if !FeatureFlag::CreatingSharedSessions.is_enabled()
                     || !FeatureFlag::HOARemoteControl.is_enabled()

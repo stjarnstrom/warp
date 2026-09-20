@@ -27481,7 +27481,6 @@ impl TypedActionView for TerminalView {
             | IndexProjectSpeedbump
             | OpenViewMCPPane
             | OpenAddMCPPane
-            | OpenBillingAndUsagePane
             | OpenAddRulePane
             | OpenRulesPane
             | OpenEditSkillPane { .. }
@@ -28433,9 +28432,6 @@ impl TypedActionView for TerminalView {
                 ctx.emit(Event::OpenMCPSettingsPage {
                     page: Some(MCPServersSettingsPage::Edit { item_id: None }),
                 });
-            }
-            OpenBillingAndUsagePane => {
-                ctx.emit(Event::OpenSettings(SettingsSection::BillingAndUsage));
             }
             OpenAddRulePane => {
                 ctx.emit(Event::OpenAddRulePane);
