@@ -1,6 +1,8 @@
 use std::iter::once;
 use std::path::PathBuf;
 
+use ::conn::story::{ConnStep, ConnTurn};
+use chrono::{DateTime, Utc};
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
 use warpui::EntityId;
@@ -11,15 +13,15 @@ use super::{
     TerminalPrimaryLineData, TerminalPrimaryLineFont, VerticalTabsDetailTarget,
     VerticalTabsDetailTargetKind, VerticalTabsSummaryBranchEntry, VerticalTabsSummaryData,
     VerticalTabsSummaryPrimaryLabel, branch_label_display, coalesce_summary_branch_entries,
-    code_detail_kind_label, compact_branch_subtitle_display, detail_sidecar_width_and_bounds,
-    detail_target_for_hovered_row, non_terminal_search_text_fragments,
-    pane_ids_for_display_granularity, pane_search_text_fragments, preferred_agent_tab_titles,
-    push_normalized_unique_summary_label, search_fragments_contain_query,
-    select_summary_pane_kind_icons, should_keep_detail_sidecar_visible_for_mouse_position,
-    should_show_tab_group_header, shows_synced_inputs_indicator,
-    sort_summary_primary_labels_status_first, summary_overflow_count,
-    summary_search_text_fragments, terminal_kind_badge_label, terminal_primary_line_data,
-    terminal_pull_request_badge_label, terminal_search_text_fragments,
+    code_detail_kind_label, compact_branch_subtitle_display, conn_story_lines,
+    detail_sidecar_width_and_bounds, detail_target_for_hovered_row,
+    non_terminal_search_text_fragments, pane_ids_for_display_granularity,
+    pane_search_text_fragments, preferred_agent_tab_titles, push_normalized_unique_summary_label,
+    search_fragments_contain_query, select_summary_pane_kind_icons,
+    should_keep_detail_sidecar_visible_for_mouse_position, should_show_tab_group_header,
+    shows_synced_inputs_indicator, sort_summary_primary_labels_status_first,
+    summary_overflow_count, summary_search_text_fragments, terminal_kind_badge_label,
+    terminal_primary_line_data, terminal_pull_request_badge_label, terminal_search_text_fragments,
     terminal_title_fallback_font, uses_outer_group_container, visible_pane_ids_for_detail_target,
     vtab_diff_stats_text,
 };
@@ -1241,4 +1243,94 @@ fn summary_search_fragments_include_hidden_overflow_values() {
     assert!(search_fragments_contain_query(&fragments, "#789"));
     assert!(search_fragments_contain_query(&fragments, "+2"));
     assert!(search_fragments_contain_query(&fragments, "-3"));
+}
+
+/// A turn built for the hover card's decision logic. Timestamps are irrelevant
+/// to it, so they are fixed rather than varied.
+fn conn_turn(prompt: &str, steps: &[&str], outcome: Option<&str>) -> ConnTurn {
+    let at = DateTime::<Utc>::UNIX_EPOCH;
+    ConnTurn {
+        started_at: at,
+        ended_at: Some(at),
+        prompt: prompt.to_owned(),
+        steps: steps
+            .iter()
+            .map(|description| ConnStep {
+                description: (*description).to_owned(),
+                runs: 1,
+            })
+            .collect(),
+        outcome: outcome.map(str::to_owned),
+    }
+}
+
+#[test]
+fn a_finished_turn_is_told_by_its_closing_message() {
+    let lines = conn_story_lines(&conn_turn(
+        "elevate this repo",
+        &["Read README", "Check hygiene files"],
+        Some("Start with A9, then A10."),
+    ))
+    .expect("a turn with a prompt tells a story");
+
+    assert_eq!(lines.prompt, "elevate this repo");
+    assert_eq!(
+        lines.progress,
+        Some(("said", "Start with A9, then A10.".to_owned())),
+        "a finished turn is told by what it came back with, not by its last step"
+    );
+}
+
+#[test]
+fn a_running_turn_is_told_by_what_it_is_doing_now() {
+    let lines = conn_story_lines(&conn_turn(
+        "elevate this repo",
+        &["Read README", "Check hygiene files"],
+        None,
+    ))
+    .expect("a turn with a prompt tells a story");
+
+    assert_eq!(
+        lines.progress,
+        Some(("now", "Check hygiene files".to_owned())),
+        "the latest step is what the session is doing, so it wins over earlier ones"
+    );
+}
+
+#[test]
+fn a_turn_that_has_only_just_started_shows_the_instruction_alone() {
+    let lines = conn_story_lines(&conn_turn("elevate this repo", &[], None))
+        .expect("a turn with a prompt tells a story");
+
+    assert_eq!(lines.prompt, "elevate this repo");
+    assert_eq!(
+        lines.progress, None,
+        "nothing has happened yet, and inventing a line for it would be noise"
+    );
+}
+
+#[test]
+fn a_turn_with_no_instruction_has_no_story_to_tell() {
+    assert!(
+        conn_story_lines(&conn_turn("   ", &["Read README"], None)).is_none(),
+        "the instruction is the spine; without it the card falls back to its metadata"
+    );
+}
+
+#[test]
+fn a_long_answer_is_previewed_from_its_end() {
+    let answer = format!("{} Want me to start with A9?", "x".repeat(400));
+    let lines = conn_story_lines(&conn_turn("go", &[], Some(&answer)))
+        .expect("a turn with a prompt tells a story");
+    let (label, body) = lines.progress.expect("a finished turn has a closing line");
+
+    assert_eq!(label, "said");
+    assert!(
+        body.ends_with("Want me to start with A9?"),
+        "the question a session is waiting on is the part worth keeping: {body}"
+    );
+    assert!(
+        body.starts_with('\u{2026}'),
+        "a cut from the front is marked as one: {body}"
+    );
 }
