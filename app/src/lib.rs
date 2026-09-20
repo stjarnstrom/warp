@@ -753,6 +753,11 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 /// parser and therefore do not require a separate mode flag.
 #[::tracing::instrument(skip_all, fields(tags.cloud_agent = true))]
 pub fn run() -> Result<()> {
+    // SAFETY: nothing in this process has started a thread yet. This has to
+    // happen before anything spawns a shell, and before anything reads the
+    // environment concurrently.
+    unsafe { warp_terminal::focus_env::clear_launcher_agent_env() };
+
     // Perform any necessary platform-specific initialization.
     platform::init();
 
