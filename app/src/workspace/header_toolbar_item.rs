@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use settings::Setting as _;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::auth::AuthStateProvider;
@@ -29,7 +28,11 @@ pub enum HeaderToolbarItemKind {
     TabsPanel,
     ToolsPanel,
     AgentManagement,
-    CodeReview,
+    /// Conn took over this slot from the code review panel. The alias keeps
+    /// existing `settings.toml` files, which persist this as `code_review`,
+    /// deserializing instead of silently dropping the toolbar item.
+    #[serde(alias = "code_review", alias = "CodeReview")]
+    Conn,
     NotificationsMailbox,
 }
 
@@ -39,7 +42,7 @@ impl HeaderToolbarItemKind {
             Self::TabsPanel => "Tabs Panel",
             Self::ToolsPanel => "Tools Panel",
             Self::AgentManagement => "Agent Management",
-            Self::CodeReview => "Code Review",
+            Self::Conn => "Conn",
             Self::NotificationsMailbox => "Notifications",
         }
     }
@@ -49,7 +52,7 @@ impl HeaderToolbarItemKind {
             Self::TabsPanel => Icon::Menu,
             Self::ToolsPanel => Icon::Tool2,
             Self::AgentManagement => Icon::Grid,
-            Self::CodeReview => Icon::Diff,
+            Self::Conn => Icon::ClockRewind,
             Self::NotificationsMailbox => Icon::Inbox,
         }
     }
@@ -73,7 +76,7 @@ impl HeaderToolbarItemKind {
                     && FeatureFlag::AgentManagementView.is_enabled()
                     && !is_web_anonymous_user
             }
-            Self::CodeReview => cfg!(feature = "local_fs"),
+            Self::Conn => true,
             Self::NotificationsMailbox => FeatureFlag::HOANotifications.is_enabled(),
         }
     }
@@ -85,7 +88,6 @@ impl HeaderToolbarItemKind {
             return false;
         }
         match self {
-            Self::CodeReview => *TabSettings::as_ref(app).show_code_review_button.value(),
             Self::NotificationsMailbox => *AISettings::as_ref(app).show_agent_notifications,
             _ => true,
         }
@@ -94,7 +96,7 @@ impl HeaderToolbarItemKind {
     /// Whether this item opens a side panel (as opposed to replacing the content
     /// area or opening a popover).
     pub fn is_panel(&self) -> bool {
-        matches!(self, Self::TabsPanel | Self::ToolsPanel | Self::CodeReview)
+        matches!(self, Self::TabsPanel | Self::ToolsPanel | Self::Conn)
     }
 
     pub fn default_left() -> Vec<Self> {
@@ -102,7 +104,7 @@ impl HeaderToolbarItemKind {
     }
 
     pub fn default_right() -> Vec<Self> {
-        vec![Self::CodeReview, Self::NotificationsMailbox]
+        vec![Self::Conn, Self::NotificationsMailbox]
     }
 
     /// All toolbar item variants (availability filtering is done at the call site).
@@ -111,7 +113,7 @@ impl HeaderToolbarItemKind {
             Self::TabsPanel,
             Self::ToolsPanel,
             Self::AgentManagement,
-            Self::CodeReview,
+            Self::Conn,
             Self::NotificationsMailbox,
         ]
     }
