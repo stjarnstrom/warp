@@ -1,7 +1,7 @@
 use std::iter::once;
 use std::path::PathBuf;
 
-use ::conn::story::{ConnStep, ConnTurn};
+use ::conn::story::{ConnStep, ConnStory, ConnTurn};
 use chrono::{DateTime, Utc};
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
@@ -13,7 +13,7 @@ use super::{
     TerminalPrimaryLineData, TerminalPrimaryLineFont, VerticalTabsDetailTarget,
     VerticalTabsDetailTargetKind, VerticalTabsSummaryBranchEntry, VerticalTabsSummaryData,
     VerticalTabsSummaryPrimaryLabel, branch_label_display, coalesce_summary_branch_entries,
-    code_detail_kind_label, compact_branch_subtitle_display, conn_story_lines,
+    code_detail_kind_label, compact_branch_subtitle_display, conn_running_step, conn_story_lines,
     detail_sidecar_width_and_bounds, detail_target_for_hovered_row,
     non_terminal_search_text_fragments, pane_ids_for_display_granularity,
     pane_search_text_fragments, preferred_agent_tab_titles, push_normalized_unique_summary_label,
@@ -32,6 +32,7 @@ use crate::pane_group::{PaneId, TerminalPaneId};
 use crate::safe_triangle::SafeTriangle;
 use crate::tab::{ShortcutModifierKind, reveals_shortcut_hints};
 use crate::terminal::CLIAgent;
+use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 use crate::workspace::tab_settings::VerticalTabsDisplayGranularity;
 
 fn label(text: &str) -> VerticalTabsSummaryPrimaryLabel {
@@ -1262,6 +1263,83 @@ fn conn_turn(prompt: &str, steps: &[&str], outcome: Option<&str>) -> ConnTurn {
             .collect(),
         outcome: outcome.map(str::to_owned),
     }
+}
+
+/// A story of one turn, which is all the row's decision ever looks at.
+fn conn_story(turn: ConnTurn) -> ConnStory {
+    ConnStory {
+        title: None,
+        turns: vec![turn],
+    }
+}
+
+#[test]
+fn a_running_pane_says_what_it_is_doing() {
+    let story = conn_story(conn_turn(
+        "elevate this repo",
+        &["Read README", "Check hygiene files"],
+        None,
+    ));
+
+    assert_eq!(
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&story)),
+        Some("Check hygiene files".to_owned()),
+    );
+}
+
+#[test]
+fn an_idle_pane_keeps_its_usual_height() {
+    let story = conn_story(conn_turn("elevate this repo", &["Read README"], None));
+
+    for status in [
+        CLIAgentSessionStatus::Success,
+        CLIAgentSessionStatus::Cancelled,
+        CLIAgentSessionStatus::Blocked { message: None },
+    ] {
+        assert_eq!(
+            conn_running_step(Some(&status), Some(&story)),
+            None,
+            "only a running pane earns a step line: {status:?}"
+        );
+    }
+}
+
+#[test]
+fn a_story_still_on_the_previous_turn_says_nothing() {
+    let story = conn_story(conn_turn(
+        "elevate this repo",
+        &["Read README"],
+        Some("Start with A9."),
+    ));
+
+    assert_eq!(
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&story)),
+        None,
+        "the transcript read for the running turn has not landed, and the finished \
+         turn's last step would claim work that is already done"
+    );
+}
+
+#[test]
+fn a_turn_that_has_only_just_started_says_nothing() {
+    let story = conn_story(conn_turn("elevate this repo", &[], None));
+
+    assert_eq!(
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&story)),
+        None,
+        "the prompt is already the row's title; repeating it as a step is noise"
+    );
+}
+
+#[test]
+fn a_pane_with_no_agent_session_says_nothing() {
+    let story = conn_story(conn_turn("elevate this repo", &["Read README"], None));
+
+    assert_eq!(conn_running_step(None, Some(&story)), None);
+    assert_eq!(
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), None),
+        None
+    );
 }
 
 #[test]
