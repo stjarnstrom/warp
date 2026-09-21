@@ -2,6 +2,7 @@ use std::iter::once;
 use std::path::PathBuf;
 
 use ::conn::story::{ConnStep, ConnStory, ConnTurn};
+use ::conn::{ConnEntry, ConnEntryKind, ConnSession};
 use chrono::{DateTime, Utc};
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::Vector2F;
@@ -1265,31 +1266,52 @@ fn conn_turn(prompt: &str, steps: &[&str], outcome: Option<&str>) -> ConnTurn {
     }
 }
 
-/// A story of one turn, which is all the row's decision ever looks at.
-fn conn_story(turn: ConnTurn) -> ConnStory {
-    ConnStory {
-        title: None,
-        turns: vec![turn],
-    }
+/// A session whose story is one turn and whose live entries the story covers,
+/// which is the steady state the row's decision is made in.
+fn conn_session(turn: ConnTurn) -> ConnSession {
+    let mut session = ConnSession::default();
+    session.adopt_story(
+        ConnStory {
+            title: None,
+            turns: vec![turn],
+        },
+        Utc::now(),
+    );
+    session
 }
 
 #[test]
 fn a_running_pane_says_what_it_is_doing() {
-    let story = conn_story(conn_turn(
+    let session = conn_session(conn_turn(
         "elevate this repo",
         &["Read README", "Check hygiene files"],
         None,
     ));
 
     assert_eq!(
-        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&story)),
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&session)),
         Some("Check hygiene files".to_owned()),
     );
 }
 
 #[test]
+fn a_running_pane_that_has_already_spoken_still_says_what_it_is_doing() {
+    let session = conn_session(conn_turn(
+        "elevate this repo",
+        &["Read README", "Check hygiene files"],
+        Some("I'll look at what this repo actually is first."),
+    ));
+
+    assert_eq!(
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&session)),
+        Some("Check hygiene files".to_owned()),
+        "an agent narrates on its way past, so text in the turn is not the turn ending"
+    );
+}
+
+#[test]
 fn an_idle_pane_keeps_its_usual_height() {
-    let story = conn_story(conn_turn("elevate this repo", &["Read README"], None));
+    let session = conn_session(conn_turn("elevate this repo", &["Read README"], None));
 
     for status in [
         CLIAgentSessionStatus::Success,
@@ -1297,7 +1319,7 @@ fn an_idle_pane_keeps_its_usual_height() {
         CLIAgentSessionStatus::Blocked { message: None },
     ] {
         assert_eq!(
-            conn_running_step(Some(&status), Some(&story)),
+            conn_running_step(Some(&status), Some(&session)),
             None,
             "only a running pane earns a step line: {status:?}"
         );
@@ -1306,26 +1328,31 @@ fn an_idle_pane_keeps_its_usual_height() {
 
 #[test]
 fn a_story_still_on_the_previous_turn_says_nothing() {
-    let story = conn_story(conn_turn(
+    let mut session = conn_session(conn_turn(
         "elevate this repo",
         &["Read README"],
         Some("Start with A9."),
     ));
+    session.push(ConnEntry::new(
+        ConnEntryKind::Prompt {
+            text: "now do A10".to_owned(),
+        },
+        Utc::now(),
+    ));
 
     assert_eq!(
-        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&story)),
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&session)),
         None,
-        "the transcript read for the running turn has not landed, and the finished \
-         turn's last step would claim work that is already done"
+        "a prompt the story does not cover means its last step belongs to the turn before"
     );
 }
 
 #[test]
 fn a_turn_that_has_only_just_started_says_nothing() {
-    let story = conn_story(conn_turn("elevate this repo", &[], None));
+    let session = conn_session(conn_turn("elevate this repo", &[], None));
 
     assert_eq!(
-        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&story)),
+        conn_running_step(Some(&CLIAgentSessionStatus::InProgress), Some(&session)),
         None,
         "the prompt is already the row's title; repeating it as a step is noise"
     );
@@ -1333,9 +1360,9 @@ fn a_turn_that_has_only_just_started_says_nothing() {
 
 #[test]
 fn a_pane_with_no_agent_session_says_nothing() {
-    let story = conn_story(conn_turn("elevate this repo", &["Read README"], None));
+    let session = conn_session(conn_turn("elevate this repo", &["Read README"], None));
 
-    assert_eq!(conn_running_step(None, Some(&story)), None);
+    assert_eq!(conn_running_step(None, Some(&session)), None);
     assert_eq!(
         conn_running_step(Some(&CLIAgentSessionStatus::InProgress), None),
         None
@@ -1343,12 +1370,56 @@ fn a_pane_with_no_agent_session_says_nothing() {
 }
 
 #[test]
+fn a_running_turn_that_has_only_spoken_is_told_by_what_it_said() {
+    let lines = conn_story_lines(
+        &conn_turn(
+            "elevate this repo",
+            &[],
+            Some("I'll look at what this repo actually is first."),
+        ),
+        true,
+    )
+    .expect("a turn with a prompt tells a story");
+
+    assert_eq!(
+        lines.progress,
+        Some((
+            "now",
+            "I'll look at what this repo actually is first.".to_owned()
+        )),
+        "before the first tool call, what it said on the way in is what it is doing"
+    );
+}
+
+#[test]
+fn a_running_turn_that_has_spoken_and_acted_is_told_by_the_act() {
+    let lines = conn_story_lines(
+        &conn_turn(
+            "elevate this repo",
+            &["Check hygiene files"],
+            Some("I'll look at what this repo actually is first."),
+        ),
+        true,
+    )
+    .expect("a turn with a prompt tells a story");
+
+    assert_eq!(
+        lines.progress,
+        Some(("now", "Check hygiene files".to_owned())),
+        "the step is concrete and current; the prose was said before the work started"
+    );
+}
+
+#[test]
 fn a_finished_turn_is_told_by_its_closing_message() {
-    let lines = conn_story_lines(&conn_turn(
-        "elevate this repo",
-        &["Read README", "Check hygiene files"],
-        Some("Start with A9, then A10."),
-    ))
+    let lines = conn_story_lines(
+        &conn_turn(
+            "elevate this repo",
+            &["Read README", "Check hygiene files"],
+            Some("Start with A9, then A10."),
+        ),
+        false,
+    )
     .expect("a turn with a prompt tells a story");
 
     assert_eq!(lines.prompt, "elevate this repo");
@@ -1361,11 +1432,14 @@ fn a_finished_turn_is_told_by_its_closing_message() {
 
 #[test]
 fn a_running_turn_is_told_by_what_it_is_doing_now() {
-    let lines = conn_story_lines(&conn_turn(
-        "elevate this repo",
-        &["Read README", "Check hygiene files"],
-        None,
-    ))
+    let lines = conn_story_lines(
+        &conn_turn(
+            "elevate this repo",
+            &["Read README", "Check hygiene files"],
+            None,
+        ),
+        true,
+    )
     .expect("a turn with a prompt tells a story");
 
     assert_eq!(
@@ -1377,7 +1451,7 @@ fn a_running_turn_is_told_by_what_it_is_doing_now() {
 
 #[test]
 fn a_turn_that_has_only_just_started_shows_the_instruction_alone() {
-    let lines = conn_story_lines(&conn_turn("elevate this repo", &[], None))
+    let lines = conn_story_lines(&conn_turn("elevate this repo", &[], None), true)
         .expect("a turn with a prompt tells a story");
 
     assert_eq!(lines.prompt, "elevate this repo");
@@ -1390,7 +1464,7 @@ fn a_turn_that_has_only_just_started_shows_the_instruction_alone() {
 #[test]
 fn a_turn_with_no_instruction_has_no_story_to_tell() {
     assert!(
-        conn_story_lines(&conn_turn("   ", &["Read README"], None)).is_none(),
+        conn_story_lines(&conn_turn("   ", &["Read README"], None), true).is_none(),
         "the instruction is the spine; without it the card falls back to its metadata"
     );
 }
@@ -1398,7 +1472,7 @@ fn a_turn_with_no_instruction_has_no_story_to_tell() {
 #[test]
 fn a_long_answer_is_previewed_from_its_end() {
     let answer = format!("{} Want me to start with A9?", "x".repeat(400));
-    let lines = conn_story_lines(&conn_turn("go", &[], Some(&answer)))
+    let lines = conn_story_lines(&conn_turn("go", &[], Some(&answer)), false)
         .expect("a turn with a prompt tells a story");
     let (label, body) = lines.progress.expect("a finished turn has a closing line");
 
