@@ -15,8 +15,8 @@ use crate::model::{
     SelectedSettings,
 };
 use crate::slides::{
-    AgentSlide, AiSetupSlide, CustomizeUISlide, IntentionSlide, IntroSlide, IntroSlideEvent,
-    OnboardingModelInfo, OnboardingSlide, ThemePickerSlide, ThemePickerSlideEvent, ThirdPartySlide,
+    AgentSlide, AiSetupSlide, CustomizeUISlide, IntentionSlide, IntroSlide, OnboardingModelInfo,
+    OnboardingSlide, ReadySlide, ThemePickerSlide, ThemePickerSlideEvent, ThirdPartySlide,
 };
 use crate::telemetry::OnboardingEvent;
 
@@ -50,7 +50,6 @@ pub enum AgentOnboardingEvent {
     },
     OnboardingCompleted(SelectedSettings),
     OnboardingSkipped,
-    LoginFromWelcomeRequested,
     /// Emitted when the user clicks the "Privacy Settings" link on the terminal
     /// intention theme slide. The variant name encodes that the event is only
     /// emitted from the terminal-intention theme slide; consumers (e.g. a
@@ -66,6 +65,7 @@ pub struct AgentOnboardingView {
     onboarding_state: ModelHandle<OnboardingStateModel>,
     intro_slide: ViewHandle<IntroSlide>,
     theme_picker_slide: ViewHandle<ThemePickerSlide>,
+    ready_slide: ViewHandle<ReadySlide>,
     intention_slide: Option<ViewHandle<IntentionSlide>>,
     ai_setup_slide: Option<ViewHandle<AiSetupSlide>>,
     customize_slide: ViewHandle<CustomizeUISlide>,
@@ -162,11 +162,10 @@ impl AgentOnboardingView {
             ctx.add_typed_action_view(move |_| IntroSlide::new(onboarding_state))
         };
 
-        ctx.subscribe_to_view(&intro_slide, |_me, _view, event, ctx| match event {
-            IntroSlideEvent::LoginRequested => {
-                ctx.emit(AgentOnboardingEvent::LoginFromWelcomeRequested);
-            }
-        });
+        let ready_slide = {
+            let onboarding_state = onboarding_state.clone();
+            ctx.add_typed_action_view(move |_| ReadySlide::new(onboarding_state))
+        };
 
         let theme_picker_slide = {
             let themes = theme_picker_themes.clone();
@@ -236,6 +235,7 @@ impl AgentOnboardingView {
             onboarding_state,
             intro_slide,
             theme_picker_slide,
+            ready_slide,
             intention_slide,
             ai_setup_slide,
             customize_slide,
@@ -479,6 +479,7 @@ impl View for AgentOnboardingView {
         let slide = match selected_slide {
             OnboardingStep::Intro => ChildView::new(&self.intro_slide).finish(),
             OnboardingStep::ThemePicker => ChildView::new(&self.theme_picker_slide).finish(),
+            OnboardingStep::Ready => ChildView::new(&self.ready_slide).finish(),
             OnboardingStep::Intention => ChildView::new(
                 self.intention_slide
                     .as_ref()
@@ -598,6 +599,9 @@ impl TypedActionView for AgentOnboardingView {
                 dispatch_onboarding_action_to_slide(slide, *action, ctx)
             }),
             OnboardingStep::ThemePicker => self.theme_picker_slide.update(ctx, |slide, ctx| {
+                dispatch_onboarding_action_to_slide(slide, *action, ctx)
+            }),
+            OnboardingStep::Ready => self.ready_slide.update(ctx, |slide, ctx| {
                 dispatch_onboarding_action_to_slide(slide, *action, ctx)
             }),
             OnboardingStep::Intention => self

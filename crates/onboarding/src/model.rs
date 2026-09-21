@@ -114,6 +114,9 @@ pub(crate) enum OnboardingStep {
     Agent,
     ThirdParty,
     ThemePicker,
+    /// The closing step. One button into the terminal, and no account: this
+    /// fork's first run never asks the user to sign in.
+    Ready,
 }
 
 /// The AI setup selected on the "Choose your AI setup" slide.
@@ -671,6 +674,7 @@ impl OnboardingStateModel {
                 OnboardingStep::Intro => None,
                 OnboardingStep::Customize => Some(OnboardingStep::Intro),
                 OnboardingStep::ThemePicker => Some(OnboardingStep::Customize),
+                OnboardingStep::Ready => Some(OnboardingStep::ThemePicker),
                 OnboardingStep::Intention
                 | OnboardingStep::AiSetup
                 | OnboardingStep::Agent
@@ -694,6 +698,7 @@ impl OnboardingStateModel {
                 OnboardingStep::Agent => Some(OnboardingStep::AiSetup),
                 OnboardingStep::ThirdParty => Some(OnboardingStep::AiSetup),
                 OnboardingStep::ThemePicker => Some(OnboardingStep::Customize),
+                OnboardingStep::Ready => Some(OnboardingStep::ThemePicker),
             }
         };
 
@@ -709,7 +714,11 @@ impl OnboardingStateModel {
     pub(crate) fn next(&mut self, ctx: &mut ModelContext<Self>) {
         use warp_core::features::FeatureFlag;
         let account_first = FeatureFlag::AccountFirstOnboarding.is_enabled();
-        let is_last_step = matches!(self.step, OnboardingStep::ThemePicker);
+        let is_last_step = if account_first {
+            matches!(self.step, OnboardingStep::Ready)
+        } else {
+            matches!(self.step, OnboardingStep::ThemePicker)
+        };
         if !is_last_step {
             send_telemetry_from_ctx!(OnboardingEvent::SlideNavigatedNext, ctx);
         }
@@ -721,7 +730,8 @@ impl OnboardingStateModel {
             match self.step {
                 OnboardingStep::Intro => self.set_step(OnboardingStep::Customize, ctx),
                 OnboardingStep::Customize => self.set_step(OnboardingStep::ThemePicker, ctx),
-                OnboardingStep::ThemePicker => {}
+                OnboardingStep::ThemePicker => self.set_step(OnboardingStep::Ready, ctx),
+                OnboardingStep::Ready => {}
                 OnboardingStep::Intention
                 | OnboardingStep::AiSetup
                 | OnboardingStep::Agent
@@ -749,7 +759,7 @@ impl OnboardingStateModel {
                         self.set_step(OnboardingStep::ThemePicker, ctx)
                     }
                 }
-                OnboardingStep::ThemePicker => {}
+                OnboardingStep::ThemePicker | OnboardingStep::Ready => {}
             }
         }
     }
@@ -771,6 +781,7 @@ impl OnboardingStateModel {
                 }
             }
             OnboardingStep::ThemePicker => "theme_picker",
+            OnboardingStep::Ready => "ready",
             OnboardingStep::Intention => "intention",
             OnboardingStep::AiSetup => "ai_setup",
             OnboardingStep::Customize => "customize",
@@ -801,6 +812,7 @@ impl OnboardingStateModel {
                 | OnboardingStep::ThirdParty => (0, 3),
                 OnboardingStep::Customize => (0, 3),
                 OnboardingStep::ThemePicker => (1, 3),
+                OnboardingStep::Ready => (2, 3),
             };
         }
 
@@ -819,7 +831,7 @@ impl OnboardingStateModel {
                 }
             }
             OnboardingStep::ThirdParty => 2,
-            OnboardingStep::ThemePicker => step_count - 1,
+            OnboardingStep::ThemePicker | OnboardingStep::Ready => step_count - 1,
         };
         (step_index, step_count)
     }
@@ -829,6 +841,7 @@ impl OnboardingStateModel {
             OnboardingStep::Intro => "welcome",
             OnboardingStep::Customize => "customize",
             OnboardingStep::ThemePicker => "theme_picker",
+            OnboardingStep::Ready => "ready",
             OnboardingStep::Intention => "intention",
             OnboardingStep::AiSetup => "ai_setup",
             OnboardingStep::Agent => "agent",

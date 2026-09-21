@@ -156,9 +156,14 @@ pub enum LoginSlideEvent {
 pub enum LoginSlideSource {
     /// Reached via the normal onboarding flow (e.g. agent intention requires an account).
     OnboardingFlow,
-    /// Reached via the "Log in" link on the intro / welcome slide.
-    LoginExistingUserFromWelcome,
     /// Reached after Theme in the account-first onboarding flow.
+    ///
+    /// Nothing constructs this any more: first run ends on the closing
+    /// onboarding slide and never opens a login slide. The variant stays until
+    /// the account gate comes out, because everything that branches on it is
+    /// the same code that goes then, and deleting it here would drag that whole
+    /// slice forward.
+    #[expect(dead_code, reason = "unreachable until the account gate is removed")]
     AccountFirstOnboarding,
     /// Reached via the "Privacy Settings" link on the terminal-intention theme slide.
     /// Starts directly in the privacy settings step and routes Back to onboarding.
@@ -376,7 +381,6 @@ impl LoginSlideView {
                 LoginSlideSource::OnboardingFlow | LoginSlideSource::AccountFirstOnboarding => {
                     LoginStep::SelectAuthPathway
                 }
-                LoginSlideSource::LoginExistingUserFromWelcome => LoginStep::BrowserOpen,
                 LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                     LoginStep::PrivacySettings
                 }
@@ -1335,8 +1339,7 @@ impl TypedActionView for LoginSlideView {
                             ctx.emit(LoginSlideEvent::BackToOnboarding);
                         }
                         LoginSlideSource::OnboardingFlow
-                        | LoginSlideSource::AccountFirstOnboarding
-                        | LoginSlideSource::LoginExistingUserFromWelcome => {
+                        | LoginSlideSource::AccountFirstOnboarding => {
                             self.step = LoginStep::SelectAuthPathway;
                             ctx.focus_self();
                             ctx.notify();
@@ -1348,8 +1351,7 @@ impl TypedActionView for LoginSlideView {
                     // select-auth-pathway step. If this branch is ever reached
                     // for that source, route back to onboarding instead.
                     match self.source {
-                        LoginSlideSource::LoginExistingUserFromWelcome
-                        | LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
+                        LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                             ctx.emit(LoginSlideEvent::BackToOnboarding);
                         }
                         LoginSlideSource::OnboardingFlow
@@ -1371,11 +1373,9 @@ impl TypedActionView for LoginSlideView {
             }
             LoginSlideAction::BackToSelectAuthPathway => match self.source {
                 // PrivacySettingsFromTerminalIntentionTheme only ever shows the
-                // privacy-settings step; treat "back" the same as login-from-
-                // welcome and return to onboarding rather than falling through
-                // to a step this source was designed to skip.
-                LoginSlideSource::LoginExistingUserFromWelcome
-                | LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
+                // privacy-settings step; "back" returns to onboarding rather
+                // than falling through to a step this source was designed to skip.
+                LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                     ctx.emit(LoginSlideEvent::BackToOnboarding);
                 }
                 LoginSlideSource::OnboardingFlow | LoginSlideSource::AccountFirstOnboarding => {
@@ -1425,9 +1425,7 @@ impl TypedActionView for LoginSlideView {
                     LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme => {
                         ctx.emit(LoginSlideEvent::BackToOnboarding);
                     }
-                    LoginSlideSource::OnboardingFlow
-                    | LoginSlideSource::AccountFirstOnboarding
-                    | LoginSlideSource::LoginExistingUserFromWelcome => {
+                    LoginSlideSource::OnboardingFlow | LoginSlideSource::AccountFirstOnboarding => {
                         self.step = LoginStep::SelectAuthPathway;
                         ctx.focus_self();
                         ctx.notify();

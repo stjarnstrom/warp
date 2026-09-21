@@ -41,6 +41,19 @@ fn account_first_path_is_linear_and_reversible() {
         model.update(&mut app, |model, ctx| model.next(ctx));
         assert_eq!(step(&app, &model), OnboardingStep::ThemePicker);
 
+        model.update(&mut app, |model, ctx| model.next(ctx));
+        assert_eq!(step(&app, &model), OnboardingStep::Ready);
+
+        model.update(&mut app, |model, ctx| model.next(ctx));
+        assert_eq!(
+            step(&app, &model),
+            OnboardingStep::Ready,
+            "Ready is the last step; Next must not walk past it"
+        );
+
+        model.update(&mut app, |model, ctx| model.back(ctx));
+        assert_eq!(step(&app, &model), OnboardingStep::ThemePicker);
+
         model.update(&mut app, |model, ctx| model.back(ctx));
         assert_eq!(step(&app, &model), OnboardingStep::Customize);
 
@@ -58,6 +71,7 @@ fn account_first_path_uses_three_step_progress() {
             (OnboardingStep::Intro, (0, 3)),
             (OnboardingStep::Customize, (0, 3)),
             (OnboardingStep::ThemePicker, (1, 3)),
+            (OnboardingStep::Ready, (2, 3)),
         ];
 
         for (target, expected) in cases {

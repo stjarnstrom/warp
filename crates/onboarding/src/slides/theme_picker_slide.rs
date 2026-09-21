@@ -25,6 +25,36 @@ use crate::model::{OnboardingStateEvent, OnboardingStateModel};
 use crate::slides::{bottom_nav, layout, slide_content};
 use crate::telemetry::OnboardingEvent;
 
+/// The right-hand preview image for a given intention, theme and tab orientation.
+pub(crate) fn theme_visual_path_for(
+    intention: &OnboardingIntention,
+    theme_name: &str,
+    vertical_tabs: bool,
+) -> &'static str {
+    let intention_dir = match intention {
+        OnboardingIntention::AgentDrivenDevelopment => "agent_intention",
+        OnboardingIntention::Terminal => "terminal_intention",
+    };
+    let name_key = match theme_name {
+        "Phenomenon" => "phenomenon",
+        "Dark" => "dark",
+        "Light" => "light",
+        "Adeberry" => "adeberry",
+        _ => "dark",
+    };
+    let orientation = if vertical_tabs {
+        "vertical"
+    } else {
+        "horizontal"
+    };
+    let paths = ThemePickerSlide::VISUAL_IMAGE_PATHS;
+    // Safety: all combinations are in VISUAL_IMAGE_PATHS.
+    paths
+        .iter()
+        .find(|p| p.contains(intention_dir) && p.contains(name_key) && p.contains(orientation))
+        .unwrap_or(&paths[0])
+}
+
 #[derive(Debug, Clone)]
 pub enum ThemePickerSlideEvent {
     ThemeSelected {
@@ -451,25 +481,11 @@ impl ThemePickerSlide {
 
     fn theme_visual_path(&self, app: &AppContext) -> &'static str {
         let state = self.onboarding_state.as_ref(app);
-        let vertical = state.ui_customization().use_vertical_tabs;
-        let intention_dir = match state.intention() {
-            OnboardingIntention::AgentDrivenDevelopment => "agent_intention",
-            OnboardingIntention::Terminal => "terminal_intention",
-        };
-        let theme_name = self.theme_display_name(self.selected_theme_index);
-        let name_key = match theme_name.as_str() {
-            "Phenomenon" => "phenomenon",
-            "Dark" => "dark",
-            "Light" => "light",
-            "Adeberry" => "adeberry",
-            _ => "dark",
-        };
-        let orientation = if vertical { "vertical" } else { "horizontal" };
-        // Safety: all combinations are in VISUAL_IMAGE_PATHS.
-        Self::VISUAL_IMAGE_PATHS
-            .iter()
-            .find(|p| p.contains(intention_dir) && p.contains(name_key) && p.contains(orientation))
-            .unwrap_or(&Self::VISUAL_IMAGE_PATHS[0])
+        theme_visual_path_for(
+            state.intention(),
+            &self.theme_display_name(self.selected_theme_index),
+            state.ui_customization().use_vertical_tabs,
+        )
     }
 
     fn render_theme_picker_visual(&self, app: &AppContext) -> Box<dyn Element> {
@@ -633,8 +649,14 @@ impl ThemePickerSlide {
     }
 
     fn next(&mut self, ctx: &mut ViewContext<Self>) {
+        // Account-first has a closing step after this one; the legacy flow ends here.
+        let account_first = FeatureFlag::AccountFirstOnboarding.is_enabled();
         self.onboarding_state.update(ctx, |model, ctx| {
-            model.complete(ctx);
+            if account_first {
+                model.next(ctx);
+            } else {
+                model.complete(ctx);
+            }
         });
     }
 }

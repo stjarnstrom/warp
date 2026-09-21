@@ -95,7 +95,6 @@ use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates, tra
 use crate::view_components::DismissibleToast;
 use crate::window_settings::WindowSettings;
 use crate::workspace::hoa_onboarding::mark_hoa_onboarding_completed;
-use crate::workspace::tab_settings::TabSettings;
 use crate::workspace::view::OnboardingTutorial;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
 use crate::workspaces::team_tester::TeamTesterStatus;
@@ -2353,6 +2352,9 @@ impl RootView {
                 target,
                 ..
             } if login_slide_view.as_ref(ctx).is_account_first_onboarding() => target.clone(),
+            // First run finishes on the closing onboarding slide, without ever
+            // building a login slide to pass through.
+            AuthOnboardingState::Onboarding { target, .. } => target.clone(),
             _ => return,
         };
 
@@ -2498,12 +2500,21 @@ impl RootView {
                 };
                 let target = target.clone();
                 let onboarding_view = onboarding_view.clone();
-                let account_first = FeatureFlag::AccountFirstOnboarding.is_enabled();
-                if !account_first {
-                    mark_local_onboarding_completed(ctx);
-                    if FeatureFlag::HOAOnboardingFlow.is_enabled() {
-                        mark_hoa_onboarding_completed(ctx);
-                    }
+                if FeatureFlag::AccountFirstOnboarding.is_enabled() {
+                    // First run never asks for an account, so the closing slide
+                    // applies the user's choices locally and opens the terminal.
+                    refresh_pending_onboarding_choices(
+                        selected_settings,
+                        &mut self.pending_post_auth_onboarding_settings,
+                        &mut self.pending_tutorial,
+                    );
+                    self.complete_account_first(AccountFirstCompletion::AccountSkipped, ctx);
+                    return;
+                }
+
+                mark_local_onboarding_completed(ctx);
+                if FeatureFlag::HOAOnboardingFlow.is_enabled() {
+                    mark_hoa_onboarding_completed(ctx);
                 }
 
                 let is_logged_in = AuthStateProvider::as_ref(ctx).get().is_logged_in();
@@ -2560,11 +2571,7 @@ impl RootView {
                             &theme_name,
                             use_vertical_tabs,
                             intention,
-                            if account_first {
-                                LoginSlideSource::AccountFirstOnboarding
-                            } else {
-                                LoginSlideSource::OnboardingFlow
-                            },
+                            LoginSlideSource::OnboardingFlow,
                             ctx,
                         )
                     });
@@ -2662,59 +2669,6 @@ impl RootView {
                         use_vertical_tabs,
                         OnboardingIntention::Terminal,
                         LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme,
-                        ctx,
-                    )
-                });
-                ctx.subscribe_to_view(&login_slide_view, |me, _view, event, ctx| {
-                    me.handle_login_slide_event(event, ctx);
-                });
-
-                self.auth_onboarding_state = AuthOnboardingState::LoginSlide {
-                    login_slide_view,
-                    onboarding_view,
-                    target,
-                };
-                ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-                self.focus(ctx);
-                ctx.notify();
-            }
-            AgentOnboardingEvent::LoginFromWelcomeRequested => {
-                let AuthOnboardingState::Onboarding {
-                    target,
-                    onboarding_view,
-                } = &self.auth_onboarding_state
-                else {
-                    return;
-                };
-                let target = target.clone();
-                let onboarding_view = onboarding_view.clone();
-
-                let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-                let appearance = Appearance::as_ref(ctx);
-                let theme_name = appearance
-                    .theme()
-                    .name()
-                    .unwrap_or_else(|| "Dark".to_string());
-                let use_vertical_tabs = *TabSettings::as_ref(ctx).use_vertical_tabs;
-
-                // Open the sign-in URL in the browser for existing users.
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    let sign_in_url = auth_manager.sign_in_url();
-                    ctx.open_url(&sign_in_url);
-                });
-
-                let login_slide_view = ctx.add_typed_action_view(|ctx| {
-                    LoginSlideView::new(
-                        ai_enabled,
-                        // No agent setup choice has been made yet; default to the
-                        // Warp Agent login screen rather than the third-party copy.
-                        false,
-                        &theme_name,
-                        use_vertical_tabs,
-                        // Existing-user login from the welcome slide happens before the user
-                        // picks an intention; default the visual to the agent intention panel.
-                        OnboardingIntention::AgentDrivenDevelopment,
-                        LoginSlideSource::LoginExistingUserFromWelcome,
                         ctx,
                     )
                 });
