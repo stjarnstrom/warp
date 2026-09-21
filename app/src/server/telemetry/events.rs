@@ -1758,7 +1758,6 @@ pub enum TelemetryEvent {
         session_id: SharedSessionId,
         source_type: SessionSourceType,
     },
-    SharedSessionModalUpgradePressed,
     /// Emitted when a shared session sharer cancels granting a role
     /// (currently only applies when granting executor mode).
     SharerCancelledGrantRole {
@@ -2151,7 +2150,6 @@ pub enum TelemetryEvent {
     },
 
     TierLimitHit(TierLimitHitEvent),
-    SharedObjectLimitHitBannerViewPlansButtonClicked,
     ResourceUsageStats {
         cpu: CpuUsageStats,
         mem: MemoryUsageStats,
@@ -4097,8 +4095,6 @@ impl TelemetryEvent {
             | TelemetryEvent::UpdateBlockFilterQuery
             | TelemetryEvent::BlockFilterToolbeltButtonClicked
             | TelemetryEvent::PaneDragInitiated
-            | TelemetryEvent::SharedObjectLimitHitBannerViewPlansButtonClicked
-            | TelemetryEvent::SharedSessionModalUpgradePressed
             | TelemetryEvent::AgentModePotentialAutoDetectionFalsePositive(
                 AgentModeAutoDetectionFalsePositivePayload::ExternalUsers,
             )
@@ -4928,7 +4924,6 @@ impl TelemetryEvent {
             | TelemetryEvent::StartedSharingCurrentSession { .. }
             | TelemetryEvent::StoppedSharingCurrentSession { .. }
             | TelemetryEvent::JoinedSharedSession { .. }
-            | TelemetryEvent::SharedSessionModalUpgradePressed
             | TelemetryEvent::SharerCancelledGrantRole { .. }
             | TelemetryEvent::SharerGrantModalDontShowAgain
             | TelemetryEvent::JumpToSharedSessionParticipant { .. }
@@ -4976,7 +4971,6 @@ impl TelemetryEvent {
             | TelemetryEvent::ToggleCodeSuggestionsSetting { .. }
             | TelemetryEvent::ToggleVoiceInputSetting { .. }
             | TelemetryEvent::TierLimitHit(_)
-            | TelemetryEvent::SharedObjectLimitHitBannerViewPlansButtonClicked
             | TelemetryEvent::ResourceUsageStats { .. }
             | TelemetryEvent::MemoryUsageStats { .. }
             | TelemetryEvent::MemoryUsageHigh { .. }
@@ -5251,9 +5245,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::AnonymousUserHitCloudObjectLimit => EnablementState::Always,
 
             Self::AgentModeChangedInputType => EnablementState::Always,
-            Self::StartedSharingCurrentSession
-            | Self::StoppedSharingCurrentSession
-            | Self::SharedSessionModalUpgradePressed => {
+            Self::StartedSharingCurrentSession | Self::StoppedSharingCurrentSession => {
                 EnablementState::Flag(FeatureFlag::CreatingSharedSessions)
             }
             Self::JoinedSharedSession => EnablementState::Flag(FeatureFlag::ViewingSharedSessions),
@@ -5479,7 +5471,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::WebCloudObjectOpenedOnDesktop => EnablementState::Always,
             Self::ToggleShowBlockDividers => EnablementState::Flag(FeatureFlag::MinimalistUI),
             Self::DriveSharingOnboardingBlockShown => EnablementState::Always,
-            Self::SharedObjectLimitHitBannerViewPlansButtonClicked => EnablementState::Always,
             Self::ResourceUsageStats => EnablementState::Always,
             Self::ToggleGlobalAI => EnablementState::Always,
             Self::SuperGrokSubscriptionConnectInitiated
@@ -5939,7 +5930,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::StartedSharingCurrentSession => "Started Sharing Current Session",
             Self::StoppedSharingCurrentSession => "Stopped Sharing Current Session",
             Self::JoinedSharedSession => "Joined Shared Session",
-            Self::SharedSessionModalUpgradePressed => "Shared Session Modal Upgrade Pressed",
             Self::SharerCancelledGrantRole => "Sharer Cancelled Grant Role",
             Self::SharerGrantModalDontShowAgain => "Don't Show Sharer Grant Modal Again",
             Self::JumpToSharedSessionParticipant { .. } => "Jumped to Shared Session Participant",
@@ -5979,9 +5969,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ChangedInviteViewOption => "Changed invite view option",
             Self::SendEmailInvites => "Sent email invites",
             Self::TierLimitHit => "Tier Limit Hit",
-            Self::SharedObjectLimitHitBannerViewPlansButtonClicked => {
-                "Shared Object Limit Hit Banner View Plans Button Clicked"
-            }
             Self::AgentModeClickedEntrypoint => "AgentMode.ClickedEntrypoint",
             Self::AgentModeAttachedBlockContext => "AgentMode.AttachedContext",
             Self::ResourceUsageStats => "perf_metrics.resource_usage",
@@ -6637,9 +6624,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JoinedSharedSession => {
                 "When you join another instance of Warp using shared sessions"
             }
-            Self::SharedSessionModalUpgradePressed => {
-                "Pressed upgrade after reaching max session sharing limit"
-            }
             Self::SharerCancelledGrantRole => {
                 "When you cancel granting a role to a shared session participant"
             }
@@ -6687,9 +6671,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PaneDropped => "Ended dragging a pane via the pane header",
             Self::AgentModeCreatedAIBlock => "Created an AI block in agent mode",
             Self::TierLimitHit => "User hit the tier limit for a feature",
-            Self::SharedObjectLimitHitBannerViewPlansButtonClicked => {
-                "Clicked the 'View Plans' button on the persistent drive banner"
-            }
             Self::AgentModeClickedEntrypoint => "Clicked on an Agent Mode entrypoint",
             Self::AgentModeAttachedBlockContext => {
                 "Attached block as context to an Agent Mode query"

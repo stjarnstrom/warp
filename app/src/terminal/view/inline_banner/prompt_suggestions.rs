@@ -27,7 +27,6 @@ use crate::ai::blocklist::prompt::prompt_alert::{
 };
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::appearance::Appearance;
-use crate::server::ids::ServerId;
 use crate::server::telemetry::InteractionSource;
 use crate::settings::InputSettings;
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
@@ -35,7 +34,6 @@ use crate::terminal::view::{ContextMenuAction, InputType, PromptSuggestion, Term
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as WarpUIIcon;
 use crate::util::bindings::keybinding_name_to_keystroke;
-use crate::workspace::WorkspaceAction;
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
@@ -126,13 +124,11 @@ fn render_button(
     debug_request_token: Option<ServerConversationToken>,
     prompt_alert_state: &PromptAlertState,
     should_shrink: bool,
-    force_enabled: bool,
     appearance: &Appearance,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let is_button_disabled =
-        matches!(prompt_alert_state, PromptAlertState::NoConnection) && !force_enabled;
+    let is_button_disabled = matches!(prompt_alert_state, PromptAlertState::NoConnection);
     let opacity: f32 = if is_button_disabled { 0.5 } else { 1.0 };
     let opacity_u8 = (opacity * 255.0).round() as u8;
     let hoverable = Hoverable::new(mouse_state.clone(), |mouse_state| {
@@ -287,16 +283,9 @@ fn get_tooltip_text_for_alert_state(_alert_state: &PromptAlertState) -> Option<S
     None
 }
 
-/// Offline is the only state that disables the button now, and it has no modal
-/// to offer.
-fn should_open_unavailable_modal(_state: &PromptAlertState, _app: &AppContext) -> bool {
-    false
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptSuggestionsEvent {
     SignupAnonymousUser,
-    OpenBillingPortal { team_uid: ServerId },
 }
 
 pub struct PromptSuggestionsView {
@@ -335,11 +324,6 @@ impl PromptSuggestionsView {
             PromptAlertEvent::SignupAnonymousUser => {
                 ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
             }
-            PromptAlertEvent::OpenBillingPortal { team_uid } => {
-                ctx.emit(PromptSuggestionsEvent::OpenBillingPortal {
-                    team_uid: *team_uid,
-                });
-            }
         }
     }
 }
@@ -362,7 +346,6 @@ impl View for PromptSuggestionsView {
             .with_main_axis_size(MainAxisSize::Max);
 
         let prompt_alert_state = self.prompt_alert.as_ref(app).state();
-        let open_unavailable_modal = should_open_unavailable_modal(prompt_alert_state, app);
 
         let Some(banner_state) = &self.banner_state else {
             return Empty::new().finish();
@@ -388,22 +371,15 @@ impl View for PromptSuggestionsView {
                     keybinding_name_to_keystroke(ACCEPT_PROMPT_SUGGESTION_KEYBINDING, app),
                     banner_state.accept_button_mouse_state.clone(),
                     Rc::new(move |ctx: &mut warpui::EventContext<'_>| {
-                        if open_unavailable_modal {
-                            ctx.dispatch_typed_action(
-                                WorkspaceAction::OpenPromptSuggestionsUnavailableModal,
-                            );
-                        } else {
-                            ctx.dispatch_typed_action(TerminalAction::ResolvePromptSuggestion(
-                                PromptSuggestionResolution::Accept {
-                                    interaction_source: InteractionSource::Button,
-                                },
-                            ));
-                        }
+                        ctx.dispatch_typed_action(TerminalAction::ResolvePromptSuggestion(
+                            PromptSuggestionResolution::Accept {
+                                interaction_source: InteractionSource::Button,
+                            },
+                        ));
                     }),
                     debug_request_token,
                     prompt_alert_state,
                     true, // should_shrink
-                    open_unavailable_modal,
                     appearance,
                     app,
                 ),
@@ -442,11 +418,6 @@ impl TypedActionView for PromptSuggestionsView {
         match action {
             PromptSuggestionsEvent::SignupAnonymousUser => {
                 ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
-            }
-            PromptSuggestionsEvent::OpenBillingPortal { team_uid } => {
-                ctx.emit(PromptSuggestionsEvent::OpenBillingPortal {
-                    team_uid: *team_uid,
-                });
             }
         }
     }

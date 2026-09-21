@@ -23,13 +23,12 @@ use super::workspace::{
 use crate::ai::credit_availability::AICreditAvailability;
 use crate::ai::llms::{AvailableLLMs, MODELS_BY_FEATURE_CACHE_KEY, ModelsByFeature};
 use crate::auth::{AuthStateProvider, UserUid};
-use crate::channel::ChannelState;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectEventEntrypoint, ObjectType, Owner, Space};
 use crate::server::experiments::{ServerExperiment, ServerExperiments, ServerExperimentsEvent};
 use crate::server::ids::ServerId;
 use crate::server::server_api::team::TeamClient;
-use crate::server::server_api::workspace::{PurchaseAddonCreditsOutcome, WorkspaceClient};
+use crate::server::server_api::workspace::WorkspaceClient;
 #[cfg(test)]
 use crate::server::server_api::{team::MockTeamClient, workspace::MockWorkspaceClient};
 use crate::settings::{
@@ -54,8 +53,6 @@ pub use team_workspace_settings::{
     ResolvedTeamScope, TeamContext, TeamContextForOperation, TeamContextResolver, TeamScope,
 };
 
-const STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX: &str = "/upgrade";
-
 #[derive(Debug)]
 pub enum UserWorkspacesEvent {
     AddDomainRestrictionsSuccess,
@@ -70,10 +67,6 @@ pub enum UserWorkspacesEvent {
     ResetInviteLinksRejected(anyhow::Error),
     DeleteTeamInvite,
     DeleteTeamInviteRejected(anyhow::Error),
-    GenerateUpgradeLink(String),
-    GenerateUpgradeLinkRejected(anyhow::Error),
-    GenerateStripeBillingPortalLink(String),
-    GenerateStripeBillingPortalLinkRejected(anyhow::Error),
     ToggleTeamDiscoverabilitySuccess,
     ToggleTeamDiscoverabilityRejected(anyhow::Error),
     JoinTeamWithTeamDiscoverySuccess,
@@ -95,14 +88,6 @@ pub enum UserWorkspacesEvent {
     UpdateWorkspaceSettingsSuccess,
     UpdateWorkspaceSettingsRejected(anyhow::Error),
     AiOveragesUpdated,
-    PurchaseAddonCreditsSuccess,
-    /// The purchase requires the user to complete checkout in the browser
-    /// (no saved payment method). Credits arrive via webhook + polling after
-    /// checkout completes.
-    PurchaseAddonCreditsCheckoutRequired {
-        checkout_url: String,
-    },
-    PurchaseAddonCreditsRejected(anyhow::Error),
     /// Fired whenever the set of teams the user is on changes.
     TeamsChanged,
     /// Fired when the selected workspace actually changes to a different one.
@@ -271,69 +256,6 @@ impl UserWorkspaces {
 
     pub(crate) fn set_workspaceless_models_by_feature(&mut self, models: ModelsByFeature) {
         self.workspaceless_models_by_feature = Some(models);
-    }
-
-    pub fn upgrade_link(user_id: UserUid) -> String {
-        format!(
-            "{}{}/{}/{}",
-            ChannelState::server_root_url(),
-            STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX,
-            "user",
-            user_id.as_str()
-        )
-    }
-
-    // TODO(isaiah): make me private in favour for upgrade_link_for_scope being the public facing api
-    pub fn upgrade_link_for_team(team_uid: ServerId) -> String {
-        format!(
-            "{}{}/{}",
-            ChannelState::server_root_url(),
-            STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX,
-            team_uid
-        )
-    }
-
-    pub(crate) fn upgrade_link_for_scope<S: TeamScope + ?Sized>(
-        &self,
-        scope: &S,
-        app: &AppContext,
-    ) -> String {
-        match scope.team_uid() {
-            Some(team_uid) => Self::upgrade_link_for_team(team_uid),
-            None => Self::upgrade_link(
-                AuthStateProvider::as_ref(app)
-                    .get()
-                    .user_id()
-                    .unwrap_or_default(),
-            ),
-        }
-    }
-
-    pub fn warp_agent_cli_upgrade_link(user_id: Option<UserUid>) -> String {
-        let upgrade_link = user_id.map_or_else(
-            || {
-                format!(
-                    "{}{}",
-                    ChannelState::server_root_url().trim_end_matches('/'),
-                    STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX
-                )
-            },
-            Self::upgrade_link,
-        );
-        format!("{upgrade_link}?source=warp-agent-cli")
-    }
-    pub fn admin_billing_link_for_team(team_uid: ServerId) -> String {
-        format!(
-            "{}/admin/{team_uid}/billing",
-            ChannelState::server_root_url().trim_end_matches('/')
-        )
-    }
-
-    pub fn admin_billing_link_for_default_team(&self, user_email: &str) -> Option<String> {
-        let team_uid = self.inherited_or_default_team_uid(None)?;
-        self.team_from_uid(team_uid)
-            .filter(|team| team.has_admin_permissions(user_email))
-            .map(|_| Self::admin_billing_link_for_team(team_uid))
     }
 
     pub fn team_from_uid(&self, team_uid: ServerId) -> Option<&Team> {
@@ -1322,181 +1244,11 @@ impl UserWorkspaces {
         );
     }
 
-    pub fn on_generate_upgrade_link(
-        &mut self,
-        result: Result<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::GenerateUpgradeLinkRejected(err)),
-            Ok(upgrade_link) => {
-                ctx.emit(UserWorkspacesEvent::GenerateUpgradeLink(upgrade_link));
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn generate_upgrade_link(&mut self, team_uid: ServerId, ctx: &mut ModelContext<Self>) {
-        Self::on_generate_upgrade_link(
-            self,
-            Ok(UserWorkspaces::upgrade_link_for_team(team_uid)),
-            ctx,
-        );
-    }
-
-    pub fn on_generate_stripe_billing_portal_link(
-        &mut self,
-        result: Result<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Err(err) => ctx.emit(UserWorkspacesEvent::GenerateStripeBillingPortalLinkRejected(err)),
-            Ok(billing_session_link) => {
-                ctx.emit(UserWorkspacesEvent::GenerateStripeBillingPortalLink(
-                    billing_session_link,
-                ));
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn generate_stripe_billing_portal_link(
-        &mut self,
-        team_uid: ServerId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let workspace_client = self.workspace_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                workspace_client
-                    .generate_stripe_billing_portal_link(team_uid)
-                    .await
-            },
-            Self::on_generate_stripe_billing_portal_link,
-        );
-    }
-
-    pub fn update_usage_based_pricing_settings(
-        &mut self,
-        team_uid: ServerId,
-        usage_based_pricing_enabled: bool,
-        max_monthly_spend_cents: Option<u32>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let workspace_client = self.workspace_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                workspace_client
-                    .update_usage_based_pricing_settings(
-                        team_uid,
-                        usage_based_pricing_enabled,
-                        max_monthly_spend_cents,
-                    )
-                    .await
-            },
-            Self::on_update_workspace_metadata,
-        );
-    }
-
-    fn on_update_workspace_metadata(
-        &mut self,
-        result: Result<WorkspacesMetadataResponse>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Ok(result) => {
-                let wrapped = WorkspacesMetadataWithPricing {
-                    metadata: result,
-                    pricing_info: None,
-                };
-                self.on_workspaces_updated(Ok(wrapped), ctx);
-                ctx.emit(UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess);
-            }
-            Err(err) => {
-                let err_for_event = anyhow::anyhow!("{}", err);
-                self.on_workspaces_updated(Err(err), ctx);
-                ctx.emit(UserWorkspacesEvent::UpdateWorkspaceSettingsRejected(
-                    err_for_event,
-                ));
-            }
-        };
-        ctx.notify();
-    }
-
-    pub fn purchase_addon_credits(
-        &mut self,
-        team_uid: Option<ServerId>,
-        credits: i32,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let workspace_client = self.workspace_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                workspace_client
-                    .purchase_addon_credits(team_uid, credits)
-                    .await
-            },
-            Self::on_purchase_addon_credits,
-        );
-    }
-
-    fn on_purchase_addon_credits(
-        &mut self,
-        result: Result<PurchaseAddonCreditsOutcome>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match result {
-            Ok(PurchaseAddonCreditsOutcome::Completed(result)) => {
-                let wrapped = WorkspacesMetadataWithPricing {
-                    metadata: *result,
-                    pricing_info: None,
-                };
-                self.on_workspaces_updated(Ok(wrapped), ctx);
-                ctx.emit(UserWorkspacesEvent::PurchaseAddonCreditsSuccess);
-            }
-            Ok(PurchaseAddonCreditsOutcome::CheckoutRequired { checkout_url }) => {
-                ctx.emit(UserWorkspacesEvent::PurchaseAddonCreditsCheckoutRequired {
-                    checkout_url,
-                });
-            }
-            Err(err) => {
-                ctx.emit(UserWorkspacesEvent::PurchaseAddonCreditsRejected(
-                    anyhow::anyhow!(err),
-                ));
-            }
-        };
-        ctx.notify();
-    }
-
     pub fn refresh_ai_overages(&mut self, ctx: &mut ModelContext<Self>) {
         let workspace_client = self.workspace_client.clone();
         let _ = ctx.spawn(
             async move { workspace_client.refresh_ai_overages().await },
             Self::on_refresh_ai_overages,
-        );
-    }
-
-    pub fn update_addon_credits_settings(
-        &mut self,
-        team_uid: ServerId,
-        auto_reload_enabled: Option<bool>,
-        max_monthly_spend_cents: Option<i32>,
-        selected_auto_reload_credit_denomination: Option<i32>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let workspace_client = self.workspace_client.clone();
-        let _ = ctx.spawn(
-            async move {
-                workspace_client
-                    .update_addon_credits_settings(
-                        team_uid,
-                        auto_reload_enabled,
-                        max_monthly_spend_cents,
-                        selected_auto_reload_credit_denomination,
-                    )
-                    .await
-            },
-            Self::on_update_workspace_metadata,
         );
     }
 

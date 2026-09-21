@@ -138,24 +138,6 @@ pub const CONNECT_GROK: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub const MANAGE_BILLING: StaticCommand = StaticCommand {
-    name: "/manage-billing",
-    description: "Open the team billing page in your browser",
-    kind: SlashCommandKind::ManageBilling,
-    supported_surfaces: SlashCommandSurfaces::TuiOnly,
-    availability: Availability::ALWAYS,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-pub const UPGRADE: StaticCommand = StaticCommand {
-    name: "/upgrade",
-    description: "Open the Warp upgrade page in your browser",
-    kind: SlashCommandKind::Upgrade,
-    supported_surfaces: SlashCommandSurfaces::TuiOnly,
-    availability: Availability::ALWAYS,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
 pub const THEME: StaticCommand = StaticCommand {
     name: "/theme",
     description: "Set color theme",
@@ -971,8 +953,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         INIT,
         API_KEYS,
         CONNECT_GROK,
-        UPGRADE,
-        MANAGE_BILLING,
         LOGOUT,
         MCP,
         OPEN_PROJECT_RULES,

@@ -37,7 +37,6 @@ use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::autoupdate::{self, AutoupdateStage, AutoupdateState};
-use crate::server::ids::ServerId;
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::update_manager::TeamUpdateManager;
@@ -112,9 +111,6 @@ pub enum MainPageAction {
     DownloadUpdate,
     CheckForUpdate,
     ToggleSettingsSync,
-    GenerateStripeBillingPortalLink {
-        team_uid: ServerId,
-    },
     SignupAnonymousUser,
     OpenUrl(String),
     #[cfg(not(target_family = "wasm"))]
@@ -124,10 +120,7 @@ pub enum MainPageAction {
 impl MainPageAction {
     fn blocked_for_anonymous_user(&self) -> bool {
         use MainPageAction::*;
-        matches!(
-            self,
-            GenerateStripeBillingPortalLink { .. } | ToggleSettingsSync,
-        )
+        matches!(self, ToggleSettingsSync,)
     }
 }
 
@@ -135,7 +128,6 @@ impl From<&MainPageAction> for LoginGatedFeature {
     fn from(val: &MainPageAction) -> LoginGatedFeature {
         use MainPageAction::*;
         match val {
-            GenerateStripeBillingPortalLink { .. } => "Generate Stripe Billing Portal Link",
             ToggleSettingsSync => "Toggle Settings Sync",
             _ => "Unknown reason",
         }
@@ -208,11 +200,6 @@ impl TypedActionView for MainSettingsPageView {
                     ctx
                 );
                 ctx.notify();
-            }
-            MainPageAction::GenerateStripeBillingPortalLink { team_uid } => {
-                UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                    user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
-                });
             }
             MainPageAction::SignupAnonymousUser => {
                 ctx.emit(MainSettingsPageEvent::SignupAnonymousUser);
@@ -304,7 +291,6 @@ impl MainSettingsPageView {
 struct AccountWidgetStateHandles {
     anonymous_user_sign_up_button: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
-    stripe_billing_portal_link: MouseStateHandle,
 }
 
 #[derive(Default)]
@@ -450,47 +436,24 @@ impl AccountWidget {
         if let Some(team) = team {
             let current_user_email = auth_state.user_email().unwrap_or_default();
             let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-            if has_admin_permissions {
-                if billing_metadata
+            if has_admin_permissions
+                && billing_metadata
                     .is_some_and(|metadata| metadata.customer_type == CustomerType::Enterprise)
-                {
-                    plan_info.add_child(
-                        appearance
-                            .ui_builder()
-                            .link(
-                                "Contact support".into(),
-                                Some("mailto:support@warp.dev".into()),
-                                None,
-                                self.ui_state_handles.enterprise_contact_us_link.clone(),
-                            )
-                            .soft_wrap(false)
-                            .build()
-                            .with_margin_top(8.)
-                            .finish(),
-                    );
-                } else if workspace.is_some_and(|workspace| workspace.has_billing_history) {
-                    let team_uid = team.uid;
-                    plan_info.add_child(
-                        appearance
-                            .ui_builder()
-                            .link(
-                                "Manage billing".into(),
-                                None,
-                                Some(Box::new(move |ctx| {
-                                    ctx.dispatch_typed_action(
-                                        MainPageAction::GenerateStripeBillingPortalLink {
-                                            team_uid,
-                                        },
-                                    );
-                                })),
-                                self.ui_state_handles.stripe_billing_portal_link.clone(),
-                            )
-                            .soft_wrap(false)
-                            .build()
-                            .with_margin_top(8.)
-                            .finish(),
-                    );
-                }
+            {
+                plan_info.add_child(
+                    appearance
+                        .ui_builder()
+                        .link(
+                            "Contact support".into(),
+                            Some("mailto:support@warp.dev".into()),
+                            None,
+                            self.ui_state_handles.enterprise_contact_us_link.clone(),
+                        )
+                        .soft_wrap(false)
+                        .build()
+                        .with_margin_top(8.)
+                        .finish(),
+                );
             }
         }
 

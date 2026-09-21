@@ -15,25 +15,23 @@ use warpui::prelude::{CornerRadius, Radius};
 use warpui::text_layout::TextAlignment;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::UiComponent;
-use warpui::{AppContext, Entity, ModelHandle, SingletonEntity, WeakViewHandle};
+use warpui::{AppContext, ModelHandle};
 
 use crate::ai::agent_tips::{AITip, AITipModel};
 use crate::ai::loading::shimmering_warp_loading_text;
 use crate::ai::orchestration::{CloudAgentStartupAuthFlow, CloudAgentStartupPresentation};
 use crate::terminal::view::ambient_agent::CloudModeTip;
 use crate::ui_components::blended_colors;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// Icon size for the error icon
 const ERROR_ICON_SIZE: f32 = 24.;
 
 /// Renders the cloud mode loading screen with shimmering warp logo and tips.
-pub fn render_cloud_mode_loading_screen<T: Entity>(
+pub fn render_cloud_mode_loading_screen(
     message: &str,
     appearance: &Appearance,
     shimmer_handle: &ShimmeringTextStateHandle,
     tip_model: &ModelHandle<AITipModel<CloudModeTip>>,
-    view_handle: &WeakViewHandle<T>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
@@ -84,9 +82,6 @@ pub fn render_cloud_mode_loading_screen<T: Entity>(
         .finish()
     };
 
-    // Get tier info for the concurrency limits footer
-    let tier_footer_element = render_tier_limits_footer(appearance, view_handle, app);
-
     // Vertical layout with centered main content and footer at bottom
     Flex::column()
         .with_main_axis_size(MainAxisSize::Max)
@@ -115,97 +110,7 @@ pub fn render_cloud_mode_loading_screen<T: Entity>(
             )
             .finish(),
         )
-        // Footer anchored at bottom (only if we have tier info to show)
-        .with_children(
-            tier_footer_element
-                .into_iter()
-                .map(|element| {
-                    Container::new(element)
-                        .with_horizontal_padding(16.)
-                        .with_vertical_padding(12.)
-                        .finish()
-                })
-                .collect::<Vec<_>>(),
-        )
         .finish()
-}
-
-/// Renders the tier limits footer showing concurrency limits and upgrade suggestions.
-/// Returns None if there are no specs to display.
-fn render_tier_limits_footer<T: Entity>(
-    appearance: &Appearance,
-    view_handle: &WeakViewHandle<T>,
-    app: &AppContext,
-) -> Option<Box<dyn Element>> {
-    let theme = appearance.theme();
-    let footer_font_size = appearance.monospace_font_size() - 2.;
-    let team = UserWorkspaces::as_ref(app).team_for_view_handle(view_handle, app)?;
-    let policy = team.billing_metadata.tier.ambient_agents_policy?;
-
-    let shape = policy.instance_shape.as_ref()?;
-    let specs = format!("{}CPU, {}GB", shape.vcpus, shape.memory_gb);
-
-    // If there's no way to upgrade, don't render the footer at all
-    // (Build Max users can still upgrade to Business plans)
-    if !team.billing_metadata.can_upgrade_to_build_plan()
-        && !team.billing_metadata.can_upgrade_to_build_max_plan()
-        && !team.billing_metadata.is_on_build_max_plan()
-    {
-        return None;
-    }
-
-    let mut fragments = vec![FormattedTextFragment::plain_text(format!(
-        "Your agent is currently running on a {} machine. ",
-        specs
-    ))];
-
-    let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
-
-    fragments.push(FormattedTextFragment::hyperlink("Upgrade", upgrade_url));
-    fragments.push(FormattedTextFragment::plain_text(
-        " for more powerful cloud agents.",
-    ));
-
-    let formatted_text = FormattedText::new(vec![FormattedTextLine::Line(fragments)]);
-
-    let text_element = FormattedTextElement::new(
-        formatted_text,
-        footer_font_size,
-        appearance.ui_font_family(),
-        appearance.monospace_font_family(),
-        blended_colors::text_sub(theme, theme.surface_1()),
-        Default::default(),
-    )
-    .with_alignment(TextAlignment::Center)
-    .with_hyperlink_font_color(theme.accent().into())
-    .register_default_click_handlers_with_action_support(|link, _evt, app| {
-        use warpui::elements::HyperlinkLens;
-        if let HyperlinkLens::Url(url) = link {
-            app.open_url(url);
-        }
-    })
-    .finish();
-
-    // Create info icon
-    let icon_size = footer_font_size;
-    let info_icon = ConstrainedBox::new(
-        Icon::Info
-            .to_warpui_icon(blended_colors::text_sub(theme, theme.surface_1()).into())
-            .finish(),
-    )
-    .with_width(icon_size)
-    .with_height(icon_size)
-    .finish();
-
-    Some(
-        Flex::row()
-            .with_main_axis_alignment(MainAxisAlignment::Center)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(6.)
-            .with_child(info_icon)
-            .with_child(text_element)
-            .finish(),
-    )
 }
 
 /// Renders the cloud mode error screen.

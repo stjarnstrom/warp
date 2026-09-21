@@ -515,7 +515,6 @@ pub enum WorkspaceAction {
     OpenCloudAgentSetupGuide,
     AttemptLoginGatedAIUpgrade,
     /// Open the modal explaining Prompt Suggestions aren't available on the Free plan.
-    OpenPromptSuggestionsUnavailableModal,
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
     #[cfg(target_os = "linux")]
@@ -747,12 +746,6 @@ pub enum WorkspaceAction {
     /// were about to sleep (for debugging)
     #[cfg(debug_assertions)]
     TriggerAutoHandoffToCloud,
-    /// Open the Free AI Removal Modal (for debugging)
-    #[cfg(debug_assertions)]
-    OpenFreeAiRemovalModal,
-    /// Reset the free AI removal modal seen state (for debugging)
-    #[cfg(debug_assertions)]
-    ResetFreeAiRemovalModalState,
     /// Install the opencode-warp plugin from GitHub into the global opencode config.
     #[cfg(debug_assertions)]
     InstallOpenCodeWarpPlugin,
@@ -1043,7 +1036,6 @@ impl WorkspaceAction {
             | ClickedAIAssistantIcon
             | ToggleAIAssistant
             | OpenCloudAgentSetupGuide
-            | OpenPromptSuggestionsUnavailableModal
             | ToggleKeybindingsPage
             | ShowCommandSearch(_)
             | TriggerExternalCtrlTFileSearch
@@ -1214,8 +1206,6 @@ impl WorkspaceAction {
             | OpenAutoHandoffSleepModal
             | ResetAutoHandoffSleepModalState
             | TriggerAutoHandoffToCloud
-            | OpenFreeAiRemovalModal
-            | ResetFreeAiRemovalModalState
             | InstallOpenCodeWarpPlugin
             | UseLocalOpenCodeWarpPlugin => false,
             #[cfg(not(target_family = "wasm"))]

@@ -20,7 +20,6 @@ use crate::settings::cloud_preferences::{CloudPreference, CloudPreferenceModel, 
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const FIRST_ZERO_STATE_STORAGE_KEY: &str = "TuiFirstZeroStateShown";
-const FIRST_CREDIT_GATE_STORAGE_KEY: &str = "TuiFirstCreditGateShown";
 const MARKER_LOAD_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Account-scoped, monotonic TUI onboarding markers stored as separate global
@@ -28,14 +27,12 @@ const MARKER_LOAD_TIMEOUT: Duration = Duration::from_secs(3);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TuiOnboardingMarker {
     FirstZeroState,
-    FirstCreditGate,
 }
 
 impl TuiOnboardingMarker {
     fn storage_key(self) -> &'static str {
         match self {
             Self::FirstZeroState => FIRST_ZERO_STATE_STORAGE_KEY,
-            Self::FirstCreditGate => FIRST_CREDIT_GATE_STORAGE_KEY,
         }
     }
 }
@@ -43,10 +40,7 @@ impl TuiOnboardingMarker {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TuiOnboardingMarkersState {
     Loading,
-    Ready {
-        first_zero_state_available: bool,
-        first_credit_gate_available: bool,
-    },
+    Ready { first_zero_state_available: bool },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -176,7 +170,6 @@ impl TuiOnboardingMarkers {
     ) {
         self.state = TuiOnboardingMarkersState::Ready {
             first_zero_state_available: !snapshot.first_zero_state_shown,
-            first_credit_gate_available: !snapshot.first_credit_gate_shown,
         };
         ctx.emit(TuiOnboardingMarkersEvent::Ready);
         ctx.notify();
@@ -184,7 +177,6 @@ impl TuiOnboardingMarkers {
     fn resolve_unavailable(&mut self, ctx: &mut ModelContext<Self>) {
         self.state = TuiOnboardingMarkersState::Ready {
             first_zero_state_available: false,
-            first_credit_gate_available: false,
         };
         ctx.emit(TuiOnboardingMarkersEvent::Ready);
         ctx.notify();
@@ -220,14 +212,12 @@ impl TuiOnboardingMarkers {
     fn take_available(&mut self, marker: TuiOnboardingMarker) -> bool {
         let TuiOnboardingMarkersState::Ready {
             first_zero_state_available,
-            first_credit_gate_available,
         } = &mut self.state
         else {
             return false;
         };
         let available = match marker {
             TuiOnboardingMarker::FirstZeroState => first_zero_state_available,
-            TuiOnboardingMarker::FirstCreditGate => first_credit_gate_available,
         };
         std::mem::take(available)
     }
@@ -235,14 +225,12 @@ impl TuiOnboardingMarkers {
     fn mark_consumed_by_storage_key(&mut self, storage_key: &str) -> bool {
         let TuiOnboardingMarkersState::Ready {
             first_zero_state_available,
-            first_credit_gate_available,
         } = &mut self.state
         else {
             return false;
         };
         match storage_key {
             FIRST_ZERO_STATE_STORAGE_KEY => std::mem::take(first_zero_state_available),
-            FIRST_CREDIT_GATE_STORAGE_KEY => std::mem::take(first_credit_gate_available),
             _ => false,
         }
     }
@@ -319,14 +307,10 @@ impl TuiOnboardingMarkers {
     }
 
     #[cfg(any(test, feature = "test-util"))]
-    pub fn new_ready_for_test(
-        first_zero_state_available: bool,
-        first_credit_gate_available: bool,
-    ) -> Self {
+    pub fn new_ready_for_test(first_zero_state_available: bool) -> Self {
         Self {
             state: TuiOnboardingMarkersState::Ready {
                 first_zero_state_available,
-                first_credit_gate_available,
             },
             load_generation: 0,
             persist_markers: false,
@@ -339,12 +323,10 @@ impl TuiOnboardingMarkers {
     pub fn set_ready_for_test(
         &mut self,
         first_zero_state_available: bool,
-        first_credit_gate_available: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         self.state = TuiOnboardingMarkersState::Ready {
             first_zero_state_available,
-            first_credit_gate_available,
         };
         ctx.emit(TuiOnboardingMarkersEvent::Ready);
         ctx.notify();

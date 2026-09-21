@@ -46,7 +46,7 @@ use crate::terminal::input::inline_menu::{
 use crate::terminal::input::message_bar::{Message, MessageItem};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::workspace::WorkspaceAction;
-use crate::workspaces::user_workspaces::{TeamContextResolver, TeamScope, UserWorkspaces};
+use crate::workspaces::user_workspaces::{TeamContextResolver, TeamScope};
 
 /// Auto models pick their concrete model server-side, so the cost line names the
 /// class of inference rather than a host the request may never reach.
@@ -324,18 +324,11 @@ impl SyncDataSource for ModelSelectorDataSource {
                 })
                 .collect_vec()
         };
-        let upgrade_url = UserWorkspaces::as_ref(app).upgrade_link_for_scope(&scope, app);
         Ok(
             query_model_picker_choices(llm_preferences, choices, &query.text, &scope, app)
                 .into_iter()
                 .map(|choice| {
-                    QueryResult::from(ModelSearchItem::new(
-                        choice,
-                        &active_llm_id,
-                        &upgrade_url,
-                        &scope,
-                        app,
-                    ))
+                    QueryResult::from(ModelSearchItem::new(choice, &active_llm_id, &scope, app))
                 })
                 .collect(),
         )
@@ -349,7 +342,6 @@ impl Entity for ModelSelectorDataSource {
 #[derive(Clone)]
 struct ModelSearchItem {
     id: LLMId,
-    upgrade_url: String,
     provider: LLMProvider,
     spec: Option<LLMSpec>,
     leading_icon: Icon,
@@ -375,7 +367,6 @@ impl ModelSearchItem {
     fn new(
         choice: ModelPickerChoice,
         active_llm_id: &LLMId,
-        upgrade_url: &str,
         scope: &dyn TeamScope,
         app: &AppContext,
     ) -> Self {
@@ -400,7 +391,6 @@ impl ModelSearchItem {
             (!is_using_cloud_host && byo_key_source.is_some()).then_some(Icon::Key);
         Self {
             id: llm.id.clone(),
-            upgrade_url: upgrade_url.to_owned(),
             provider: llm.provider,
             spec: llm.spec.clone(),
             leading_icon,
@@ -693,30 +683,26 @@ impl SearchItem for ModelSearchItem {
                 first.make_ascii_uppercase();
             }
 
-            // Show a BYOK option when the user's tier supports it and the provider
-            // is one that accepts user-supplied API keys.
-            let byok_available = UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app)
-                && matches!(
-                    self.provider,
-                    LLMProvider::OpenAI | LLMProvider::Anthropic | LLMProvider::Google
-                );
+            // Show a BYOK option when the provider is one that accepts
+            // user-supplied API keys.
+            let byok_available = matches!(
+                self.provider,
+                LLMProvider::OpenAI | LLMProvider::Anthropic | LLMProvider::Google
+            );
 
-            let mut text_fragments = vec![
-                FormattedTextFragment::plain_text(format!(
-                    "{display_name} is not available for free users. "
-                )),
-                FormattedTextFragment::hyperlink("Upgrade", self.upgrade_url.clone()),
-            ];
+            let mut text_fragments = vec![FormattedTextFragment::plain_text(format!(
+                "{display_name} is not available. "
+            ))];
 
             if byok_available {
-                text_fragments.push(FormattedTextFragment::plain_text(" or ".to_string()));
                 text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    "bring your own key",
+                    "Bring your own key",
                     WorkspaceAction::ShowSettingsPageWithSearch {
                         search_query: "api".to_string(),
                         section: Some(SettingsSection::WarpAgent),
                     },
                 ));
+                text_fragments.push(FormattedTextFragment::plain_text(" to use it.".to_string()));
             }
 
             let upgrade_text = FormattedTextElement::new(

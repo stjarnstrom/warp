@@ -85,7 +85,7 @@ use super::{
     SESSION_COMPOSER_SHORTCUTS_ACTIVE_FLAG, VOICE_INPUT_BINDING_NAME, VOICE_USAGE_HINT,
     voice_argument_is_empty, voice_command_argument,
 };
-use crate::agent_block::{TuiAIBlock, upgrade_url};
+use crate::agent_block::TuiAIBlock;
 use crate::autoupdate::TuiAutoupdater;
 use crate::editor_element::TuiEditorAction;
 use crate::inline_menu::MAX_INLINE_MENU_ROWS;
@@ -205,203 +205,6 @@ fn mcp_menu_footer_replaces_status_with_controls() {
                 ],
             );
         });
-    });
-}
-
-#[test]
-fn out_of_credits_ctrl_o_binding_opens_upgrade() {
-    App::test((), |mut app| async move {
-        app.update(crate::keybindings::init);
-        app.read(|ctx| {
-            let ctrl_o = Trigger::Keystrokes(vec![Keystroke::parse("ctrl-o").unwrap()]);
-            assert!(
-                ctx.get_key_bindings().any(|binding| {
-                    *binding.trigger == ctrl_o
-                        && binding.name.is_empty()
-                        && binding.group == Some(TUI_BINDING_GROUP)
-                }),
-                "out-of-credits ctrl-o binding should be registered"
-            );
-        });
-
-        let fixture = focus_test_fixture(&mut app);
-        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
-        let expected_upgrade_url = app.read(upgrade_url);
-        app.read(|ctx| {
-            let ctrl_o = Trigger::Keystrokes(vec![Keystroke::parse("ctrl-o").unwrap()]);
-            let input_view_id = view.as_ref(ctx).input_view.id();
-            assert!(
-                !ctx.key_bindings_for_view(fixture.window_id, input_view_id)
-                    .iter()
-                    .any(|binding| *binding.trigger == ctrl_o),
-                "ctrl-o should not be active without an out-of-credits failure"
-            );
-        });
-        let opened_urls = Rc::new(RefCell::new(Vec::new()));
-        let opened_urls_for_callback = opened_urls.clone();
-        app.update(|ctx| {
-            ctx.set_before_open_url(move |url, _| {
-                opened_urls_for_callback.borrow_mut().push(url.to_owned());
-                url.to_owned()
-            });
-        });
-        view.update(&mut app, |view, ctx| {
-            view.handle_action(&TuiTerminalSessionAction::OpenUpgradeUrl, ctx);
-        });
-        assert_eq!(opened_urls.borrow().as_slice(), &[expected_upgrade_url]);
-    });
-}
-
-#[test]
-fn usage_slash_command_opens_panel_and_enables_upgrade_binding() {
-    App::test((), |mut app| async move {
-        app.update(crate::keybindings::init);
-        let fixture = focus_test_fixture(&mut app);
-        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
-
-        app.read(|ctx| {
-            let ctrl_o = Trigger::Keystrokes(vec![Keystroke::parse("ctrl-o").unwrap()]);
-            let input_view_id = view.as_ref(ctx).input_view.id();
-            assert!(
-                !ctx.key_bindings_for_view(fixture.window_id, input_view_id)
-                    .iter()
-                    .any(|binding| *binding.trigger == ctrl_o),
-                "ctrl-o should not be active before the /usage panel is opened"
-            );
-        });
-
-        view.update(&mut app, |view, ctx| {
-            view.execute_tui_slash_command(&slash_commands::USAGE, None, ctx);
-        });
-        view.read(&app, |view, ctx| {
-            assert_eq!(
-                view.suggestions_mode.as_ref(ctx).mode(),
-                TuiInputSuggestionsMode::ReadOnlyMenu(TuiReadOnlyMenuKind::Usage)
-            );
-        });
-
-        app.read(|ctx| {
-            let ctrl_o = Trigger::Keystrokes(vec![Keystroke::parse("ctrl-o").unwrap()]);
-            let input_view_id = view.as_ref(ctx).input_view.id();
-            assert!(
-                ctx.key_bindings_for_view(fixture.window_id, input_view_id)
-                    .iter()
-                    .any(|binding| *binding.trigger == ctrl_o),
-                "ctrl-o should open the upgrade page while the /usage panel is open"
-            );
-        });
-    });
-}
-
-#[test]
-fn upgrade_slash_command_is_always_available_and_opens_the_upgrade_page() {
-    App::test((), |mut app| async move {
-        let fixture = focus_test_fixture(&mut app);
-        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
-        let expected_upgrade_url = app.read(upgrade_url);
-        let opened_urls = Rc::new(RefCell::new(Vec::new()));
-        let opened_urls_for_callback = opened_urls.clone();
-        app.update(|ctx| {
-            ctx.set_before_open_url(move |url, _| {
-                opened_urls_for_callback.borrow_mut().push(url.to_owned());
-                url.to_owned()
-            });
-        });
-
-        view.update(&mut app, |view, ctx| {
-            view.input_view
-                .update(ctx, |input, ctx| input.set_text("/upgrade", ctx));
-            assert!(matches!(
-                view.slash_commands_source
-                    .as_ref(ctx)
-                    .parse_input("/upgrade", ctx),
-                ParsedSlashCommandInput::SlashCommand(_)
-            ));
-            view.execute_tui_slash_command(&slash_commands::UPGRADE, None, ctx);
-        });
-
-        assert_eq!(opened_urls.borrow().as_slice(), &[expected_upgrade_url]);
-        view.read(&app, |view, ctx| {
-            assert!(view.input_view.as_ref(ctx).is_empty(ctx));
-        });
-    });
-}
-#[test]
-fn manage_billing_slash_command_opens_the_default_team_billing_page_for_admins() {
-    App::test((), |mut app| async move {
-        let fixture = focus_test_fixture(&mut app);
-        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
-        view.read(&app, |view, ctx| {
-            assert!(!matches!(
-                view.slash_commands_source
-                    .as_ref(ctx)
-                    .parse_input("/manage-billing", ctx),
-                ParsedSlashCommandInput::SlashCommand(_)
-            ));
-        });
-        app.update(set_tui_default_team_admin_for_test);
-        let opened_urls = Rc::new(RefCell::new(Vec::new()));
-        let opened_urls_for_callback = opened_urls.clone();
-        app.update(|ctx| {
-            ctx.set_before_open_url(move |url, _| {
-                opened_urls_for_callback.borrow_mut().push(url.to_owned());
-                url.to_owned()
-            });
-        });
-
-        view.update(&mut app, |view, ctx| {
-            assert!(matches!(
-                view.slash_commands_source
-                    .as_ref(ctx)
-                    .parse_input("/manage-billing", ctx),
-                ParsedSlashCommandInput::SlashCommand(_)
-            ));
-            view.execute_tui_slash_command(&slash_commands::MANAGE_BILLING, None, ctx);
-        });
-
-        assert_eq!(
-            opened_urls.borrow().as_slice(),
-            &[format!(
-                "{}/admin/test_uid00000000000123/billing",
-                ChannelState::server_root_url().trim_end_matches('/')
-            )]
-        );
-    });
-}
-
-#[test]
-fn manage_billing_slash_command_rejects_users_without_an_admin_team() {
-    App::test((), |mut app| async move {
-        let fixture = focus_test_fixture(&mut app);
-        let (view, _) = add_focus_test_session(&mut app, &fixture, true);
-        let opened_urls = Rc::new(RefCell::new(Vec::new()));
-        let opened_urls_for_callback = opened_urls.clone();
-        app.update(|ctx| {
-            ctx.set_before_open_url(move |url, _| {
-                opened_urls_for_callback.borrow_mut().push(url.to_owned());
-                url.to_owned()
-            });
-        });
-
-        view.update(&mut app, |view, ctx| {
-            assert!(!matches!(
-                view.slash_commands_source
-                    .as_ref(ctx)
-                    .parse_input("/manage-billing", ctx),
-                ParsedSlashCommandInput::SlashCommand(_)
-            ));
-            view.execute_tui_slash_command(&slash_commands::MANAGE_BILLING, None, ctx);
-        });
-
-        assert!(opened_urls.borrow().is_empty());
-        assert_eq!(
-            view.read(&app, |view, _| {
-                view.transient_hint
-                    .current()
-                    .map(|(text, _)| text.to_owned())
-            }),
-            Some("Billing management is only available to team admins".to_owned())
-        );
     });
 }
 
@@ -4255,7 +4058,7 @@ fn first_zero_state_stays_hidden_while_markers_load_and_reconciles_without_repla
 
         app.update(|ctx| {
             TuiOnboardingMarkers::handle(ctx).update(ctx, |markers, ctx| {
-                markers.set_ready_for_test(false, false, ctx);
+                markers.set_ready_for_test(false, ctx);
             });
         });
         app.read(|ctx| {
@@ -4293,7 +4096,7 @@ fn dismissed_pending_zero_state_stays_hidden_but_consumes_ready_marker() {
         });
         app.update(|ctx| {
             TuiOnboardingMarkers::handle(ctx).update(ctx, |markers, ctx| {
-                markers.set_ready_for_test(true, false, ctx);
+                markers.set_ready_for_test(true, ctx);
             });
         });
 
@@ -4345,7 +4148,7 @@ fn background_session_does_not_receive_first_run_onboarding() {
         });
         app.update(|ctx| {
             TuiOnboardingMarkers::handle(ctx).update(ctx, |markers, ctx| {
-                markers.set_ready_for_test(true, false, ctx);
+                markers.set_ready_for_test(true, ctx);
             });
         });
         app.read(|ctx| {

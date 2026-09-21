@@ -73,64 +73,6 @@ fn transcript_view_renders_terminal_blocks_from_canonical_order() {
 }
 
 #[test]
-fn out_of_credits_shortcut_tracks_the_latest_agent_block() {
-    App::test((), |mut app| async move {
-        register_tui_session_view_test_singletons(&mut app);
-        let terminal_model = Arc::new(FairMutex::new(TerminalModel::mock(None, None)));
-        let model_for_view = terminal_model.clone();
-        let (action_model, model_events) = add_test_action_model_and_events(&mut app);
-        let (_, transcript) = app.update(|ctx| {
-            ctx.add_tui_window(
-                AddWindowOptions {
-                    window_style: WindowStyle::NotStealFocus,
-                    ..Default::default()
-                },
-                |ctx| {
-                    TuiTranscriptView::new(
-                        EntityId::new(),
-                        model_for_view,
-                        action_model,
-                        &model_events,
-                        ctx,
-                    )
-                },
-            )
-        });
-
-        transcript.update(&mut app, |view, ctx| {
-            append_test_agent_block(
-                view,
-                AIConversationId::new(),
-                AIAgentExchangeId::new(),
-                AIBlockOutputStatus::Failed {
-                    partial_output: None,
-                    error: RenderableAIError::QuotaLimit {
-                        user_display_message: Some("Out of credits.".to_owned()),
-                    },
-                },
-                ctx,
-            );
-        });
-        assert!(transcript.read(&app, |view, ctx| {
-            view.latest_agent_block_is_out_of_credits(ctx)
-        }));
-
-        transcript.update(&mut app, |view, ctx| {
-            append_test_agent_block(
-                view,
-                AIConversationId::new(),
-                AIAgentExchangeId::new(),
-                AIBlockOutputStatus::Pending,
-                ctx,
-            );
-        });
-        assert!(!transcript.read(&app, |view, ctx| {
-            view.latest_agent_block_is_out_of_credits(ctx)
-        }));
-    });
-}
-
-#[test]
 fn agent_block_lookup_uses_canonical_transcript_order() {
     App::test((), |mut app| async move {
         let terminal_model = Arc::new(FairMutex::new(TerminalModel::mock(None, None)));

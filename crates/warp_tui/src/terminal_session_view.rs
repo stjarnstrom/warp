@@ -77,7 +77,6 @@ use warpui_core::{
     AppContext, Entity, EntityId, ModelHandle, TuiView, TypedActionView, ViewContext, ViewHandle,
 };
 
-use crate::agent_block::upgrade_url;
 use crate::alt_screen_view::AltScreenElement;
 use crate::api_keys_menu::{TuiApiKeysMenuEvent, TuiApiKeysMenuModel, render_api_keys_footer};
 use crate::attachment_bar::{
@@ -234,7 +233,6 @@ const SESSION_CAN_DETACH_AGENT_FROM_RUNNING_COMMAND_FLAG: &str =
     "TuiSessionCanDetachAgentFromRunningCommand";
 const SESSION_CAN_ACCEPT_BLOCKED_TERMINAL_USE_ACTION_FLAG: &str =
     "TuiSessionCanAcceptBlockedTerminalUseAction";
-const SESSION_CAN_OPEN_UPGRADE_URL_FLAG: &str = "TuiSessionCanOpenUpgradeUrl";
 pub(crate) const SESSION_COMPOSER_SHORTCUTS_ACTIVE_FLAG: &str = "TuiSessionComposerShortcutsActive";
 pub(crate) const PASTE_IMAGE_BINDING_NAME: &str = "tui:session:paste_image";
 pub(crate) const AUTO_APPROVE_TOGGLE_BINDING_NAME: &str = "tui:session:toggle_auto_approve";
@@ -592,7 +590,6 @@ pub(crate) enum TuiTerminalSessionAction {
     /// [`CTRL_C_EXIT_WINDOW`] exits the TUI.
     Interrupt,
     /// Open the upgrade and credit-pack flow.
-    OpenUpgradeUrl,
     /// Cancel an in-flight conversation restore.
     CancelRestore,
     /// Return a user-controlled terminal-use command to the agent.
@@ -790,13 +787,6 @@ pub(crate) fn init(app: &mut AppContext) {
             HAND_BACK_KEY_BINDING,
             TuiTerminalSessionAction::HandBackTerminalUseControl,
             id!(SESSION_CAN_HAND_BACK_CONTROL_FLAG),
-        )
-        .with_group(TUI_BINDING_GROUP),
-        FixedBinding::new(
-            "ctrl-o",
-            TuiTerminalSessionAction::OpenUpgradeUrl,
-            (id!(TuiInputView::ui_name()) | view_context.clone())
-                & id!(SESSION_CAN_OPEN_UPGRADE_URL_FLAG),
         )
         .with_group(TUI_BINDING_GROUP),
     ]);
@@ -4617,27 +4607,6 @@ impl TuiTerminalSessionView {
                     .update(ctx, |menu, ctx| menu.open_and_connect_grok(ctx));
                 record_static_slash_command_accepted(command.name, true, ctx);
             }
-            SlashCommandKind::Upgrade => {
-                self.input_view.update(ctx, |input, ctx| input.clear(ctx));
-                ctx.open_url(&upgrade_url(ctx));
-                record_static_slash_command_accepted(command.name, true, ctx);
-            }
-            SlashCommandKind::ManageBilling => {
-                self.input_view.update(ctx, |input, ctx| input.clear(ctx));
-                let Some(url) = self
-                    .slash_commands_source
-                    .as_ref(ctx)
-                    .manage_billing_url(ctx)
-                else {
-                    self.show_error_hint(
-                        "Billing management is only available to team admins".to_owned(),
-                        ctx,
-                    );
-                    return;
-                };
-                ctx.open_url(&url);
-                record_static_slash_command_accepted(command.name, true, ctx);
-            }
             SlashCommandKind::Cost => {
                 self.input_view.update(ctx, |input, ctx| input.clear(ctx));
                 ctx.dispatch_typed_action_deferred(
@@ -5210,13 +5179,6 @@ impl TuiView for TuiTerminalSessionView {
                 .insert(SESSION_CAN_ACCEPT_BLOCKED_TERMINAL_USE_ACTION_FLAG);
         }
 
-        if self
-            .transcript
-            .as_ref(ctx)
-            .latest_agent_block_is_out_of_credits(ctx)
-        {
-            context.set.insert(SESSION_CAN_OPEN_UPGRADE_URL_FLAG);
-        }
         if state.as_ref().is_some_and(|state| state.plan_available()) {
             context.set.insert(PLAN_TOGGLE_AVAILABLE_FLAG);
         }
@@ -5606,7 +5568,6 @@ impl TypedActionView for TuiTerminalSessionView {
     fn handle_action(&mut self, action: &TuiTerminalSessionAction, ctx: &mut ViewContext<Self>) {
         match action {
             TuiTerminalSessionAction::Interrupt => self.handle_interrupt(ctx),
-            TuiTerminalSessionAction::OpenUpgradeUrl => ctx.open_url(&upgrade_url(ctx)),
             TuiTerminalSessionAction::Eof => self.handle_eof(ctx),
             TuiTerminalSessionAction::CancelRestore => {
                 self.cancel_conversation_restore(ctx);

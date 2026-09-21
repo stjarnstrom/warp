@@ -11,7 +11,7 @@ use super::*;
 use crate::workspace::view::tests::{initialize_app, mock_workspace};
 use crate::workspaces::team::TeamMember;
 use crate::workspaces::workspace::{
-    EmailInvite, MultiAdminPolicy, NativeWorkspacesPolicy, Tier, WorkspaceMember,
+    BillingMetadata, EmailInvite, MultiAdminPolicy, NativeWorkspacesPolicy, Tier, WorkspaceMember,
     WorkspaceMemberUsageInfo,
 };
 

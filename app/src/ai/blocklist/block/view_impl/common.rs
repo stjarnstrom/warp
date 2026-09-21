@@ -3082,14 +3082,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
 
     let error_text = match presentation {
         FailedOutputPresentation::Message(message) => message,
-        FailedOutputPresentation::OutOfCredits { message, .. } => {
-            return render_out_of_credits_error(
-                &message,
-                props.is_ai_input_enabled,
-                props.icon_right_margin,
-                app,
-            );
-        }
         FailedOutputPresentation::InvalidApiKey { title, detail } => {
             return render_invalid_api_key_error(
                 title,
@@ -3164,54 +3156,6 @@ pub fn render_failed_output(props: FailedOutputProps, app: &AppContext) -> Box<d
             )
             .finish(),
         )
-        .finish()
-}
-/// Renders the out-of-credits failure: alert icon + message.
-fn render_out_of_credits_error(
-    message: &str,
-    is_ai_input_enabled: bool,
-    icon_right_margin: f32,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-
-    let icon = Container::new(
-        ConstrainedBox::new(
-            warpui::elements::Icon::new(
-                Icon::AlertTriangle.into(),
-                error_color(appearance.theme()),
-            )
-            .finish(),
-        )
-        .with_width(icon_size(app))
-        .with_height(icon_size(app))
-        .finish(),
-    )
-    .with_margin_right(icon_right_margin)
-    .finish();
-
-    let text = Text::new(
-        message.to_owned(),
-        appearance.monospace_font_family(),
-        appearance.monospace_font_size(),
-    )
-    .with_color(blended_colors::text_sub(
-        appearance.theme(),
-        appearance.theme().surface_1(),
-    ))
-    .with_selection_color(if is_ai_input_enabled {
-        appearance
-            .theme()
-            .text_selection_as_context_color()
-            .into_solid()
-    } else {
-        appearance.theme().text_selection_color().into_solid()
-    })
-    .finish();
-
-    Flex::row()
-        .with_child(icon)
-        .with_child(Shrinkable::new(1., text).finish())
         .finish()
 }
 

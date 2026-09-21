@@ -77,18 +77,16 @@ use crate::settings::{
 use crate::system::SystemStats;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{CloudWorkflow, CloudWorkflowModel};
-use crate::workspaces::gql_convert::{
-    PLACEHOLDER_WORKSPACE_UID, workspaces_metadata_response_from_gql,
-};
+use crate::workspaces::gql_convert::workspaces_metadata_response_from_gql;
 use crate::workspaces::team::{Team, TeamMember, TeamVisibility};
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{
     AdminEnablementSetting, ByoFirstPartyKey, EnforceableSetting, HostEnablementSetting,
-    LinkSharingSettings, LlmHostSettings, ManagedByokByoePolicy, MultiAdminPolicy,
-    PurchaseAddOnCreditsPolicy, SandboxedAgentSettings, SplitListSetting, TeamByoSettings,
-    TeamLinkSharingSettings, Workspace, WorkspaceMember, WorkspaceMemberUsageInfo,
+    LinkSharingSettings, LlmHostSettings, ManagedByokByoePolicy, PurchaseAddOnCreditsPolicy,
+    SandboxedAgentSettings, SplitListSetting, TeamByoSettings, TeamLinkSharingSettings, Workspace,
+    WorkspaceMember, WorkspaceMemberUsageInfo,
 };
 
 #[derive(Default)]
@@ -1278,142 +1276,6 @@ fn test_window_team_assignment_inherits_from_source_or_default_team() {
             assert_eq!(
                 user_workspaces.team_uid_for_window(fallback_window_id),
                 Some(first_team.uid)
-            );
-        });
-    })
-}
-
-#[test]
-fn warp_agent_cli_upgrade_link_is_channel_aware_and_user_bound() {
-    let user_uid = UserUid::new("user-123");
-
-    assert_eq!(
-        UserWorkspaces::warp_agent_cli_upgrade_link(Some(user_uid)),
-        format!(
-            "{}{STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX}/user/{user_uid}?source=warp-agent-cli",
-            ChannelState::server_root_url(),
-        )
-    );
-}
-
-#[test]
-fn warp_agent_cli_upgrade_link_uses_channel_aware_fallback_without_a_user() {
-    assert_eq!(
-        UserWorkspaces::warp_agent_cli_upgrade_link(None),
-        format!(
-            "{}{STRIPE_SUBSCRIPTION_INTERVAL_PAGE_PREFIX}?source=warp-agent-cli",
-            ChannelState::server_root_url().trim_end_matches('/'),
-        )
-    );
-}
-
-#[test]
-fn admin_billing_link_for_default_team_targets_the_first_admin_team() {
-    let email = "admin@example.com";
-    let user_uid = UserUid::new("admin");
-    let mut first_team = team_for_test();
-    first_team.members.push(TeamMember {
-        uid: user_uid,
-        email: email.to_owned(),
-        role: MembershipRole::Owner,
-        is_disabled: false,
-    });
-    let mut second_team = first_team.clone();
-    second_team.uid = 456.into();
-    let first_team_uid = first_team.uid;
-    let mut workspace = workspace_for_test(&first_team);
-    workspace.teams.push(second_team);
-
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![workspace]);
-
-        app.read(|ctx| {
-            assert_eq!(
-                UserWorkspaces::as_ref(ctx).admin_billing_link_for_default_team(email),
-                Some(format!(
-                    "{}/admin/{first_team_uid}/billing",
-                    ChannelState::server_root_url().trim_end_matches('/'),
-                ))
-            );
-        });
-    })
-}
-
-#[test]
-fn admin_billing_link_for_default_team_accepts_admin_when_multi_admin_is_enabled() {
-    let email = "admin@example.com";
-    let user_uid = UserUid::new("admin");
-    let mut team = team_for_test();
-    team.billing_metadata.tier.multi_admin_policy = Some(MultiAdminPolicy { enabled: true });
-    team.members.push(TeamMember {
-        uid: user_uid,
-        email: email.to_owned(),
-        role: MembershipRole::Admin,
-        is_disabled: false,
-    });
-    let team_uid = team.uid;
-    let workspace = workspace_for_test(&team);
-
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![workspace]);
-
-        app.read(|ctx| {
-            assert_eq!(
-                UserWorkspaces::as_ref(ctx).admin_billing_link_for_default_team(email),
-                Some(format!(
-                    "{}/admin/{team_uid}/billing",
-                    ChannelState::server_root_url().trim_end_matches('/'),
-                ))
-            );
-        });
-    })
-}
-
-#[test]
-fn admin_billing_link_for_default_team_rejects_admin_without_multi_admin_policy() {
-    let email = "admin@example.com";
-    let user_uid = UserUid::new("admin");
-    let mut team = team_for_test();
-    team.members.push(TeamMember {
-        uid: user_uid,
-        email: email.to_owned(),
-        role: MembershipRole::Admin,
-        is_disabled: false,
-    });
-    let workspace = workspace_for_test(&team);
-
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![workspace]);
-
-        app.read(|ctx| {
-            assert_eq!(
-                UserWorkspaces::as_ref(ctx).admin_billing_link_for_default_team(email),
-                None
-            );
-        });
-    })
-}
-
-#[test]
-fn admin_billing_link_for_default_team_rejects_regular_members() {
-    let email = "member@example.com";
-    let user_uid = UserUid::new("member");
-    let mut team = team_for_test();
-    team.members.push(TeamMember {
-        uid: user_uid,
-        email: email.to_owned(),
-        role: MembershipRole::User,
-        is_disabled: false,
-    });
-    let workspace = workspace_for_test(&team);
-
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![workspace]);
-
-        app.read(|ctx| {
-            assert_eq!(
-                UserWorkspaces::as_ref(ctx).admin_billing_link_for_default_team(email),
-                None
             );
         });
     })
@@ -3770,72 +3632,6 @@ fn test_team_billing_metadata_disabled_policy_stays_disabled_without_team() {
 }
 
 #[test]
-fn test_purchase_addon_credits_forwards_teamless_team_uid() {
-    App::test((), |mut app| async move {
-        let mut workspace_client = MockWorkspaceClient::new();
-        workspace_client
-            .expect_purchase_addon_credits()
-            .withf(|team_uid, credits| team_uid.is_none() && *credits == 1_000)
-            .times(1)
-            .returning(|_, _| {
-                Ok(PurchaseAddonCreditsOutcome::CheckoutRequired {
-                    checkout_url: "https://example.com/checkout".to_string(),
-                })
-            });
-
-        app.add_singleton_model(|ctx| {
-            UserWorkspaces::mock(
-                Arc::new(MockTeamClient::new()),
-                Arc::new(workspace_client),
-                vec![],
-                ctx,
-            )
-        });
-
-        UserWorkspaces::handle(&app).update(&mut app, |user_workspaces, ctx| {
-            user_workspaces.purchase_addon_credits(None, 1_000, ctx);
-        });
-
-        // Give the spawned client call time to run so the mock expectation is
-        // exercised before the test ends.
-        warpui::r#async::Timer::after(Duration::from_millis(100)).await;
-    })
-}
-
-#[test]
-fn test_purchase_addon_credits_forwards_team_uid_when_present() {
-    App::test((), |mut app| async move {
-        let mut workspace_client = MockWorkspaceClient::new();
-        workspace_client
-            .expect_purchase_addon_credits()
-            .withf(|team_uid, credits| *team_uid == Some(123.into()) && *credits == 2_000)
-            .times(1)
-            .returning(|_, _| {
-                Ok(PurchaseAddonCreditsOutcome::CheckoutRequired {
-                    checkout_url: "https://example.com/checkout".to_string(),
-                })
-            });
-
-        app.add_singleton_model(|ctx| {
-            UserWorkspaces::mock(
-                Arc::new(MockTeamClient::new()),
-                Arc::new(workspace_client),
-                vec![],
-                ctx,
-            )
-        });
-
-        UserWorkspaces::handle(&app).update(&mut app, |user_workspaces, ctx| {
-            user_workspaces.purchase_addon_credits(Some(123.into()), 2_000, ctx);
-        });
-
-        // Give the spawned client call time to run so the mock expectation is
-        // exercised before the test ends.
-        warpui::r#async::Timer::after(Duration::from_millis(100)).await;
-    })
-}
-
-#[test]
 fn test_remove_user_from_workspace_refreshes_state_only_on_success() {
     for succeeds in [true, false] {
         let user_uid = UserUid::new("member-uid");
@@ -4524,14 +4320,6 @@ fn test_member_team_settings_win_over_workspace_settings() {
     })
 }
 
-fn gql_premium_purchase_policy() -> GqlPurchaseAddOnCreditsPolicy {
-    GqlPurchaseAddOnCreditsPolicy {
-        enabled: false,
-        premium_enabled: true,
-        price_premium_bps: 1000,
-    }
-}
-
 fn gql_user(
     user_purchase_policy: Option<GqlPurchaseAddOnCreditsPolicy>,
     workspaces: Vec<GqlWorkspace>,
@@ -4571,112 +4359,6 @@ fn test_workspace_open_teams_survive_metadata_conversion() {
     let open_teams = &response.workspaces[0].open_teams;
     assert_eq!(open_teams.len(), 1);
     assert_eq!(open_teams[0].name, "Second Team");
-}
-
-#[test]
-fn test_user_level_policy_survives_placeholder_filtering_for_teamless_users() {
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![]);
-        register_ai_usage_model(&mut app);
-
-        // The real conversion path: a teamless user's ONLY workspace is the
-        // placeholder, which must stay filtered out of `workspaces`, while
-        // the user-level purchase policy is captured separately.
-        let response: WorkspacesMetadataResponse = workspaces_metadata_response_from_gql(
-            gql_user(
-                Some(gql_premium_purchase_policy()),
-                vec![gql_workspace(PLACEHOLDER_WORKSPACE_UID, None)],
-            ),
-            false,
-        );
-        assert!(
-            response.workspaces.is_empty(),
-            "the placeholder workspace must stay filtered out"
-        );
-        assert_eq!(
-            response.user_purchase_policy,
-            Some(PurchaseAddOnCreditsPolicy {
-                enabled: false,
-                premium_enabled: true,
-                price_premium_bps: 1000,
-            })
-        );
-
-        UserWorkspaces::handle(&app).update(&mut app, |user_workspaces, ctx| {
-            user_workspaces.on_workspaces_updated(
-                Ok(WorkspacesMetadataWithPricing {
-                    metadata: response,
-                    pricing_info: None,
-                }),
-                ctx,
-            );
-        });
-
-        app.read(|ctx| {
-            let user_workspaces = UserWorkspaces::as_ref(ctx);
-            assert!(
-                user_workspaces.current_workspace().is_none(),
-                "teamless users keep having no workspace"
-            );
-            let policy = user_workspaces.purchase_policy();
-            assert!(
-                policy.is_some_and(|policy| policy.allows_purchases()),
-                "the user-level policy should enable purchases without a team or workspace"
-            );
-            assert_eq!(
-                policy.map_or(0, |policy| policy.effective_premium_bps()),
-                1000
-            );
-        });
-    })
-}
-
-#[test]
-fn test_workspace_policy_wins_over_user_level_policy() {
-    App::test((), |mut app| async move {
-        initialize_window_team_test_app(&mut app, vec![]);
-        register_ai_usage_model(&mut app);
-
-        let standard_policy = GqlPurchaseAddOnCreditsPolicy {
-            enabled: true,
-            premium_enabled: false,
-            price_premium_bps: 0,
-        };
-        let response: WorkspacesMetadataResponse = workspaces_metadata_response_from_gql(
-            gql_user(
-                Some(gql_premium_purchase_policy()),
-                vec![
-                    gql_workspace(PLACEHOLDER_WORKSPACE_UID, None),
-                    gql_workspace("workspace_uid123456789", Some(standard_policy)),
-                ],
-            ),
-            false,
-        );
-        assert_eq!(response.workspaces.len(), 1);
-
-        UserWorkspaces::handle(&app).update(&mut app, |user_workspaces, ctx| {
-            user_workspaces.on_workspaces_updated(
-                Ok(WorkspacesMetadataWithPricing {
-                    metadata: response,
-                    pricing_info: None,
-                }),
-                ctx,
-            );
-        });
-
-        app.read(|ctx| {
-            let policy = UserWorkspaces::as_ref(ctx).purchase_policy();
-            assert_eq!(
-                policy.map(|policy| policy.enabled),
-                Some(true),
-                "a real workspace's policy should win over the user-level fallback"
-            );
-            assert_eq!(
-                policy.map_or(-1, |policy| policy.effective_premium_bps()),
-                0
-            );
-        });
-    })
 }
 
 /// A `GqlLlmInfo` fixture identified by `id`, for the model-choice fixtures below.

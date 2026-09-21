@@ -409,7 +409,7 @@ pub fn classify_driver_error(error: &AgentDriverError) -> (AgentTaskState, TaskS
         // remove by upgrading, or a configurable limit (paid plan) they can adjust.
         // Either way, it's a task outcome: the user's work didn't fit in the allowed
         // time, so report as FAILED with no error code.
-        AgentDriverError::SandboxDeadlineReached { .. } => (
+        AgentDriverError::SandboxDeadlineReached => (
             AgentTaskState::Failed,
             TaskStatusUpdate::message(error.to_string()),
         ),

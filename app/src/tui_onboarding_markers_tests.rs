@@ -34,7 +34,6 @@ fn markers_are_unavailable_until_initial_load_resolves() {
 
     assert!(!markers.is_ready());
     assert!(!markers.take_available(TuiOnboardingMarker::FirstZeroState));
-    assert!(!markers.take_available(TuiOnboardingMarker::FirstCreditGate));
 }
 
 #[test]
@@ -48,12 +47,10 @@ fn absent_or_false_cloud_markers_are_available_and_true_markers_are_consumed() {
 
 #[test]
 fn marker_consumption_is_monotonic_and_independent() {
-    let mut markers = TuiOnboardingMarkers::new_ready_for_test(true, true);
+    let mut markers = TuiOnboardingMarkers::new_ready_for_test(true);
 
     assert!(markers.take_available(TuiOnboardingMarker::FirstZeroState));
     assert!(!markers.take_available(TuiOnboardingMarker::FirstZeroState));
-    assert!(markers.take_available(TuiOnboardingMarker::FirstCreditGate));
-    assert!(!markers.take_available(TuiOnboardingMarker::FirstCreditGate));
 }
 
 #[test]
@@ -128,8 +125,7 @@ fn targeted_marker_load_times_out_when_the_request_never_resolves() {
 #[test]
 fn successful_snapshot_controls_marker_availability() {
     App::test((), |mut app| async move {
-        let markers =
-            app.add_singleton_model(|_| TuiOnboardingMarkers::new_ready_for_test(false, false));
+        let markers = app.add_singleton_model(|_| TuiOnboardingMarkers::new_ready_for_test(false));
 
         markers.update(&mut app, |markers, ctx| {
             markers.load_generation = 1;
@@ -145,7 +141,6 @@ fn successful_snapshot_controls_marker_availability() {
 
         markers.update(&mut app, |markers, _| {
             assert!(markers.take_available(TuiOnboardingMarker::FirstZeroState));
-            assert!(!markers.take_available(TuiOnboardingMarker::FirstCreditGate));
         });
     });
 }
@@ -173,7 +168,6 @@ fn failed_marker_load_allows_startup_without_one_time_surfaces() {
         });
         markers.update(&mut app, |markers, _| {
             assert!(!markers.take_available(TuiOnboardingMarker::FirstZeroState));
-            assert!(!markers.take_available(TuiOnboardingMarker::FirstCreditGate));
         });
     });
 }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use parking_lot::FairMutex;
-use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity as _};
+use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle};
 
 use super::core::subscribe_to_shared_dependencies;
 use super::{
@@ -12,19 +12,18 @@ use super::{
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 #[cfg(feature = "voice_input")]
 use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
-use crate::auth::AuthStateProvider;
 use crate::search::SyncDataSource;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
+use crate::search::slash_command_menu::static_commands::Availability;
 use crate::search::slash_command_menu::static_commands::commands::{COMMAND_REGISTRY, VOICE};
-use crate::search::slash_command_menu::static_commands::{Availability, SlashCommandKind};
 #[cfg(feature = "voice_input")]
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::TerminalModel;
 use crate::terminal::input::slash_commands::AcceptSlashCommandOrSavedPrompt;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::view::resolve_ai_query_routing;
-use crate::workspaces::user_workspaces::{TeamContextResolver, UserWorkspaces};
+use crate::workspaces::user_workspaces::TeamContextResolver;
 
 pub struct TuiDataSourceArgs {
     pub active_session: ModelHandle<ActiveSession>,
@@ -95,10 +94,6 @@ impl TuiSlashCommandDataSource {
         resolve_ai_query_routing(self.terminal_view_id(), None, &terminal_model, app).is_local()
     }
 
-    pub fn manage_billing_url(&self, app: &AppContext) -> Option<String> {
-        let user_email = AuthStateProvider::as_ref(app).get().user_email()?;
-        UserWorkspaces::as_ref(app).admin_billing_link_for_default_team(&user_email)
-    }
     pub fn set_active_repo_root(
         &mut self,
         repo_root: Option<PathBuf>,
@@ -125,8 +120,6 @@ impl TuiSlashCommandDataSource {
                 .filter(|(_, command)| {
                     command.supports_tui()
                         && (command.name != VOICE.name || voice_command_is_available)
-                        && (command.kind != SlashCommandKind::ManageBilling
-                            || self.manage_billing_url(ctx).is_some())
                         && self.command_passes_common_gates(command, availability, &gates)
                 })
                 .map(|(id, command)| (id, command.clone())),

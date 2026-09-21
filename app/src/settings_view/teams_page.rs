@@ -77,9 +77,7 @@ use crate::workspace::WorkspaceAction;
 use crate::workspaces::team::{DiscoverableTeam, MembershipRole, Team, TeamDeleteDisabledReason};
 use crate::workspaces::update_manager::{TeamUpdateManager, TeamUpdateManagerEvent};
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
-use crate::workspaces::workspace::{
-    BillingMetadata, CustomerType, DelinquencyStatus, Workspace, WorkspaceUid,
-};
+use crate::workspaces::workspace::{CustomerType, DelinquencyStatus, Workspace, WorkspaceUid};
 
 const TEAM_MEMBERS_HEADER_POSITION_ID: &str = "team_settings:team_members_header";
 // Styling for team create page
@@ -214,12 +212,6 @@ pub enum TeamsPageAction {
         team_uid: ServerId,
     },
     OpenWarpDrive,
-    GenerateUpgradeLink {
-        team_uid: ServerId,
-    },
-    GenerateStripeBillingPortalLink {
-        team_uid: ServerId,
-    },
     OpenAdminPanel {
         team_uid: ServerId,
     },
@@ -268,8 +260,6 @@ impl TeamsPageAction {
                 | AddDomainRestrictions { .. }
                 | DeleteDomainRestriction { .. }
                 | SendEmailInvites { .. }
-                | GenerateUpgradeLink { .. }
-                | GenerateStripeBillingPortalLink { .. }
                 | OpenAdminPanel { .. }
                 | OpenWorkspaceAdminPanel
                 | ContactSupport
@@ -294,8 +284,6 @@ impl From<&TeamsPageAction> for LoginGatedFeature {
             AddDomainRestrictions { .. } => "Add Domain Restrictions",
             DeleteDomainRestriction { .. } => "Delete Domain Restriction",
             SendEmailInvites { .. } => "Send Email Invites",
-            GenerateUpgradeLink { .. } => "Generate Upgrade Link",
-            GenerateStripeBillingPortalLink { .. } => "Generate Stripe Billing Portal Link",
             OpenAdminPanel { .. } | OpenWorkspaceAdminPanel => "Open Admin Panel",
             ContactSupport => "Contact Support",
             ContactSales => "Contact Sales",
@@ -349,15 +337,12 @@ struct TeamsWidgetMouseHandles {
     approve_domains_button: MouseStateHandle,
     reset_invite_links_button: MouseStateHandle,
     invite_by_link_toggle_state: SwitchStateHandle,
-    stripe_billing_portal_link: MouseStateHandle,
-    manage_plan_link: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
     discoverable_team_toggle_state: SwitchStateHandle,
     checkbox_mouse_state: MouseStateHandle,
     admin_panel_button: MouseStateHandle,
     grow_team_warning_cta_button: MouseStateHandle,
     team_members_count_tooltip: MouseStateHandle,
-    outgrow_upgrade_link: MouseStateHandle,
     workspace_admin_panel_link: HighlightedHyperlink,
     browse_teams_button: MouseStateHandle,
 }
@@ -413,11 +398,7 @@ enum GrowTeamWarning {
 /// self-serve option, or no higher-cap plan available).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum GrowTeamWarningCta {
-    /// Self-serve upgrade is available; route to `/upgrade`.
-    Upgrade,
-    /// Self-serve admin can resolve billing via the Stripe portal.
-    UpdateBilling,
-    /// Non-self-serve admin (e.g. enterprise) should reach out to support.
+    /// An admin should reach out to support.
     ContactSupport,
     /// No actionable CTA from this viewer in this state.
     None,
@@ -673,12 +654,6 @@ impl TypedActionView for TeamsPageView {
                 domain_uid,
                 team_uid,
             } => self.delete_domain_restriction(*team_uid, *domain_uid, ctx),
-            TeamsPageAction::GenerateUpgradeLink { team_uid } => {
-                self.generate_upgrade_link(*team_uid, ctx)
-            }
-            TeamsPageAction::GenerateStripeBillingPortalLink { team_uid } => {
-                self.generate_stripe_billing_portal_link(*team_uid, ctx)
-            }
             TeamsPageAction::OpenAdminPanel { team_uid } => {
                 AdminActions::open_admin_panel(*team_uid, ctx);
             }
@@ -1108,22 +1083,6 @@ impl TeamsPageView {
             UserWorkspacesEvent::DeleteDomainRestrictionRejected(err) => {
                 self.show_error("Failed to delete domain restriction", Some(err), ctx)
             }
-            UserWorkspacesEvent::GenerateUpgradeLink(upgrade_link) => {
-                ctx.open_url(upgrade_link);
-            }
-            UserWorkspacesEvent::GenerateUpgradeLinkRejected(err) => self.show_error(
-                "Failed to generate upgrade link. Please contact us at feedback@warp.dev",
-                Some(err),
-                ctx,
-            ),
-            UserWorkspacesEvent::GenerateStripeBillingPortalLink(billing_session_link) => {
-                ctx.open_url(billing_session_link);
-            }
-            UserWorkspacesEvent::GenerateStripeBillingPortalLinkRejected(err) => self.show_error(
-                "Failed to generate billing link. Please contact us at feedback@warp.dev",
-                Some(err),
-                ctx,
-            ),
             UserWorkspacesEvent::ToggleTeamDiscoverabilitySuccess => {
                 self.show_success("Toggled team discoverability", ctx);
                 ctx.notify();
@@ -1230,15 +1189,6 @@ impl TeamsPageView {
             }
             UserWorkspacesEvent::AiOveragesUpdated => {
                 // AI overages update doesn't affect teams page display
-            }
-            UserWorkspacesEvent::PurchaseAddonCreditsSuccess => {
-                // Addon credits purchase success is handled in billing_and_usage_page
-            }
-            UserWorkspacesEvent::PurchaseAddonCreditsCheckoutRequired { .. } => {
-                // Checkout handoff is handled by the surface that initiated the purchase
-            }
-            UserWorkspacesEvent::PurchaseAddonCreditsRejected(_) => {
-                // Addon credits purchase rejection is handled in billing_and_usage_page
             }
             UserWorkspacesEvent::CodebaseContextEnablementChanged => {}
             UserWorkspacesEvent::SunsettedToBuildDataUpdated => {
@@ -2002,24 +1952,6 @@ impl TeamsPageView {
             });
     }
 
-    fn generate_upgrade_link(&mut self, team_uid: ServerId, ctx: &mut ViewContext<Self>) {
-        self.user_workspaces
-            .update(ctx, move |user_workspaces, ctx| {
-                user_workspaces.generate_upgrade_link(team_uid, ctx);
-            });
-    }
-
-    fn generate_stripe_billing_portal_link(
-        &mut self,
-        team_uid: ServerId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.user_workspaces
-            .update(ctx, move |user_workspaces, ctx| {
-                user_workspaces.generate_stripe_billing_portal_link(team_uid, ctx);
-            });
-    }
-
     fn handle_editor_event(&mut self, event: &EditorEvent, ctx: &mut ViewContext<Self>) {
         match event {
             EditorEvent::Edited(_) => ctx.notify(),
@@ -2328,27 +2260,15 @@ impl TeamsWidget {
     fn grow_team_warning_cta(
         warning: GrowTeamWarning,
         has_admin_permissions: bool,
-        billing_metadata: &BillingMetadata,
     ) -> GrowTeamWarningCta {
         if !has_admin_permissions {
             return GrowTeamWarningCta::None;
         }
         match warning {
             GrowTeamWarning::PaymentPastDue | GrowTeamWarning::PaymentUnpaid => {
-                // Self-serve admins should be able to fix billing themselves;
-                // everyone else (enterprise / legacy) needs to reach support.
-                if billing_metadata.is_on_stripe_paid_plan() {
-                    GrowTeamWarningCta::UpdateBilling
-                } else {
-                    GrowTeamWarningCta::ContactSupport
-                }
+                GrowTeamWarningCta::ContactSupport
             }
             GrowTeamWarning::SeatCapReached | GrowTeamWarning::SeatCapExceeded => {
-                // Business teams route through the upgrade flow for the
-                // Enterprise upsell when they need more seats.
-                if billing_metadata.customer_type == CustomerType::Business {
-                    return GrowTeamWarningCta::Upgrade;
-                }
                 GrowTeamWarningCta::None
             }
         }
@@ -2357,7 +2277,7 @@ impl TeamsWidget {
     /// Renders the red warning alert at the top of the invite section.
     fn render_grow_team_warning_alert(
         &self,
-        team: &Team,
+        _team: &Team,
         warning: GrowTeamWarning,
         has_admin_permissions: bool,
         appearance: &Appearance,
@@ -2387,8 +2307,7 @@ impl TeamsWidget {
         };
         let title_element = self.render_subsection_header(title.to_owned(), appearance);
 
-        let cta =
-            Self::grow_team_warning_cta(warning, has_admin_permissions, &team.billing_metadata);
+        let cta = Self::grow_team_warning_cta(warning, has_admin_permissions);
 
         let body_prefix = match warning {
             GrowTeamWarning::SeatCapReached => "You've reached your plan's member limit.",
@@ -2415,10 +2334,6 @@ impl TeamsWidget {
             }
         } else {
             match cta {
-                GrowTeamWarningCta::Upgrade => "Upgrade to grow your team.",
-                GrowTeamWarningCta::UpdateBilling => {
-                    "Update your payment information to restore access."
-                }
                 GrowTeamWarningCta::ContactSupport => "Contact support to restore access.",
                 GrowTeamWarningCta::None => {
                     if is_delinquency {
@@ -2453,14 +2368,6 @@ impl TeamsWidget {
         // CTA button only renders when there's an actionable path. A single
         // mouse state handle is fine because at most one CTA shows at a time.
         if let Some((cta_label, cta_action)) = match cta {
-            GrowTeamWarningCta::Upgrade => Some((
-                "Upgrade",
-                TeamsPageAction::GenerateUpgradeLink { team_uid: team.uid },
-            )),
-            GrowTeamWarningCta::UpdateBilling => Some((
-                "Update billing",
-                TeamsPageAction::GenerateStripeBillingPortalLink { team_uid: team.uid },
-            )),
             GrowTeamWarningCta::ContactSupport => {
                 Some(("Contact support", TeamsPageAction::ContactSupport))
             }
@@ -2515,19 +2422,6 @@ impl TeamsWidget {
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
             .with_border(Border::all(1.).with_border_fill(border_fill))
             .finish()
-    }
-
-    fn outgrow_upgrade_line_copy(
-        billing_metadata: &BillingMetadata,
-    ) -> (&'static str, &'static str) {
-        if billing_metadata.customer_type == CustomerType::Business {
-            (
-                "Upgrade to Enterprise",
-                " for an unlimited team member limit.",
-            )
-        } else {
-            ("Upgrade to Business", " for a higher team member limit.")
-        }
     }
 
     fn render_team_member_cost_info(
@@ -2670,17 +2564,6 @@ impl TeamsWidget {
             appearance,
         ));
 
-        // 6) Optional outgrow CTA
-        if let Some(cta) =
-            self.render_outgrow_upgrade_cta(team_metadata, has_admin_permissions, appearance)
-        {
-            main_content.add_child(
-                Container::new(cta)
-                    .with_padding_top(CONTENT_SEPARATION_PADDING)
-                    .finish(),
-            );
-        }
-
         // 7) Deleting/leaving teams
         let mut button_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
         let footer_action = Self::team_footer_action(team_metadata, workspace, is_owner);
@@ -2700,11 +2583,9 @@ impl TeamsWidget {
             // and if the current user actually has the perms to delete the team
             if has_admin_permissions && footer_action == Some(TeamFooterAction::Delete) {
                 button_row.add_child(
-                    Container::new(self.render_delete_disabled_help_text(
-                        delete_disabled_reason,
-                        team_metadata.uid,
-                        appearance,
-                    ))
+                    Container::new(
+                        self.render_delete_disabled_help_text(delete_disabled_reason, appearance),
+                    )
                     .with_padding_right(24.)
                     .finish(),
                 );
@@ -2878,37 +2759,6 @@ impl TeamsWidget {
             .finish()
     }
 
-    fn render_manage_billing_button(
-        &self,
-        team_uid: ServerId,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        appearance
-            .ui_builder()
-            .button(
-                ButtonVariant::Link,
-                self.mouse_state_handles.stripe_billing_portal_link.clone(),
-            )
-            .with_text_and_icon_label(
-                TextAndIcon::new(
-                    TextAndIconAlignment::IconFirst,
-                    "Manage billing",
-                    Icon::CoinsStacked.to_warpui_icon(appearance.theme().accent()),
-                    MainAxisSize::Min,
-                    MainAxisAlignment::Center,
-                    vec2f(14., 14.),
-                )
-                .with_inner_padding(4.),
-            )
-            .build()
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(TeamsPageAction::GenerateStripeBillingPortalLink {
-                    team_uid,
-                });
-            })
-            .finish()
-    }
-
     fn render_admin_panel_button(
         &self,
         team_uid: ServerId,
@@ -2960,12 +2810,6 @@ impl TeamsWidget {
         if team.billing_metadata.customer_type == CustomerType::Enterprise {
             billing_links.add_child(
                 Container::new(self.render_contact_support_button(appearance))
-                    .with_margin_left(12.)
-                    .finish(),
-            );
-        } else if team.has_billing_history {
-            billing_links.add_child(
-                Container::new(self.render_manage_billing_button(team_uid, appearance))
                     .with_margin_left(12.)
                     .finish(),
             );
@@ -3480,55 +3324,6 @@ impl TeamsWidget {
     }
 
     /// "Need more seats? <Upgrade to ...> ..."
-    fn render_outgrow_upgrade_cta(
-        &self,
-        team: &Team,
-        has_admin_permissions: bool,
-        appearance: &Appearance,
-    ) -> Option<Box<dyn Element>> {
-        if team.billing_metadata.is_delinquent_due_to_payment_issue() {
-            return None;
-        }
-        match Self::grow_team_warning_cta(
-            GrowTeamWarning::SeatCapReached,
-            has_admin_permissions,
-            &team.billing_metadata,
-        ) {
-            GrowTeamWarningCta::UpdateBilling
-            | GrowTeamWarningCta::ContactSupport
-            | GrowTeamWarningCta::None => return None,
-            GrowTeamWarningCta::Upgrade => {}
-        }
-
-        let team_uid = team.uid;
-        let (link_text, suffix) = Self::outgrow_upgrade_line_copy(&team.billing_metadata);
-        let prefix = self.render_sub_text("Need more seats? ".to_string(), appearance, None);
-        let link = appearance
-            .ui_builder()
-            .link(
-                link_text.to_string(),
-                None,
-                Some(Box::new(move |ctx| {
-                    ctx.dispatch_typed_action(TeamsPageAction::GenerateUpgradeLink { team_uid });
-                })),
-                self.mouse_state_handles.outgrow_upgrade_link.clone(),
-            )
-            .soft_wrap(false)
-            .build()
-            .finish();
-        let suffix = self.render_sub_text(suffix.to_string(), appearance, None);
-
-        Some(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_child(prefix)
-                .with_child(link)
-                .with_child(suffix)
-                .finish(),
-        )
-    }
-
     fn render_approved_domains_section(
         &self,
         team: &Team,
@@ -3818,36 +3613,13 @@ impl TeamsWidget {
     fn render_delete_disabled_help_text(
         &self,
         delete_disabled_reason: TeamDeleteDisabledReason,
-        team_uid: ServerId,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let description = self.render_sub_text(
+        self.render_sub_text(
             delete_disabled_reason.user_facing_message().into(),
             appearance,
             None,
-        );
-
-        let mut children = vec![description];
-
-        if delete_disabled_reason == TeamDeleteDisabledReason::ActivePaidSubscription {
-            let link = appearance
-                .ui_builder()
-                .link(
-                    "Manage plan".into(),
-                    None,
-                    Some(Box::new(move |ctx| {
-                        ctx.dispatch_typed_action(
-                            TeamsPageAction::GenerateStripeBillingPortalLink { team_uid },
-                        );
-                    })),
-                    self.mouse_state_handles.manage_plan_link.clone(),
-                )
-                .build()
-                .finish();
-            children.push(link);
-        }
-
-        Flex::column().with_children(children).finish()
+        )
     }
 
     fn render_delinquency_badge(

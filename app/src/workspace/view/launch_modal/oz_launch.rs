@@ -18,7 +18,6 @@ pub enum OzLaunchSlide {
     CloudAgents,
     AgentAutomations,
     AgentManagement,
-    LaunchCredits,
 }
 
 impl Slide for OzLaunchSlide {
@@ -42,8 +41,7 @@ impl Slide for OzLaunchSlide {
         match self {
             OzLaunchSlide::CloudAgents => Some(OzLaunchSlide::AgentAutomations),
             OzLaunchSlide::AgentAutomations => Some(OzLaunchSlide::AgentManagement),
-            OzLaunchSlide::AgentManagement => Some(OzLaunchSlide::LaunchCredits),
-            OzLaunchSlide::LaunchCredits => None,
+            OzLaunchSlide::AgentManagement => None,
         }
     }
 
@@ -52,7 +50,6 @@ impl Slide for OzLaunchSlide {
             OzLaunchSlide::CloudAgents => None,
             OzLaunchSlide::AgentAutomations => Some(OzLaunchSlide::CloudAgents),
             OzLaunchSlide::AgentManagement => Some(OzLaunchSlide::AgentAutomations),
-            OzLaunchSlide::LaunchCredits => Some(OzLaunchSlide::AgentManagement),
         }
     }
 
@@ -61,7 +58,6 @@ impl Slide for OzLaunchSlide {
             OzLaunchSlide::CloudAgents => "Cloud agents",
             OzLaunchSlide::AgentAutomations => "Agent automations",
             OzLaunchSlide::AgentManagement => "Agent management",
-            OzLaunchSlide::LaunchCredits => "A little gift",
         })
     }
 
@@ -70,7 +66,6 @@ impl Slide for OzLaunchSlide {
             OzLaunchSlide::CloudAgents => "Cloud agents",
             OzLaunchSlide::AgentAutomations => "Agent automations",
             OzLaunchSlide::AgentManagement => "Agent management",
-            OzLaunchSlide::LaunchCredits => "Launch credits",
         }
     }
 
@@ -81,9 +76,6 @@ impl Slide for OzLaunchSlide {
                 "Orchestrate agents, turning Skills into automations"
             }
             OzLaunchSlide::AgentManagement => "Track local and cloud agents seamlessly",
-            OzLaunchSlide::LaunchCredits => {
-                "1,000 free cloud agent credits when you upgrade to Warp Build"
-            }
         }
     }
 
@@ -102,9 +94,6 @@ impl Slide for OzLaunchSlide {
             OzLaunchSlide::AgentManagement => {
                 "View all of your agents across local and cloud sessions in the Warp app or at [oz.warp.dev](https://oz.warp.dev). Join live agent sessions, continue tasks locally, and steer agents with one click."
             }
-            OzLaunchSlide::LaunchCredits => {
-                "Upgrade to Build this month and receive 1,000 extra credits to try using Oz. Credits are only eligible for Oz runs in Warp-hosted cloud environments."
-            }
         }
     }
 
@@ -120,9 +109,6 @@ impl Slide for OzLaunchSlide {
             OzLaunchSlide::AgentManagement => {
                 bundled_or_fetched_asset!("png/oz_agent_management.png")
             }
-            OzLaunchSlide::LaunchCredits => {
-                bundled_or_fetched_asset!("png/oz_launch_credits.png")
-            }
         }
     }
 
@@ -131,19 +117,16 @@ impl Slide for OzLaunchSlide {
             OzLaunchSlide::CloudAgents,
             OzLaunchSlide::AgentAutomations,
             OzLaunchSlide::AgentManagement,
-            OzLaunchSlide::LaunchCredits,
         ]
     }
 
     fn cta_button(&self) -> CTAButton<Self> {
         match self {
-            OzLaunchSlide::CloudAgents
-            | OzLaunchSlide::AgentAutomations
-            | OzLaunchSlide::AgentManagement => {
+            OzLaunchSlide::CloudAgents | OzLaunchSlide::AgentAutomations => {
                 let next = self.next().expect("Non-final slides should have a next");
                 CTAButton::next_slide(next, format!("Next: {}", next.short_label()))
             }
-            OzLaunchSlide::LaunchCredits => CTAButton::custom("Try it out", |ctx| {
+            OzLaunchSlide::AgentManagement => CTAButton::custom("Try it out", |ctx| {
                 send_telemetry_from_ctx!(
                     CloudAgentTelemetryEvent::EnteredCloudMode {
                         entry_point: CloudModeEntryPoint::OzLaunchModal,
@@ -163,10 +146,8 @@ impl Slide for OzLaunchSlide {
 
     fn secondary_cta_button(&self) -> Option<CTAButton<Self>> {
         match self {
-            OzLaunchSlide::LaunchCredits => Some(CTAButton::close("Skip for now")),
-            OzLaunchSlide::CloudAgents
-            | OzLaunchSlide::AgentAutomations
-            | OzLaunchSlide::AgentManagement => None,
+            OzLaunchSlide::AgentManagement => Some(CTAButton::close("Skip for now")),
+            OzLaunchSlide::CloudAgents | OzLaunchSlide::AgentAutomations => None,
         }
     }
 

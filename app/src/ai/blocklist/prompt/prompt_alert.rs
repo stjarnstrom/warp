@@ -12,27 +12,24 @@ use warpui::{
 
 use crate::ai::blocklist::error_color;
 use crate::network::NetworkStatus;
-use crate::server::ids::ServerId;
 use crate::ui_components::icons::Icon;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
 
 const NO_CONNECTION_PRIMARY_TEXT: &str = "No internet connection";
 
-/// Only the signup and billing links produced these, and both were credit
-/// prompts. The variants stay until the account gating that still routes
-/// `PromptAlertEvent` is removed.
+/// Only the signup link produced this, and it was a credit prompt. The variant
+/// stays until the account gating that still routes `PromptAlertEvent` is
+/// removed.
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptAlertAction {
     SignUpClickedForAnonymousUser,
-    ManageBillingClicked { team_uid: ServerId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptAlertEvent {
     SignupAnonymousUser,
-    OpenBillingPortal { team_uid: ServerId },
 }
 
 /// The alert state of the chip that appears to the right of certain parts of the prompt.
@@ -221,11 +218,6 @@ impl TypedActionView for PromptAlertView {
         match action {
             PromptAlertAction::SignUpClickedForAnonymousUser => {
                 ctx.emit(PromptAlertEvent::SignupAnonymousUser);
-            }
-            PromptAlertAction::ManageBillingClicked { team_uid } => {
-                ctx.emit(PromptAlertEvent::OpenBillingPortal {
-                    team_uid: *team_uid,
-                });
             }
         }
     }

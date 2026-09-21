@@ -494,26 +494,10 @@ fn harness_exit_timed_out_is_failed_with_internal_and_names_harness() {
 
 #[test]
 fn sandbox_deadline_reached_is_failed_with_exact_message_and_no_error_code() {
-    let (state, update) = classify_driver_error(&AgentDriverError::SandboxDeadlineReached {
-        on_free_plan: false,
-    });
+    let (state, update) = classify_driver_error(&AgentDriverError::SandboxDeadlineReached);
     assert_eq!(state, AgentTaskState::Failed);
     assert!(update.error_code.is_none());
     assert_eq!(update.message, "Sandbox maximum runtime reached.");
-}
-
-/// The limit is only fixed on the free plan, so the upgrade hint must be
-/// scoped to it — paid plans can configure the limit instead.
-#[test]
-fn sandbox_deadline_reached_on_free_plan_suggests_upgrading() {
-    let (state, update) =
-        classify_driver_error(&AgentDriverError::SandboxDeadlineReached { on_free_plan: true });
-    assert_eq!(state, AgentTaskState::Failed);
-    assert!(update.error_code.is_none());
-    assert_eq!(
-        update.message,
-        "Sandbox maximum runtime reached. Upgrade to a paid plan to remove this limit."
-    );
 }
 
 // --- SIGTERM abort ---

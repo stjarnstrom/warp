@@ -32,9 +32,9 @@ use warp_editor::editor::NavigationKey;
 use warp_errors::report_if_error;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Empty, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkLens,
-    HyperlinkUrl, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
-    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
+    Empty, Expanded, Flex, FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkUrl,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::{ContextPredicate, Keystroke};
@@ -4771,7 +4771,6 @@ struct ApiKeysWidget {
     grok_disconnect_button: ViewHandle<ActionButton>,
 
     can_use_warp_credits_for_fallback: SwitchStateHandle,
-    upgrade_highlight_index: HighlightedHyperlink,
 
     description_learn_more_index: HighlightedHyperlink,
 }
@@ -4995,7 +4994,6 @@ impl ApiKeysWidget {
             grok_disconnect_button,
 
             can_use_warp_credits_for_fallback: Default::default(),
-            upgrade_highlight_index: Default::default(),
 
             description_learn_more_index: Default::default(),
         }
@@ -5623,83 +5621,6 @@ impl SettingsWidget for ApiKeysWidget {
                     .with_margin_top(16.)
                     .finish(),
             );
-        }
-
-        // Upgrade CTA if BYOK not enabled
-        if !is_byo_enabled && show_provider_keys {
-            let auth_state = AuthStateProvider::as_ref(app).get();
-            let upgrade_text_fragments = if let Some(team) =
-                UserWorkspaces::as_ref(app).team_for_view_handle(&self.view_handle, app)
-            {
-                if team.billing_metadata.customer_type == CustomerType::Enterprise {
-                    vec![
-                        FormattedTextFragment::hyperlink("Contact sales", "mailto:sales@warp.dev"),
-                        FormattedTextFragment::plain_text(
-                            " to enable bringing your own API keys on your Enterprise plan.",
-                        ),
-                    ]
-                } else {
-                    let current_user_email = auth_state.user_email().unwrap_or_default();
-                    let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-                    let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
-                    if has_admin_permissions {
-                        vec![
-                            FormattedTextFragment::hyperlink(
-                                "Upgrade to the Build plan",
-                                upgrade_url,
-                            ),
-                            FormattedTextFragment::plain_text(" to use your own API keys."),
-                        ]
-                    } else {
-                        vec![FormattedTextFragment::plain_text(
-                            "Ask your team's admin to upgrade to the Build plan to use your own API keys.",
-                        )]
-                    }
-                }
-            } else if FeatureFlag::SoloUserByok.is_enabled()
-                && auth_state.is_anonymous_or_logged_out()
-            {
-                vec![
-                    FormattedTextFragment::hyperlink_action(
-                        "Create an account",
-                        WarpAgentPageAction::SignupAnonymousUser,
-                    ),
-                    FormattedTextFragment::plain_text(" to use your own API keys."),
-                ]
-            } else {
-                let user_id = auth_state.user_id().unwrap_or_default();
-                let upgrade_url = UserWorkspaces::upgrade_link(user_id);
-                vec![
-                    FormattedTextFragment::hyperlink("Upgrade to the Build plan", upgrade_url),
-                    FormattedTextFragment::plain_text(" to use your own API keys."),
-                ]
-            };
-
-            let upgrade_text_element = FormattedTextElement::new(
-                FormattedText::new([FormattedTextLine::Line(upgrade_text_fragments)]),
-                appearance.ui_font_size(),
-                appearance.ui_font_family(),
-                appearance.ui_font_family(),
-                blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
-                self.upgrade_highlight_index.clone(),
-            )
-            .with_hyperlink_font_color(appearance.theme().accent().into_solid())
-            .register_default_click_handlers_with_action_support(|hyperlink_lens, event, ctx| {
-                match hyperlink_lens {
-                    HyperlinkLens::Url(url) => {
-                        ctx.open_url(url);
-                    }
-                    HyperlinkLens::Action(action_ref) => {
-                        if let Some(action) =
-                            action_ref.as_any().downcast_ref::<WarpAgentPageAction>()
-                        {
-                            event.dispatch_typed_action(action.clone());
-                        }
-                    }
-                }
-            });
-
-            column.add_child(Container::new(upgrade_text_element.finish()).finish());
         }
 
         column.finish()

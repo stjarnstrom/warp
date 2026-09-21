@@ -56,8 +56,6 @@ pub enum SlashCommandKind {
     AddMcp,
     ApiKeys,
     ConnectGrok,
-    Upgrade,
-    ManageBilling,
     AutoApprove,
     Statusline,
     ResetStatusline,

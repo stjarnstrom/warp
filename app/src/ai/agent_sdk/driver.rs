@@ -103,7 +103,6 @@ use crate::terminal::cli_agent_sessions::{
 use crate::terminal::model::BlockId;
 use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::workspaces::user_workspaces::{ResolvedTeamScope, TeamScopeForCli, UserWorkspaces};
-use crate::workspaces::workspace::BillingMetadata;
 
 pub(crate) mod attachments;
 #[cfg(feature = "local_fs")]
@@ -958,16 +957,10 @@ pub enum AgentDriverError {
     )]
     HarnessExitTimedOut { harness: String },
     /// `WARP_SANDBOX_DEADLINE` expired before `run_internal` completed.
-    /// For free plans, this is a user-facing limit (upgrade to remove it).
-    /// For paid plans, it's a configurable limit the user or team set.
-    /// Either way, it's a task outcome — the user's requested work didn't fit
-    /// in the time they (or their plan) allow, so report as `FAILED`.
-    #[error("{}", sandbox_deadline_message(*on_free_plan))]
-    SandboxDeadlineReached {
-        /// Whether the run's workspace is on the free plan, which determines
-        /// whether the message points the user at upgrading.
-        on_free_plan: bool,
-    },
+    /// It's a task outcome — the user's requested work didn't fit in the time
+    /// allowed — so report as `FAILED`.
+    #[error("Sandbox maximum runtime reached.")]
+    SandboxDeadlineReached,
     /// The process received SIGTERM while the run was still in progress.
     /// SIGTERM is how instance teardown reaches the client — server-initiated
     /// sandbox shutdown, container-runtime stops, and self-hosted worker
@@ -978,18 +971,6 @@ pub enum AgentDriverError {
          because the instance or worker hosting the run was shut down."
     )]
     TerminatedBySignal,
-}
-
-/// User-facing message for [`AgentDriverError::SandboxDeadlineReached`].
-///
-/// The free plan's runtime cap is fixed, so those runs get an upgrade hint;
-/// paid plans can configure the limit and are only told it was hit.
-const fn sandbox_deadline_message(on_free_plan: bool) -> &'static str {
-    if on_free_plan {
-        "Sandbox maximum runtime reached. Upgrade to a paid plan to remove this limit."
-    } else {
-        "Sandbox maximum runtime reached."
-    }
 }
 
 /// Environment variable holding the Unix timestamp (seconds) at which the sandbox
@@ -1430,27 +1411,6 @@ impl AgentDriver {
                         }
                     });
 
-                    // Resolved up front rather than inside the timer arm: `select!` arms
-                    // are synchronous (no `ctx` to read the model from), and everything
-                    // after the deadline fires competes with the shutdown window. Billing
-                    // metadata is already loaded by then — cloud runs block on
-                    // `SetupStep::TeamMetadataRefresh` before the driver starts — so this
-                    // read does not race the initial fetch. Defaults to the non-free
-                    // message if unavailable, so a paying customer is never told to
-                    // upgrade.
-                    let on_free_plan = if maybe_wait.is_some() {
-                        foreground
-                            .spawn(|_, ctx| {
-                                UserWorkspaces::as_ref(ctx)
-                                    .current_workspace_billing_metadata()
-                                    .is_some_and(BillingMetadata::is_free_plan)
-                            })
-                            .await
-                            .unwrap_or(false)
-                    } else {
-                        false
-                    };
-
                     // Timer future: fires at deadline minus warning window, mapped to
                     // () to avoid std::time::Instant which is disallowed on wasm targets.
                     // Pending forever (never fires) when no deadline is set.
@@ -1497,7 +1457,7 @@ impl AgentDriver {
                                 "Sandbox deadline approaching (WARP_SANDBOX_DEADLINE); \
                                  aborting run_internal to allow recording finalization"
                             );
-                            Err(AgentDriverError::SandboxDeadlineReached { on_free_plan })
+                            Err(AgentDriverError::SandboxDeadlineReached)
                         }
                         _ = sigterm_fut.fuse() => {
                             log::warn!(
@@ -1550,7 +1510,7 @@ impl AgentDriver {
 
                 if matches!(
                     result,
-                    Err(AgentDriverError::SandboxDeadlineReached { .. })
+                    Err(AgentDriverError::SandboxDeadlineReached)
                         | Err(AgentDriverError::TerminatedBySignal)
                 ) && let Ok(Some(runner)) = foreground.spawn(|me, _| me.harness.clone()).await
                 {
