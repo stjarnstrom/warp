@@ -26,9 +26,8 @@ use super::requests::{RequestStatus, Requests};
 use super::utils::{
     AssistantTranscriptPart, CodeBlockIndex, FormattedTranscriptMessage, MarkdownSegment,
     TranscriptPartSubType, code_block_position_id, markdown_segments_from_text,
-    render_prepared_response_button, render_request_limit_info, save_as_workflow_position_id,
+    render_prepared_response_button, save_as_workflow_position_id,
 };
-use crate::ai::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{SaveAsWorkflowModalSource, TelemetryEvent, WarpAIActionType};
@@ -819,7 +818,8 @@ impl View for Transcript {
         let request_status = self.requests_model.as_ref(app).request_status();
         let user_workspaces = UserWorkspaces::as_ref(app);
         let scope = user_workspaces.team_context(&self.view_handle, app);
-        let has_ai_available = AIRequestUsageModel::as_ref(app).has_any_ai_remaining(&scope, app);
+        let _ = &scope;
+        let has_ai_available = true;
 
         let mut blocks = Flex::column();
         for (index, part) in transcript.iter().enumerate() {
@@ -858,22 +858,6 @@ impl View for Transcript {
                     Container::new(self.render_prepared_responses(appearance))
                         .with_margin_top(15.)
                         .finish(),
-                );
-            }
-
-            let is_custom_llm_enabled = user_workspaces.is_custom_llm_enabled_for_team(
-                user_workspaces.team_for_view_handle(&self.view_handle, app),
-            );
-
-            if !is_custom_llm_enabled {
-                blocks.add_child(
-                    Container::new(render_request_limit_info(
-                        &self.requests_model,
-                        app,
-                        appearance,
-                    ))
-                    .with_margin_top(15.)
-                    .finish(),
                 );
             }
 

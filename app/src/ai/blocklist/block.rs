@@ -155,7 +155,6 @@ use crate::ai::get_relevant_files::controller::{
 use crate::ai::skills::SkillOpenOrigin;
 use crate::ai::skills::{SkillManager, SkillTelemetryEvent};
 use crate::ai::stored_screenshots::stored_screenshot_asset_source;
-use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::model::persistence::CloudModel;
@@ -1045,7 +1044,6 @@ pub struct AIBlock {
 
     /// The number of requests that have been refunded.
     /// Right now, this happens when a user thumbs down a response.
-    request_refunded_count: Option<i32>,
 
     /// Requested commands that were auto-expanded,
     /// and should thus be auto-collapsed when the block is finished.
@@ -1303,31 +1301,6 @@ impl AIBlock {
                 .on_click(|ctx| ctx.dispatch_typed_action(AIBlockAction::OpenAIFactCollection))
         });
 
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
-            if let AIRequestUsageModelEvent::RequestBonusRefunded {
-                requests_refunded,
-                server_conversation_id,
-                request_id,
-            } = event
-            {
-                let server_conversation_token = BlocklistAIHistoryModel::as_ref(ctx)
-                    .conversation(&me.client_ids.conversation_id)
-                    .and_then(|conversation| conversation.server_conversation_token())
-                    .cloned();
-
-                let server_output_id = me.model.server_output_id(ctx);
-
-                if let (Some(server_conversation_token), Some(server_output_id)) =
-                    (server_conversation_token, server_output_id)
-                    && request_id.eq(server_output_id.to_string().as_str())
-                    && server_conversation_id.eq(server_conversation_token.as_str())
-                {
-                    me.request_refunded_count = Some(*requests_refunded);
-                    ctx.notify();
-                }
-            }
-        });
-
         ctx.subscribe_to_model(
             cli_subagent_controller,
             move |me, _, event, ctx| match event {
@@ -1533,7 +1506,6 @@ impl AIBlock {
             keyboard_navigable_buttons: None,
             response_rating: OnceCell::new(),
             terminal_view_id,
-            request_refunded_count: None,
             action_buttons: Default::default(),
             search_codebase_view: Default::default(),
             web_search_views: Default::default(),
@@ -6886,20 +6858,6 @@ impl TypedActionView for AIBlock {
                 if self.response_rating.set(rating).is_err() {
                     // A rating was already set for this block. This should be unreachable.
                     return;
-                }
-
-                if matches!(rating, AIBlockResponseRating::Negative)
-                    && let Some(output_id) = output_id.clone()
-                {
-                    let request_usage_model = AIRequestUsageModel::handle(ctx);
-                    request_usage_model.update(ctx, |request_usage_model, ctx| {
-                        request_usage_model.provide_negative_feedback_response_for_ai_conversation(
-                            self.client_ids.conversation_id,
-                            output_id.to_string(),
-                            self.client_ids.client_exchange_id,
-                            ctx,
-                        );
-                    });
                 }
 
                 let window_id = ctx.window_id();

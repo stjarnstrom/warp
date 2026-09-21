@@ -767,16 +767,6 @@ pub static CONTINUE_LOCALLY: LazyLock<StaticCommand> = LazyLock::new(|| {
     }
 });
 
-pub const USAGE: StaticCommand = StaticCommand {
-    name: "/usage",
-    description: "View account and credit usage",
-    kind: SlashCommandKind::Usage,
-    supported_surfaces: SlashCommandSurfaces::TuiOnly,
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-};
-
 pub const REMOTE_CONTROL: StaticCommand = StaticCommand {
     name: "/remote-control",
     description: "Start remote control for this session",
@@ -1000,7 +990,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         NATURAL_LANGUAGE_DETECTION,
         THEME,
         VIM_MODE,
-        USAGE,
         CONVERSATIONS,
         EXPORT_TO_CLIPBOARD,
         COPY_DEBUGGING_ID,

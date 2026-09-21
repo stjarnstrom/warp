@@ -17,7 +17,6 @@ use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::text::Span;
 use warpui::{AppContext, Element, EntityId, EventContext, SingletonEntity};
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::RenderableAIError;
 use crate::settings::UsageDisplayUnit;
 use crate::themes::theme::{AnsiColorIdentifier, Fill, WarpTheme};
@@ -111,12 +110,8 @@ pub fn failed_output_presentation(
                     FailedOutputPresentation::Message(format!("{ERROR_APOLOGY_TEXT}\n\n{message}"))
                 }
             } else {
-                let formatted_next_refresh_time = AIRequestUsageModel::as_ref(app)
-                    .next_refresh_time()
-                    .format("%B %d")
-                    .to_string();
                 FailedOutputPresentation::Message(format!(
-                    "{ERROR_APOLOGY_TEXT}\n\nYou've reached your credit limit. Your credit limit resets on {formatted_next_refresh_time}.",
+                    "{ERROR_APOLOGY_TEXT}\n\nThe request was refused."
                 ))
             }
         }

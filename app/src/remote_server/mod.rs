@@ -9,8 +9,6 @@ use warp_server_client::auth::AuthEvent;
 use warpui::SingletonEntity as _;
 
 #[cfg(not(target_family = "wasm"))]
-use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
-#[cfg(not(target_family = "wasm"))]
 use crate::server::server_api::ServerApiProvider;
 
 #[cfg(not(target_family = "wasm"))]
@@ -40,11 +38,12 @@ pub mod unix;
 fn current_codebase_index_limits(
     ctx: &warpui::AppContext,
 ) -> remote_server::proto::CodebaseIndexLimits {
-    let limits = AIRequestUsageModel::as_ref(ctx).codebase_context_limits();
+    let _ = ctx;
     remote_server::proto::CodebaseIndexLimits {
-        max_indices_allowed: limits.max_indices_allowed.map(|limit| limit as u64),
-        max_files_per_repo: limits.max_files_per_repo as u64,
-        embedding_generation_batch_size: limits.embedding_generation_batch_size as u64,
+        max_indices_allowed: Some(crate::ai::persisted_workspace::MAX_CODEBASE_INDICES as u64),
+        max_files_per_repo: crate::ai::persisted_workspace::MAX_FILES_PER_REPO as u64,
+        embedding_generation_batch_size:
+            crate::ai::persisted_workspace::EMBEDDING_GENERATION_BATCH_SIZE as u64,
     }
 }
 
@@ -102,21 +101,6 @@ pub fn wire_auth_token_rotation(ctx: &mut warpui::AppContext) {
             for client in manager.as_ref(ctx).all_connected_clients() {
                 client.update_preferences(new_value, Some(codebase_index_limits));
             }
-        }
-    });
-
-    let request_usage = AIRequestUsageModel::handle(ctx);
-    let manager = RemoteServerManager::handle(ctx);
-    ctx.subscribe_to_model(&request_usage, move |_, event, ctx| {
-        if matches!(event, AIRequestUsageModelEvent::RequestUsageUpdated) {
-            let codebase_index_limits = current_codebase_index_limits(ctx);
-            let crash_reporting_enabled = PrivacySettings::as_ref(ctx).is_crash_reporting_enabled;
-            manager.update(ctx, |manager, _| {
-                manager.update_codebase_index_limits(Some(codebase_index_limits));
-                for client in manager.all_connected_clients() {
-                    client.update_preferences(crash_reporting_enabled, Some(codebase_index_limits));
-                }
-            });
         }
     });
 }

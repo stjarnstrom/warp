@@ -37,12 +37,10 @@ use warpui::{
     ViewContext, ViewHandle, WindowId, id,
 };
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};
 use crate::ai::onboarding::{build_onboarding_models, current_onboarding_auth_state};
-use crate::ai::request_usage_model::AIRequestUsageModelEvent;
 use crate::app_state::{AppState, PaneUuid, WindowSnapshot};
 use crate::appearance::Appearance;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
@@ -160,9 +158,6 @@ fn refresh_onboarding_account_state(ctx: &mut ViewContext<RootView>) {
     let scope = ResolvedTeamScope::from_scope(
         &UserWorkspaces::as_ref(ctx).team_context(&ctx.handle(), ctx),
     );
-    AIRequestUsageModel::handle(ctx).update(ctx, |usage, ctx| {
-        usage.request_availability_refresh(ctx);
-    });
     LLMPreferences::handle(ctx).update(ctx, |prefs, ctx| {
         prefs.refresh_available_models(&scope, ctx);
     });
@@ -2233,26 +2228,6 @@ impl RootView {
             },
         );
 
-        // Browser checkout doesn't report back to the app, so the offer is only
-        // satisfied once the user can actually make an AI request.
-        let onboarding_view_for_usage = onboarding_view.clone();
-        ctx.subscribe_to_model(
-            &AIRequestUsageModel::handle(ctx),
-            move |_, _usage, event, ctx| {
-                if !matches!(event, AIRequestUsageModelEvent::CreditAvailabilityUpdated) {
-                    return;
-                }
-                let available = {
-                    let user_workspaces = UserWorkspaces::as_ref(ctx);
-                    let scope = user_workspaces.team_context_for_view(ctx);
-                    AIRequestUsageModel::as_ref(ctx).has_any_ai_remaining(&scope, ctx)
-                };
-                onboarding_view_for_usage.update(ctx, |onboarding_view, ctx| {
-                    onboarding_view.on_ai_credit_availability_observed(available, ctx);
-                });
-            },
-        );
-
         let onboarding_view_for_auth = onboarding_view.clone();
         ctx.subscribe_to_model(
             &AuthManager::handle(ctx),
@@ -2356,16 +2331,13 @@ impl RootView {
         self.account_first_refresh_in_flight = true;
         let workspace_refresh = TeamUpdateManager::handle(ctx)
             .update(ctx, |manager, ctx| manager.refresh_workspace_metadata(ctx));
-        let request_limit_refresh = AIRequestUsageModel::handle(ctx)
-            .update(ctx, |model, ctx| model.refresh_request_usage(ctx));
         let _ = ctx.spawn(
             async move {
                 let _ = workspace_refresh.await;
-                request_limit_refresh.await.unwrap_or(None)
             },
-            |me, fresh_request_limit, ctx| {
+            |me, (), ctx| {
                 me.account_first_refresh_in_flight = false;
-                me.resolve_account_first_post_auth(fresh_request_limit, ctx);
+                me.resolve_account_first_post_auth(None, ctx);
             },
         );
         ctx.emit(RootViewEvent::AuthOnboardingStateChanged);

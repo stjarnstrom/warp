@@ -1030,7 +1030,6 @@ impl Input {
                 self.open_rewind_menu(ctx);
             }
             // `/usage` renders inline in the TUI; the GUI had nowhere left to send it.
-            SlashCommandKind::Usage => return false,
             SlashCommandKind::RemoteControl => {
                 if !FeatureFlag::CreatingSharedSessions.is_enabled()
                     || !FeatureFlag::HOARemoteControl.is_enabled()

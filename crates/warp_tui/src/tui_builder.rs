@@ -294,15 +294,6 @@ impl TuiUiBuilder {
         cell_color(self.read_only_menu_background_fill())
     }
 
-    /// The design's 60%-foreground texture over the usage card background.
-    pub(crate) fn usage_bar_empty_style(&self) -> TuiStyle {
-        let foreground = self.warp_theme.foreground();
-        TuiStyle::default().fg(cell_color(
-            self.read_only_menu_background_fill()
-                .blend(&foreground.with_opacity(60)),
-        ))
-    }
-
     /// Pale-green overlay behind shell command rows in the transcript.
     /// Pre-blended because terminal cells cannot preserve alpha.
     pub(crate) fn shell_command_background(&self) -> Color {

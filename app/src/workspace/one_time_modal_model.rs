@@ -13,7 +13,6 @@ use super::view::free_ai_removal_modal::{
     FreeAiRemovalModalTelemetryEvent, FreeAiRemovalModalVariant,
 };
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
-use crate::ai::{AIRequestUsageModel, AIRequestUsageModelEvent};
 use crate::auth::auth_manager::AuthManagerEvent;
 use crate::auth::{AuthManager, AuthStateProvider};
 use crate::channel::{Channel, ChannelState};
@@ -84,14 +83,6 @@ impl OneTimeModalModel {
                 }
             },
         );
-
-        // The base-credit allowance that gates the free-AI-removal notice loads
-        // asynchronously, so re-evaluate the notice whenever request usage updates.
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |me, _, event, ctx| {
-            if let AIRequestUsageModelEvent::RequestUsageUpdated = event {
-                me.maybe_recheck_free_ai_removal_modal(ctx);
-            }
-        });
 
         // Subscribe to auth manager events to automatically trigger modal when user becomes onboarded
         ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, event, ctx| {
@@ -560,7 +551,8 @@ impl OneTimeModalModel {
         let is_warp_ai_enabled = *AISettings::as_ref(ctx).is_any_ai_enabled;
         let has_byok_or_byoe = ApiKeyManager::as_ref(ctx).has_any_key();
         let completed_new_onboarding = has_completed_local_onboarding(ctx);
-        let has_zero_base_credits = AIRequestUsageModel::as_ref(ctx).request_limit() == 0;
+        // No account, so no base-credit allowance to have run out.
+        let has_zero_base_credits = false;
 
         let decision = free_ai_removal_modal_decision(
             customer_type,

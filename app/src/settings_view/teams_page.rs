@@ -45,7 +45,6 @@ use super::tab_menu::Tabs;
 use super::transfer_ownership_confirmation_modal::{
     TransferOwnershipConfirmationEvent, TransferOwnershipConfirmationModal,
 };
-use crate::ai::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
@@ -541,7 +540,6 @@ pub struct TeamsPageView {
     // Note that rather than storing just the current workspace, we're storing the entire
     // ModelHandle<UserWorkspaces>. That's because eventually we'll be handling more than one workspace.
     user_workspaces: ModelHandle<UserWorkspaces>,
-    ai_request_usage_model: ModelHandle<AIRequestUsageModel>,
     cloud_model: ModelHandle<CloudModel>,
     invite_view: TeamsInviteOption,
     team_members_mouse_states: Vec<ItemMouseStates>,
@@ -985,7 +983,6 @@ impl TeamsPageView {
                 num_chips: 0,
             },
             user_workspaces,
-            ai_request_usage_model: AIRequestUsageModel::handle(ctx),
             cloud_model,
             invite_view: TeamsInviteOption::default(),
             team_members_mouse_states,
@@ -1066,10 +1063,6 @@ impl TeamsPageView {
                 self.update_team_members_state(ctx);
                 self.update_approved_domains_state(ctx);
                 self.update_open_team_states(ctx);
-
-                AIRequestUsageModel::handle(ctx).update(ctx, |usage_model, ctx| {
-                    usage_model.refresh_request_usage_async(ctx);
-                });
 
                 ctx.emit(TeamsPageViewEvent::TeamsChanged);
             }
@@ -1254,13 +1247,8 @@ impl TeamsPageView {
         }
     }
 
-    fn should_show_reload_credits_confirmation(&self, ctx: &AppContext) -> bool {
-        FeatureFlag::BillingAndUsagePageV2.is_enabled()
-            && self
-                .ai_request_usage_model
-                .as_ref(ctx)
-                .total_user_interactive_bonus_credits_remaining()
-                > 0
+    fn should_show_reload_credits_confirmation(&self, _ctx: &AppContext) -> bool {
+        false
     }
 
     fn remove_team_member_confirmation_variant(
@@ -2595,15 +2583,11 @@ impl TeamsWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let cloud_model = view.cloud_model.as_ref(app);
-        let ai_request_usage_model = view.ai_request_usage_model.as_ref(app);
         let current_user_email = view.auth_state.user_email().unwrap_or_default();
         let has_admin_permissions =
             TeamsPageView::has_admin_permissions(team_metadata, workspace, &current_user_email);
         let is_owner = team_metadata.has_owner_permissions(&current_user_email);
-        let remaining_workspace_and_team_credits =
-            ai_request_usage_model.total_current_workspace_and_team_bonus_credits_remaining(app);
-        let delete_disabled_reason = team_metadata
-            .get_delete_disabled_reason(&current_user_email, remaining_workspace_and_team_credits);
+        let delete_disabled_reason = team_metadata.get_delete_disabled_reason(&current_user_email);
 
         let mut main_content = Flex::column();
         let chip_editor_style = UiComponentStyles::default()

@@ -16,8 +16,7 @@ use warpui::fonts::{Properties, Weight};
 use warpui::{AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle};
 
 use crate::ai::ambient_agents::github_auth_url::{AuthSource, GithubAuthRedirectTarget};
-use crate::ai::request_usage_model::AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD;
-use crate::ai::{AIRequestUsageModel, cloud_environments};
+use crate::ai::cloud_environments;
 use crate::appearance::Appearance;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::ClientId;
@@ -312,11 +311,8 @@ impl View for FirstTimeCloudAgentSetupView {
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
 
-        // Retrieve ambient credits and apply threshold filter
-        // Only show banner if user has ambient credits >= threshold
-        let credits_to_display = AIRequestUsageModel::as_ref(app)
-            .ambient_only_credits_remaining()
-            .filter(|&credits| credits >= AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD);
+        // The trial-credits banner came from the account's credit balance.
+        let credits_to_display = None;
 
         // Build main content column:
         // 1. Header (title + description) - OUTSIDE the card

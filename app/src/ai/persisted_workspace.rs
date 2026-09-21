@@ -32,7 +32,6 @@ use warp_util::{local_or_remote_path::LocalOrRemotePath, standardized_path::Stan
 use warpui::windowing::WindowManager;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel};
 #[cfg(feature = "local_fs")]
 use crate::ai::codebase_auto_indexing::{
@@ -55,6 +54,14 @@ use crate::terminal::local_shell::LocalShellState;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 #[cfg(feature = "local_fs")]
 use crate::{view_components::DismissibleToast, workspace::ToastStack};
+
+/// Codebase indexing limits.
+///
+/// These used to arrive with the account's plan. Without an account they are
+/// fixed at what the free tier reported.
+pub const MAX_CODEBASE_INDICES: usize = 3;
+pub const MAX_FILES_PER_REPO: usize = 5000;
+pub const EMBEDDING_GENERATION_BATCH_SIZE: usize = 100;
 
 /// Represents whether an LSP server is enabled or disabled for a workspace.
 ///
@@ -654,12 +661,10 @@ impl PersistedWorkspace {
         manager: &mut CodebaseIndexManager,
         ctx: &mut ModelContext<CodebaseIndexManager>,
     ) {
-        let request_model = AIRequestUsageModel::handle(ctx);
-        let codebase_limits = request_model.as_ref(ctx).codebase_context_limits();
         manager.update_max_limits(
-            codebase_limits.max_indices_allowed,
-            codebase_limits.max_files_per_repo,
-            codebase_limits.embedding_generation_batch_size,
+            Some(MAX_CODEBASE_INDICES),
+            MAX_FILES_PER_REPO,
+            EMBEDDING_GENERATION_BATCH_SIZE,
             ctx,
         );
 

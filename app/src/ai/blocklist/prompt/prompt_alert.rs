@@ -10,64 +10,19 @@ use warpui::{
     WeakViewHandle,
 };
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::error_color;
-use crate::ai::credit_availability::{AICreditAvailability, AICreditDenialReason};
-use crate::auth::AuthStateProvider;
 use crate::network::NetworkStatus;
 use crate::server::ids::ServerId;
-use crate::settings_view::{AdminActions, SettingsSection};
 use crate::ui_components::icons::Icon;
 use crate::workspace::WorkspaceAction;
-use crate::workspaces::team::Team;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
-use crate::workspaces::workspace::Workspace;
-
-const ANONYMOUS_USER_REQUEST_LIMIT_SOFT_GATE_PERCENTAGE: f32 = 0.5;
 
 const NO_CONNECTION_PRIMARY_TEXT: &str = "No internet connection";
-const ANONYMOUS_USER_REQUEST_LIMIT_SOFT_GATE_PRIMARY_TEXT: &str = "";
-const ANONYMOUS_USER_REQUEST_LIMIT_HARD_GATE_PRIMARY_TEXT: &str = "At Limit -";
-const DELINQUENT_DUE_TO_PAYMENT_ISSUE_PRIMARY_TEXT: &str = "Restricted due to payment issue";
-const OUT_OF_REQUESTS_PRIMARY_TEXT: &str = "Out of credits";
 
-const ANONYMOUS_USER_REQUEST_LIMIT_ACTION_TEXT: &str = "Sign up for more AI credits";
-const DELINQUENT_DUE_TO_PAYMENT_ISSUE_ACTION_TEXT: &str = "Manage billing";
-const MANAGE_LIMIT_TEXT: &str = "Manage limit";
-const UPGRADE_TEXT: &str = "Upgrade";
-const COMPARE_PLANS_TEXT: &str = "Compare plans";
-const CONTACT_SUPPORT_TEXT: &str = "Contact support";
-const NON_ADMIN_CONTACT_ADMIN_TEXT: &str = ", contact a team admin";
-const NON_ADMIN_CONTACT_ANY_ADMIN_TEXT: &str = ", contact an admin";
-const NON_ADMIN_ASK_ADMIN_TO_ENABLE_OVERAGES_TEXT: &str = ", ask a team admin to enable overages";
-const NON_ADMIN_ASK_ADMIN_TO_INCREASE_OVERAGES_TEXT: &str =
-    ", ask a team admin to increase overages";
-
-fn enterprise_limit_cta(
-    workspace: Option<&Workspace>,
-    team: Option<&Team>,
-    user_email: Option<&str>,
-) -> Option<Vec<FormattedTextFragment>> {
-    let workspace =
-        workspace.filter(|workspace| workspace.billing_metadata.is_enterprise_plan())?;
-    let user_email = user_email.unwrap_or_default();
-    let admin_panel_link = if workspace.is_native_workspaces_admin(user_email) {
-        Some(AdminActions::admin_panel_link_for_workspace())
-    } else {
-        team.filter(|team| team.has_admin_permissions(user_email))
-            .map(|team| AdminActions::admin_panel_link_for_team(team.uid))
-    };
-    Some(match admin_panel_link {
-        Some(link) => vec![
-            FormattedTextFragment::plain_text("  "),
-            FormattedTextFragment::hyperlink(MANAGE_LIMIT_TEXT, link),
-        ],
-        None => vec![FormattedTextFragment::plain_text(
-            NON_ADMIN_CONTACT_ANY_ADMIN_TEXT,
-        )],
-    })
-}
-
+/// Only the signup and billing links produced these, and both were credit
+/// prompts. The variants stay until the account gating that still routes
+/// `PromptAlertEvent` is removed.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptAlertAction {
     SignUpClickedForAnonymousUser,
@@ -85,19 +40,6 @@ pub enum PromptAlertEvent {
 pub enum PromptAlertState {
     /// The user is offline (no connection).
     NoConnection,
-    /// An anonymous user has reached a certain percentage of requests used.
-    /// This doesn't use a primary text to avoid being too in-your-face.
-    AnonymousUserRequestLimitSoftGate,
-    /// An anonymous user has reached the request limit.
-    AnonymousUserRequestLimitHardGate,
-    /// The user is delinquent due to a payment issue.
-    DelinquentDueToPaymentIssue,
-    /// Overages could be turned on, but aren't enabled.
-    OveragesToggleableButNotEnabled,
-    /// Overages are on, but the spend limit is too low.
-    MonthlyOveragesSpendLimitReached,
-    /// The user has reached the request limit.
-    RequestLimitReached,
     /// No alert should be displayed.
     NoAlert,
 }
@@ -110,16 +52,9 @@ pub struct PromptAlertView {
 
 impl PromptAlertView {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let request_usage_model = AIRequestUsageModel::handle(ctx);
         let user_workspaces = UserWorkspaces::handle(ctx);
         let network_status = NetworkStatus::handle(ctx);
         let api_key_manager = ApiKeyManager::handle(ctx);
-
-        ctx.subscribe_to_model(&request_usage_model, |me, _, _, ctx| {
-            me.state =
-                Self::determine_state(&UserWorkspaces::as_ref(ctx).team_context_for_view(ctx), ctx);
-            ctx.notify();
-        });
 
         ctx.subscribe_to_model(&user_workspaces, |me, _, _, ctx| {
             me.state =
@@ -153,111 +88,13 @@ impl PromptAlertView {
     }
 
     pub fn determine_state<S: TeamScope + ?Sized>(scope: &S, app: &AppContext) -> PromptAlertState {
-        // First, if the user is offline, no AI features will work.
+        let _ = scope;
+        // Offline is the only condition left that blocks a request. Credit
+        // limits, delinquency and spend caps all came from the account.
         if !NetworkStatus::as_ref(app).is_online() {
             return PromptAlertState::NoConnection;
         }
-
-        let request_usage_model = AIRequestUsageModel::as_ref(app);
-        // Anonymous soft/hard gates are based on the base-plan request quota,
-        // not overall AI availability (bonus grants / BYO / etc.).
-        let has_base_plan_requests_remaining =
-            request_usage_model.has_base_plan_requests_remaining();
-        let auth_state = AuthStateProvider::as_ref(app).get();
-
-        // Next, if the user is anonymous, we check if they have reached a certain percentage of requests used.
-        if auth_state
-            .is_anonymous_user_feature_gated()
-            .unwrap_or_default()
-        {
-            let percentage_used = request_usage_model.request_percentage_used();
-
-            if percentage_used >= ANONYMOUS_USER_REQUEST_LIMIT_SOFT_GATE_PERCENTAGE {
-                if has_base_plan_requests_remaining {
-                    return PromptAlertState::AnonymousUserRequestLimitSoftGate;
-                } else {
-                    return PromptAlertState::AnonymousUserRequestLimitHardGate;
-                }
-            }
-        }
-
-        // The server-authoritative availability decision drives the alert once
-        // it has been fetched; local data below is only a pre-fetch fallback.
-        if let Some(availability) = request_usage_model.server_availability() {
-            return Self::state_from_server_availability(availability, scope, app);
-        }
-
-        // Legacy locally derived fallback, used only before the first
-        // successful availability fetch (e.g. right after startup or against
-        // servers that don't support the availability field yet).
-
-        // Next, make sure the user isn't delinquent in their plan.
-        let workspace = UserWorkspaces::as_ref(app).current_workspace();
-        if workspace.is_some_and(|w| w.billing_metadata.is_delinquent_due_to_payment_issue()) {
-            return PromptAlertState::DelinquentDueToPaymentIssue;
-        }
-
-        // If there is ever any ai remaining, no alert
-        if request_usage_model.has_any_ai_remaining(scope, app) {
-            return PromptAlertState::NoAlert;
-        }
-
-        Self::out_of_credits_presentation(app)
-    }
-
-    /// Maps the server-authoritative availability decision to presentation
-    /// state. The server decides *whether* AI is available; workspace policy
-    /// only shapes the call-to-action copy.
-    fn state_from_server_availability<S: TeamScope + ?Sized>(
-        availability: AICreditAvailability,
-        scope: &S,
-        app: &AppContext,
-    ) -> PromptAlertState {
-        if availability.available {
-            return PromptAlertState::NoAlert;
-        }
-
-        match availability.denial_reason {
-            AICreditDenialReason::Delinquent => PromptAlertState::DelinquentDueToPaymentIssue,
-            AICreditDenialReason::EnterpriseTeamSpendLimitHit
-            | AICreditDenialReason::EnterprisePerUserSpendLimitHit
-            | AICreditDenialReason::EnterpriseWorkspaceSpendLimitHit => {
-                PromptAlertState::MonthlyOveragesSpendLimitReached
-            }
-            AICreditDenialReason::None
-            | AICreditDenialReason::OutOfCredits
-            | AICreditDenialReason::Unknown => {
-                // An out-of-credits denial only means the server found no path
-                // it can see; a locally stored API key still permits requests,
-                // which `has_any_ai_remaining` accounts for.
-                if AIRequestUsageModel::as_ref(app).has_any_ai_remaining(scope, app) {
-                    return PromptAlertState::NoAlert;
-                }
-                Self::out_of_credits_presentation(app)
-            }
-        }
-    }
-
-    /// Picks the most actionable presentation for an out-of-credits denial
-    /// based on the current workspace's overage policy.
-    fn out_of_credits_presentation(app: &AppContext) -> PromptAlertState {
-        // Check if overages are available.
-        if let Some(workspace) = UserWorkspaces::as_ref(app).current_workspace() {
-            let are_overages_toggleable = workspace.are_overages_toggleable();
-            let are_overages_enabled = workspace.are_overages_enabled();
-
-            if are_overages_toggleable {
-                if are_overages_enabled {
-                    return PromptAlertState::MonthlyOveragesSpendLimitReached;
-                } else {
-                    return PromptAlertState::OveragesToggleableButNotEnabled;
-                }
-            }
-        }
-
-        // If overages aren't available, and since we already checked that the user
-        // has no requests remaining, we can show the generic request limit reached alert.
-        PromptAlertState::RequestLimitReached
+        PromptAlertState::NoAlert
     }
 
     pub fn is_no_alert(&self) -> bool {
@@ -291,147 +128,6 @@ impl PromptAlertView {
                     NO_CONNECTION_PRIMARY_TEXT,
                 ));
             }
-            PromptAlertState::AnonymousUserRequestLimitSoftGate => {
-                text_fragments.push(FormattedTextFragment::plain_text(
-                    ANONYMOUS_USER_REQUEST_LIMIT_SOFT_GATE_PRIMARY_TEXT,
-                ));
-            }
-            PromptAlertState::AnonymousUserRequestLimitHardGate => {
-                text_fragments.push(FormattedTextFragment::plain_text(
-                    ANONYMOUS_USER_REQUEST_LIMIT_HARD_GATE_PRIMARY_TEXT,
-                ));
-            }
-            PromptAlertState::DelinquentDueToPaymentIssue => {
-                text_fragments.push(FormattedTextFragment::plain_text(
-                    DELINQUENT_DUE_TO_PAYMENT_ISSUE_PRIMARY_TEXT,
-                ));
-            }
-            PromptAlertState::OveragesToggleableButNotEnabled
-            | PromptAlertState::MonthlyOveragesSpendLimitReached
-            | PromptAlertState::RequestLimitReached => {
-                text_fragments.push(FormattedTextFragment::plain_text(
-                    OUT_OF_REQUESTS_PRIMARY_TEXT,
-                ));
-            }
-            PromptAlertState::NoAlert => {}
-        }
-    }
-
-    fn action_hyperlink(
-        &self,
-        state: &PromptAlertState,
-        text_fragments: &mut Vec<FormattedTextFragment>,
-        app: &AppContext,
-    ) {
-        let auth_state = AuthStateProvider::as_ref(app).get();
-        let user_email = auth_state.user_email();
-        let current_team = UserWorkspaces::as_ref(app).team_for_view_handle(&self.view_handle, app);
-        let has_admin_permissions = current_team.is_some_and(|team| {
-            team.has_admin_permissions(user_email.as_deref().unwrap_or_default())
-        });
-        let enterprise_limit_cta = enterprise_limit_cta(
-            UserWorkspaces::as_ref(app).current_workspace(),
-            current_team,
-            user_email.as_deref(),
-        );
-
-        match state {
-            PromptAlertState::NoConnection => {}
-            PromptAlertState::AnonymousUserRequestLimitSoftGate
-            | PromptAlertState::AnonymousUserRequestLimitHardGate => {
-                text_fragments.push(FormattedTextFragment::plain_text("  "));
-                text_fragments.push(FormattedTextFragment::hyperlink_action(
-                    ANONYMOUS_USER_REQUEST_LIMIT_ACTION_TEXT,
-                    PromptAlertAction::SignUpClickedForAnonymousUser,
-                ));
-            }
-            PromptAlertState::DelinquentDueToPaymentIssue => {
-                // Check if user is team admin with billing history
-                let has_billing_history = current_team
-                    .map(|team| team.has_billing_history)
-                    .unwrap_or_default();
-                if has_admin_permissions && has_billing_history {
-                    text_fragments.push(FormattedTextFragment::plain_text("  "));
-                    text_fragments.push(FormattedTextFragment::hyperlink_action(
-                        DELINQUENT_DUE_TO_PAYMENT_ISSUE_ACTION_TEXT,
-                        PromptAlertAction::ManageBillingClicked {
-                            team_uid: current_team.map(|team| team.uid).unwrap_or_default(),
-                        },
-                    ));
-                } else {
-                    text_fragments.push(FormattedTextFragment::plain_text(
-                        NON_ADMIN_CONTACT_ADMIN_TEXT,
-                    ));
-                }
-            }
-            PromptAlertState::OveragesToggleableButNotEnabled => {
-                if !has_admin_permissions {
-                    text_fragments.push(FormattedTextFragment::plain_text(
-                        NON_ADMIN_ASK_ADMIN_TO_ENABLE_OVERAGES_TEXT,
-                    ));
-                }
-            }
-            PromptAlertState::MonthlyOveragesSpendLimitReached => {
-                if let Some(cta) = enterprise_limit_cta {
-                    text_fragments.extend(cta);
-                } else if !has_admin_permissions {
-                    text_fragments.push(FormattedTextFragment::plain_text(
-                        NON_ADMIN_ASK_ADMIN_TO_INCREASE_OVERAGES_TEXT,
-                    ));
-                }
-            }
-            PromptAlertState::RequestLimitReached => {
-                if let Some(cta) = enterprise_limit_cta {
-                    text_fragments.extend(cta);
-                    return;
-                }
-                if let Some(team) = current_team {
-                    text_fragments.push(FormattedTextFragment::plain_text("  "));
-                    if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                        let upgrade_url = UserWorkspaces::upgrade_link_for_team(team.uid);
-                        let upgrade_text = if !has_admin_permissions {
-                            COMPARE_PLANS_TEXT
-                        } else if team.billing_metadata.can_upgrade_to_build_plan() {
-                            "Upgrade to Build"
-                        } else {
-                            UPGRADE_TEXT
-                        };
-
-                        text_fragments
-                            .push(FormattedTextFragment::hyperlink(upgrade_text, upgrade_url));
-                    } else {
-                        text_fragments.push(FormattedTextFragment::hyperlink(
-                            CONTACT_SUPPORT_TEXT,
-                            "mailto:support@warp.dev".to_owned(),
-                        ));
-                    }
-                } else {
-                    text_fragments.push(FormattedTextFragment::plain_text("  "));
-                    let user_id = auth_state.user_id().unwrap_or_default();
-                    let upgrade_url = UserWorkspaces::upgrade_link(user_id);
-                    let label =
-                        if let Some(workspace) = UserWorkspaces::as_ref(app).current_workspace() {
-                            if workspace.billing_metadata.can_upgrade_to_build_plan() {
-                                "Upgrade to Build"
-                            } else {
-                                UPGRADE_TEXT
-                            }
-                        } else {
-                            UPGRADE_TEXT
-                        };
-                    text_fragments.push(FormattedTextFragment::hyperlink(label, upgrade_url));
-                }
-                if UserWorkspaces::as_ref(app).is_byo_api_key_enabled(app) {
-                    text_fragments.push(FormattedTextFragment::plain_text(" or "));
-                    text_fragments.push(FormattedTextFragment::hyperlink_action(
-                        "use your own API keys",
-                        WorkspaceAction::ShowSettingsPageWithSearch {
-                            search_query: "api".to_string(),
-                            section: Some(SettingsSection::WarpAgent),
-                        },
-                    ));
-                }
-            }
             PromptAlertState::NoAlert => {}
         }
     }
@@ -439,13 +135,8 @@ impl PromptAlertView {
 
 fn does_alert_block_ai_requests(state: &PromptAlertState) -> bool {
     match state {
-        PromptAlertState::AnonymousUserRequestLimitSoftGate | PromptAlertState::NoAlert => false,
-        PromptAlertState::NoConnection
-        | PromptAlertState::AnonymousUserRequestLimitHardGate
-        | PromptAlertState::DelinquentDueToPaymentIssue
-        | PromptAlertState::OveragesToggleableButNotEnabled
-        | PromptAlertState::MonthlyOveragesSpendLimitReached
-        | PromptAlertState::RequestLimitReached => true,
+        PromptAlertState::NoAlert => false,
+        PromptAlertState::NoConnection => true,
     }
 }
 
@@ -466,8 +157,6 @@ impl View for PromptAlertView {
         let mut text_fragments = vec![];
 
         self.primary_text(&state, &mut text_fragments);
-
-        self.action_hyperlink(&state, &mut text_fragments, app);
 
         let formatted_text_element = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(text_fragments)]),

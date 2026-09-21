@@ -18,7 +18,6 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
@@ -37,13 +36,9 @@ use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon as WarpUIIcon;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use crate::workspace::WorkspaceAction;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const INLINE_BANNER_SPACING: f32 = 8.;
 const INLINE_BANNER_BUTTON_PADDING: f32 = 8.;
-
-const DELINQUENT_DUE_TO_PAYMENT_ISSUE_TOOLTIP_MESSAGE: &str = "Restricted due to payment issue";
-const OUT_OF_REQUESTS_TOOLTIP_MESSAGE: &str = "Out of credits";
 
 /// Types of zero-state prompt suggestions.
 #[derive(Debug, Copy, Clone, Serialize)]
@@ -136,15 +131,8 @@ fn render_button(
     app: &AppContext,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let is_button_disabled = matches!(
-        prompt_alert_state,
-        PromptAlertState::NoConnection
-            | PromptAlertState::AnonymousUserRequestLimitHardGate
-            | PromptAlertState::DelinquentDueToPaymentIssue
-            | PromptAlertState::OveragesToggleableButNotEnabled
-            | PromptAlertState::MonthlyOveragesSpendLimitReached
-            | PromptAlertState::RequestLimitReached
-    ) && !force_enabled;
+    let is_button_disabled =
+        matches!(prompt_alert_state, PromptAlertState::NoConnection) && !force_enabled;
     let opacity: f32 = if is_button_disabled { 0.5 } else { 1.0 };
     let opacity_u8 = (opacity * 255.0).round() as u8;
     let hoverable = Hoverable::new(mouse_state.clone(), |mouse_state| {
@@ -295,35 +283,14 @@ fn render_button(
     }
 }
 
-fn get_tooltip_text_for_alert_state(alert_state: &PromptAlertState) -> Option<String> {
-    // This is not an exhaustive list; the actual prompt alert component will have more information,
-    // so we can keep the tooltip's text relatively minimal and just capture broad groups.
-    match alert_state {
-        PromptAlertState::DelinquentDueToPaymentIssue => {
-            Some(DELINQUENT_DUE_TO_PAYMENT_ISSUE_TOOLTIP_MESSAGE.to_string())
-        }
-        PromptAlertState::RequestLimitReached
-        | PromptAlertState::AnonymousUserRequestLimitHardGate
-        | PromptAlertState::AnonymousUserRequestLimitSoftGate
-        | PromptAlertState::OveragesToggleableButNotEnabled
-        | PromptAlertState::MonthlyOveragesSpendLimitReached => {
-            Some(OUT_OF_REQUESTS_TOOLTIP_MESSAGE.to_string())
-        }
-        _ => None,
-    }
+fn get_tooltip_text_for_alert_state(_alert_state: &PromptAlertState) -> Option<String> {
+    None
 }
 
-/// Free-plan users who run out of Warp-provided AI credits should get a modal
-/// offering BYO/upgrade instead of a disabled button. Other disabled states
-/// (offline, payment issues, team overage gates) keep the disabled treatment.
-fn should_open_unavailable_modal(state: &PromptAlertState, app: &AppContext) -> bool {
-    matches!(state, PromptAlertState::RequestLimitReached)
-        && !UserWorkspaces::as_ref(app)
-            .current_workspace()
-            .is_some_and(|workspace| workspace.billing_metadata.is_user_on_paid_plan())
-        // ICPs who still receive base credits on the Free plan keep the disabled
-        // button; only offer the modal once the base allowance is gone.
-        && AIRequestUsageModel::as_ref(app).request_limit() == 0
+/// Offline is the only state that disables the button now, and it has no modal
+/// to offer.
+fn should_open_unavailable_modal(_state: &PromptAlertState, _app: &AppContext) -> bool {
+    false
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

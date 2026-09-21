@@ -29,11 +29,8 @@ use warpui::{
 use super::settings_page::{
     AdditionalInfo, HEADER_PADDING, LocalOnlyIconState, MatchData, PageTitle, PageType,
     SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, ToggleState, render_body_item,
-    render_customer_type_badge,
 };
-use super::{
-    SettingsAction, SettingsSection, ToggleSettingActionPair, flags, plan_header_presentation,
-};
+use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
@@ -344,14 +341,9 @@ impl AccountWidget {
             })
             .finish();
 
-        let mut plan_info = Flex::column()
+        let plan_info = Flex::column()
             .with_main_axis_alignment(MainAxisAlignment::SpaceEvenly)
             .with_cross_axis_alignment(CrossAxisAlignment::End);
-
-        let presentation = plan_header_presentation(None, true);
-        if let Some(badge_label) = presentation.badge_label {
-            plan_info.add_child(render_customer_type_badge(appearance, badge_label));
-        }
 
         Flex::row()
             .with_child(
@@ -455,10 +447,6 @@ impl AccountWidget {
         let workspace = workspaces.current_workspace();
         let billing_metadata = workspace.map(|workspace| &workspace.billing_metadata);
         let team = workspaces.team_for_view_handle(&view.self_handle, app);
-        let presentation = plan_header_presentation(billing_metadata, false);
-        if let Some(badge_label) = presentation.badge_label {
-            plan_info.add_child(render_customer_type_badge(appearance, badge_label));
-        }
         if let Some(team) = team {
             let current_user_email = auth_state.user_email().unwrap_or_default();
             let has_admin_permissions = team.has_admin_permissions(&current_user_email);

@@ -30,7 +30,6 @@ use warpui::{
 };
 
 use crate::BlocklistAIHistoryModel;
-use crate::ai::AIRequestUsageModel;
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 use crate::ai::blocklist::prompt::PromptIconButtonTheme;
 use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
@@ -541,10 +540,6 @@ impl UniversalDeveloperInputButtonBar {
         ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |_, _, _, ctx| {
             ctx.notify();
         });
-        ctx.subscribe_to_model(&AIRequestUsageModel::handle(ctx), |_, _, _, ctx| {
-            ctx.notify()
-        });
-
         ctx.subscribe_to_model(&SessionSettings::handle(ctx), |_, _, event, ctx| {
             if let SessionSettingsChangedEvent::ShowModelSelectorsInPrompt { .. } = event {
                 ctx.notify();

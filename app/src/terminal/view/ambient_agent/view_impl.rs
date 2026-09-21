@@ -19,7 +19,6 @@ use super::loading_screen::{
     render_cloud_mode_github_auth_required_screen, render_cloud_mode_loading_screen,
 };
 use super::{AmbientAgentEntryBlock, AmbientAgentViewModel, AmbientAgentViewModelEvent};
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent::{RenderableAIError, display_user_query_with_mode};
 #[cfg(not(target_family = "wasm"))]
@@ -35,7 +34,6 @@ use crate::terminal::view::rich_content::{RichContentInsertionPosition, RichCont
 use crate::terminal::view::{
     ConversationDetailsPanelAutoOpenPolicy, Event as TerminalViewEvent, TerminalView,
 };
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 const CHILD_AGENT_GITHUB_AUTH_REQUIRED_BLOCKED_ACTION: &str =
     "GitHub authentication required before starting the child agent.";
@@ -79,16 +77,10 @@ impl TerminalView {
         });
     }
 
-    pub(in crate::terminal::view) fn show_out_of_credits_modal(&self, ctx: &mut ViewContext<Self>) {
-        let is_on_paid_plan = UserWorkspaces::as_ref(ctx)
-            .current_workspace()
-            .is_some_and(|workspace| workspace.billing_metadata.is_user_on_paid_plan());
-
-        if !is_on_paid_plan {
-            AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
-                model.refresh_request_usage_async(ctx);
-            });
-        }
+    pub(in crate::terminal::view) fn show_out_of_credits_modal(
+        &self,
+        _ctx: &mut ViewContext<Self>,
+    ) {
     }
 
     /// Handles ambient agent view model events.

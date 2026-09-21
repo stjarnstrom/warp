@@ -174,9 +174,6 @@ fn register_ai_usage_model(app: &mut App) {
     if app.models_of_type::<PrivatePreferences>().is_empty() {
         app.update(crate::settings::init_and_register_user_preferences);
     }
-    app.add_singleton_model(|ctx| {
-        AIRequestUsageModel::new_for_test(ServerApiProvider::as_ref(ctx).get_ai_client(), ctx)
-    });
 }
 
 #[test]

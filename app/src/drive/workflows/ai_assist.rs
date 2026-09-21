@@ -7,7 +7,6 @@ use warpui::{SingletonEntity, ViewContext};
 
 use super::arguments::ArgumentsState;
 use super::modal::{AiAssistState, WorkflowModal, WorkflowModalEvent};
-use crate::ai::AIRequestUsageModel;
 use crate::auth::AuthStateProvider;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::TelemetryEvent;
@@ -170,9 +169,6 @@ impl WorkflowModal {
                         ctx.notify();
                     }
                 }
-                AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
-                    request_usage_model.refresh_request_usage_async(ctx);
-                });
             }
         );
 

@@ -157,7 +157,6 @@ pub use crate::ai::orchestration::{
     resolve_auth_secret_selection_for_harness, resolve_default_environment_id,
     resolve_default_host_slug, should_show_auth_secret_picker,
 };
-pub use crate::ai::request_usage_model::{AIRequestUsageModel, BonusGrantType};
 pub use crate::ai::skills::{SkillManager, SkillManagerEvent, SkillReference};
 #[cfg(not(target_family = "wasm"))]
 pub use crate::ai::tui_api_keys::notify_tui_api_keys_changed;

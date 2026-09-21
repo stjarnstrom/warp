@@ -107,7 +107,6 @@ pub enum SlashCommandKind {
     ForkAndCompact,
     ForkFrom,
     ContinueLocally,
-    Usage,
     RemoteControl,
     Cost,
     Conversations,

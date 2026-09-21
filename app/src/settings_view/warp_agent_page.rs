@@ -68,7 +68,6 @@ use super::{
     SettingActionPairContexts, SettingActionPairDescriptions, SettingsAction, SettingsSection,
     ToggleSettingActionPair, editor_text_colors, flags,
 };
-use crate::ai::AIRequestUsageModel;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::aws_credentials::refresh_aws_credentials;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
@@ -1285,27 +1284,6 @@ impl WarpAgentPageView {
         ctx.notify();
     }
 
-    /// Returns `true` when the active Agent Mode default model is already served
-    /// by a credential the user has: a BYO key/subscription for its provider, or
-    /// one of their custom-endpoint models. `auto` models report `false` since
-    /// they always consume Warp credits.
-    fn active_base_model_is_byo_covered(ctx: &ViewContext<Self>) -> bool {
-        let scope =
-            ResolvedTeamScope::from_scope(&UserWorkspaces::as_ref(ctx).team_context_for_view(ctx));
-        let (active_id, active_provider) = {
-            let prefs = LLMPreferences::as_ref(ctx);
-            let active = prefs.get_active_base_model(&scope, ctx, None);
-            (active.id.clone(), active.provider)
-        };
-        if LLMPreferences::as_ref(ctx)
-            .custom_llm_info_for_id(&active_id)
-            .is_some()
-        {
-            return true;
-        }
-        is_using_api_key_for_provider(&active_provider, ctx)
-    }
-
     /// The display name of the user's current default Agent Mode model, used in
     /// the prompt copy (e.g. "auto (cost-efficient)").
     fn active_base_model_display_name(ctx: &ViewContext<Self>) -> String {
@@ -1331,9 +1309,9 @@ impl WarpAgentPageView {
         let on_paid_plan = UserWorkspaces::as_ref(ctx)
             .current_workspace()
             .is_some_and(|workspace| workspace.billing_metadata.is_user_on_paid_plan());
-        let out_of_monthly_credits =
-            !AIRequestUsageModel::as_ref(ctx).has_base_plan_requests_remaining();
-        !on_paid_plan && out_of_monthly_credits && !Self::active_base_model_is_byo_covered(ctx)
+        // Without an account there is no monthly credit balance to exhaust.
+        let _ = on_paid_plan;
+        false
     }
 
     /// Detects a provider key that was just added (absent -> present) by diffing

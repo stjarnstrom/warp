@@ -28,12 +28,11 @@ use warpui::{
 use super::execution_context::execution_context_for_session;
 use super::requests::{Event as RequestsEvent, RequestStatus, Requests};
 use super::transcript::{Transcript, TranscriptEvent};
-use super::utils::{TranscriptPart, render_prepared_response_button, render_request_limit_info};
+use super::utils::{TranscriptPart, render_prepared_response_button};
 use super::{
     AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AI_ASSISTANT_SVG_PATH,
     ASK_AI_ASSISTANT_TEXT, AskAIType, PROMPT_CHARACTER_LIMIT,
 };
-use crate::ai::AIRequestUsageModel;
 use crate::appearance::Appearance;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, TextOptions,
@@ -915,7 +914,8 @@ impl AIAssistantPanelView {
 
         let user_workspaces = UserWorkspaces::as_ref(app);
         let scope = user_workspaces.team_context(&self.view_handle, app);
-        if AIRequestUsageModel::as_ref(app).has_any_ai_remaining(&scope, app) {
+        let _ = &scope;
+        if true {
             column.add_children([
                 Container::new(render_prepared_response_button(
                     appearance,
@@ -987,22 +987,6 @@ impl AIAssistantPanelView {
             .with_margin_top(25.)
             .finish(),
         );
-
-        let is_custom_llm_enabled = user_workspaces.is_custom_llm_enabled_for_team(
-            user_workspaces.team_for_view_handle(&self.view_handle, app),
-        );
-
-        if !is_custom_llm_enabled {
-            column.add_child(
-                Container::new(render_request_limit_info(
-                    &self.requests_model,
-                    app,
-                    appearance,
-                ))
-                .with_margin_top(18.)
-                .finish(),
-            );
-        }
 
         Container::new(column.finish())
             .with_margin_left(12.)
