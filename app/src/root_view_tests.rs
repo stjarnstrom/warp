@@ -1,6 +1,6 @@
 use ai::LLMId;
 use onboarding::{
-    AgentOnboardingView, OfferVariant, OnboardingAuthState, OnboardingIntention, SelectedSettings,
+    AgentOnboardingView, OnboardingAuthState, OnboardingIntention, SelectedSettings,
     UICustomizationSettings,
 };
 use session_sharing_protocol::common::SessionId;
@@ -15,8 +15,8 @@ use warpui::{
 use super::{
     AccountFirstCompletion, AuthOnboardingState, AuthOnboardingTarget,
     HAS_COMPLETED_ONBOARDING_KEY, NewWorkspaceSource, RootView, WorkspaceArgs,
-    has_completed_local_onboarding, offer_variant_for_account_class,
-    refresh_pending_onboarding_choices, requires_post_onboarding_login,
+    has_completed_local_onboarding, refresh_pending_onboarding_choices,
+    requires_post_onboarding_login,
 };
 use crate::GlobalResourceHandles;
 use crate::appearance::Appearance;
@@ -94,22 +94,6 @@ fn fallback_flow_only_requires_login_for_account_backed_settings() {
 }
 
 #[test]
-fn account_first_classes_route_to_paid_or_the_expected_offer() {
-    assert_eq!(
-        offer_variant_for_account_class(FtueAccountClass::Paid),
-        None
-    );
-    assert_eq!(
-        offer_variant_for_account_class(FtueAccountClass::FreeIcp),
-        Some(OfferVariant::HeadStart)
-    );
-    assert_eq!(
-        offer_variant_for_account_class(FtueAccountClass::FreeStandard),
-        Some(OfferVariant::ChooseHowToStart)
-    );
-}
-
-#[test]
 fn account_first_completion_metadata_matches_terminal_outcomes() {
     let cases = [
         (
@@ -134,20 +118,6 @@ fn account_first_completion_metadata_matches_terminal_outcomes() {
             AccountFirstCompletion::FreeStandardSetupLater,
             "free_standard_setup_later",
             Some(FtueAccountClass::FreeStandard),
-            true,
-        ),
-        (
-            AccountFirstCompletion::FreeStandardCreditsPurchased,
-            "free_standard_credits_purchased",
-            // Buying one-time credits does not put the user on a plan, so they
-            // stay free-standard.
-            Some(FtueAccountClass::FreeStandard),
-            true,
-        ),
-        (
-            AccountFirstCompletion::UpgradeCompleted,
-            "upgrade_completed",
-            Some(FtueAccountClass::Paid),
             true,
         ),
     ];
@@ -421,18 +391,6 @@ fn test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states() {
             marker,
             "Onboarding",
         );
-
-        let (target, marker) = workspace_target(&mut app);
-        assert_becomes_needs_sso_link(
-            AuthOnboardingState::PostAuthOnboarding {
-                onboarding_view,
-                target,
-                account_class: FtueAccountClass::FreeStandard,
-                upgrade_started: false,
-            },
-            marker,
-            "PostAuthOnboarding",
-        );
     });
 }
 
@@ -474,8 +432,7 @@ fn root_view_new_skips_onboarding_for_shared_session_cold_start() {
 fn pending_target(state: &AuthOnboardingState) -> Option<&AuthOnboardingTarget> {
     match state {
         AuthOnboardingState::Onboarding { target, .. }
-        | AuthOnboardingState::LoginSlide { target, .. }
-        | AuthOnboardingState::PostAuthOnboarding { target, .. } => Some(target),
+        | AuthOnboardingState::LoginSlide { target, .. } => Some(target),
         AuthOnboardingState::NeedsSsoLink(target) => Some(target),
         _ => None,
     }

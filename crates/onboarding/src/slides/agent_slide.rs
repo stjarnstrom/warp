@@ -154,9 +154,7 @@ impl AgentSlide {
                 | OnboardingStateEvent::SelectedSlideChanged
                 | OnboardingStateEvent::IntentionChanged
                 | OnboardingStateEvent::Completed
-                | OnboardingStateEvent::UpgradeRequested
-                | OnboardingStateEvent::NoAiConfirmationChanged
-                | OnboardingStateEvent::AiSellOfferSatisfied => {}
+                | OnboardingStateEvent::NoAiConfirmationChanged => {}
             }
         });
 

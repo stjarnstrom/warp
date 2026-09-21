@@ -73,8 +73,6 @@ pub enum OnboardingEvent {
     NoAiConfirmed,
     /// The user chose to keep AI ("Give me AI features") in the confirmation modal.
     NoAiConfirmationCancelled,
-    /// The user clicked the "Upgrade" button on the "Customize your agent" slide.
-    AgentSlideUpgradeClicked,
     /// The user clicked the "Log in" link on the welcome/intro slide.
     WelcomeLoginClicked,
     /// A canonical user action within the account-first flow.
@@ -88,14 +86,6 @@ pub enum OnboardingEvent {
         has_team: bool,
         is_paid: bool,
         team_discovery_outcome: String,
-    },
-    OnboardingUpgradeStarted {
-        source_slide: String,
-        account_class: String,
-    },
-    OnboardingUpgradeCompleted {
-        source_slide: String,
-        account_class: String,
     },
     OnboardingCompleted {
         completion_type: String,
@@ -120,12 +110,9 @@ impl TelemetryEvent for OnboardingEvent {
             OnboardingEvent::NoAiConfirmationShown => "onboarding_no_ai_confirmation_shown",
             OnboardingEvent::NoAiConfirmed => "onboarding_no_ai_confirmed",
             OnboardingEvent::NoAiConfirmationCancelled => "onboarding_no_ai_confirmation_cancelled",
-            OnboardingEvent::AgentSlideUpgradeClicked => "onboarding_agent_slide_upgrade_clicked",
             OnboardingEvent::WelcomeLoginClicked => "onboarding_welcome_login_clicked",
             OnboardingEvent::OnboardingAction { .. } => "onboarding_action",
             OnboardingEvent::OnboardingAuthCompleted { .. } => "onboarding_auth_completed",
-            OnboardingEvent::OnboardingUpgradeStarted { .. } => "onboarding_upgrade_started",
-            OnboardingEvent::OnboardingUpgradeCompleted { .. } => "onboarding_upgrade_completed",
             OnboardingEvent::OnboardingCompleted { .. } => "onboarding_completed",
         }
     }
@@ -173,7 +160,6 @@ impl TelemetryEvent for OnboardingEvent {
             OnboardingEvent::NoAiConfirmationShown => None,
             OnboardingEvent::NoAiConfirmed => None,
             OnboardingEvent::NoAiConfirmationCancelled => None,
-            OnboardingEvent::AgentSlideUpgradeClicked => None,
             OnboardingEvent::WelcomeLoginClicked => None,
             OnboardingEvent::OnboardingAction {
                 slide_name,
@@ -203,22 +189,6 @@ impl TelemetryEvent for OnboardingEvent {
                 "has_team": has_team,
                 "is_paid": is_paid,
                 "team_discovery_outcome": team_discovery_outcome,
-            })),
-            OnboardingEvent::OnboardingUpgradeStarted {
-                source_slide,
-                account_class,
-            } => Some(json!({
-                "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-                "source_slide": source_slide,
-                "account_class": account_class,
-            })),
-            OnboardingEvent::OnboardingUpgradeCompleted {
-                source_slide,
-                account_class,
-            } => Some(json!({
-                "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-                "source_slide": source_slide,
-                "account_class": account_class,
             })),
             OnboardingEvent::OnboardingCompleted { completion_type } => Some(json!({
                 "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
@@ -250,9 +220,6 @@ impl TelemetryEvent for OnboardingEvent {
             OnboardingEvent::NoAiConfirmationCancelled => {
                 "User chose to keep AI in the confirmation modal"
             }
-            OnboardingEvent::AgentSlideUpgradeClicked => {
-                "User clicked the Upgrade button on the Customize your agent slide"
-            }
             OnboardingEvent::WelcomeLoginClicked => {
                 "User clicked the Log in link on the welcome/intro slide"
             }
@@ -261,12 +228,6 @@ impl TelemetryEvent for OnboardingEvent {
             }
             OnboardingEvent::OnboardingAuthCompleted { .. } => {
                 "User completed account-first browser authentication"
-            }
-            OnboardingEvent::OnboardingUpgradeStarted { .. } => {
-                "User started an upgrade from account-first onboarding"
-            }
-            OnboardingEvent::OnboardingUpgradeCompleted { .. } => {
-                "User completed an upgrade from account-first onboarding"
             }
             OnboardingEvent::OnboardingCompleted { .. } => {
                 "User completed account-first onboarding"
@@ -311,16 +272,9 @@ impl TelemetryEventDesc for OnboardingEventDiscriminant {
             OnboardingEventDiscriminant::NoAiConfirmationCancelled => {
                 "onboarding_no_ai_confirmation_cancelled"
             }
-            OnboardingEventDiscriminant::AgentSlideUpgradeClicked => {
-                "onboarding_agent_slide_upgrade_clicked"
-            }
             OnboardingEventDiscriminant::WelcomeLoginClicked => "onboarding_welcome_login_clicked",
             OnboardingEventDiscriminant::OnboardingAction => "onboarding_action",
             OnboardingEventDiscriminant::OnboardingAuthCompleted => "onboarding_auth_completed",
-            OnboardingEventDiscriminant::OnboardingUpgradeStarted => "onboarding_upgrade_started",
-            OnboardingEventDiscriminant::OnboardingUpgradeCompleted => {
-                "onboarding_upgrade_completed"
-            }
             OnboardingEventDiscriminant::OnboardingCompleted => "onboarding_completed",
         }
     }
@@ -356,9 +310,6 @@ impl TelemetryEventDesc for OnboardingEventDiscriminant {
             OnboardingEventDiscriminant::NoAiConfirmationCancelled => {
                 "User chose to keep AI in the confirmation modal"
             }
-            OnboardingEventDiscriminant::AgentSlideUpgradeClicked => {
-                "User clicked the Upgrade button on the Customize your agent slide"
-            }
             OnboardingEventDiscriminant::WelcomeLoginClicked => {
                 "User clicked the Log in link on the welcome/intro slide"
             }
@@ -367,12 +318,6 @@ impl TelemetryEventDesc for OnboardingEventDiscriminant {
             }
             OnboardingEventDiscriminant::OnboardingAuthCompleted => {
                 "User completed account-first browser authentication"
-            }
-            OnboardingEventDiscriminant::OnboardingUpgradeStarted => {
-                "User started an upgrade from account-first onboarding"
-            }
-            OnboardingEventDiscriminant::OnboardingUpgradeCompleted => {
-                "User completed an upgrade from account-first onboarding"
             }
             OnboardingEventDiscriminant::OnboardingCompleted => {
                 "User completed account-first onboarding"

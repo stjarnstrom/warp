@@ -36,37 +36,13 @@ fn account_first_lifecycle_payloads_include_flow_and_classification() {
         }))
     );
     assert_eq!(
-        OnboardingEvent::OnboardingUpgradeStarted {
-            source_slide: "head_start".to_string(),
-            account_class: "free_icp".to_string(),
-        }
-        .payload(),
-        Some(json!({
-            "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-            "source_slide": "head_start",
-            "account_class": "free_icp",
-        }))
-    );
-    assert_eq!(
-        OnboardingEvent::OnboardingUpgradeCompleted {
-            source_slide: "head_start".to_string(),
-            account_class: "free_icp".to_string(),
-        }
-        .payload(),
-        Some(json!({
-            "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-            "source_slide": "head_start",
-            "account_class": "free_icp",
-        }))
-    );
-    assert_eq!(
         OnboardingEvent::OnboardingCompleted {
-            completion_type: "upgrade_completed".to_string(),
+            completion_type: "free_icp_setup_later".to_string(),
         }
         .payload(),
         Some(json!({
             "flow_version": ACCOUNT_FIRST_FLOW_VERSION,
-            "completion_type": "upgrade_completed",
+            "completion_type": "free_icp_setup_later",
         }))
     );
 }

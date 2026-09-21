@@ -8,7 +8,7 @@ use cfg_if::cfg_if;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use onboarding::{
-    AgentOnboardingEvent, AgentOnboardingView, OfferVariant, OnboardingEvent, OnboardingIntention,
+    AgentOnboardingEvent, AgentOnboardingView, OnboardingEvent, OnboardingIntention,
     SelectedSettings,
 };
 use parking_lot::Mutex;
@@ -22,7 +22,6 @@ use warp_core::context_flag::ContextFlag;
 use warp_core::safe_error;
 use warp_core::user_preferences::GetUserPreferences as _;
 use warp_errors::{report_error, report_if_error};
-use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Border, ChildAnchor, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Stack,
 };
@@ -51,7 +50,6 @@ use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewVariant};
 use crate::auth::login_slide::{LoginSlideEvent, LoginSlideSource, LoginSlideView};
 use crate::auth::needs_sso_link_view::NeedsSsoLinkView;
-use crate::auth::paste_auth_token_modal::{PasteAuthTokenModalEvent, PasteAuthTokenModalView};
 #[cfg(target_family = "wasm")]
 use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::auth::{AuthStateProvider, LoginFailureReason};
@@ -91,7 +89,7 @@ use crate::terminal::shell::ShellType;
 use crate::terminal::view::{TerminalAction, cell_size_and_padding};
 use crate::themes::onboarding_theme_picker_themes;
 use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill, ThemeKind, WarpThemeConfig};
-use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs, url_reports_checkout_success};
+use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates, traffic_light_data};
 use crate::view_components::DismissibleToast;
@@ -128,14 +126,6 @@ pub(crate) fn unthemed_window_border() -> Border {
         Border::all(1.).with_border_fill(Fill::black().blend(&Fill::white().with_opacity(15)))
     } else {
         Border::all(1.).with_border_fill(Fill::black().with_opacity(0))
-    }
-}
-
-fn offer_variant_for_account_class(account_class: FtueAccountClass) -> Option<OfferVariant> {
-    match account_class {
-        FtueAccountClass::Paid => None,
-        FtueAccountClass::FreeIcp => Some(OfferVariant::HeadStart),
-        FtueAccountClass::FreeStandard => Some(OfferVariant::ChooseHowToStart),
     }
 }
 
@@ -1737,10 +1727,6 @@ enum AccountFirstCompletion {
     PaidTeam,
     FreeIcpSetupLater,
     FreeStandardSetupLater,
-    /// The user gained AI usage from the offer without ending up on a plan,
-    /// so they remain free-standard.
-    FreeStandardCreditsPurchased,
-    UpgradeCompleted,
 }
 
 impl AccountFirstCompletion {
@@ -1750,24 +1736,15 @@ impl AccountFirstCompletion {
             AccountFirstCompletion::PaidTeam => "paid_team",
             AccountFirstCompletion::FreeIcpSetupLater => "free_icp_setup_later",
             AccountFirstCompletion::FreeStandardSetupLater => "free_standard_setup_later",
-            AccountFirstCompletion::FreeStandardCreditsPurchased => {
-                "free_standard_credits_purchased"
-            }
-            AccountFirstCompletion::UpgradeCompleted => "upgrade_completed",
         }
     }
 
     fn account_class(self) -> Option<FtueAccountClass> {
         match self {
             AccountFirstCompletion::AccountSkipped => None,
-            AccountFirstCompletion::PaidTeam | AccountFirstCompletion::UpgradeCompleted => {
-                Some(FtueAccountClass::Paid)
-            }
+            AccountFirstCompletion::PaidTeam => Some(FtueAccountClass::Paid),
             AccountFirstCompletion::FreeIcpSetupLater => Some(FtueAccountClass::FreeIcp),
-            AccountFirstCompletion::FreeStandardSetupLater
-            | AccountFirstCompletion::FreeStandardCreditsPurchased => {
-                Some(FtueAccountClass::FreeStandard)
-            }
+            AccountFirstCompletion::FreeStandardSetupLater => Some(FtueAccountClass::FreeStandard),
         }
     }
 
@@ -1777,8 +1754,6 @@ impl AccountFirstCompletion {
             AccountFirstCompletion::PaidTeam
                 | AccountFirstCompletion::FreeIcpSetupLater
                 | AccountFirstCompletion::FreeStandardSetupLater
-                | AccountFirstCompletion::FreeStandardCreditsPurchased
-                | AccountFirstCompletion::UpgradeCompleted
         )
     }
 }
@@ -1823,12 +1798,6 @@ enum AuthOnboardingState {
         onboarding_view: ViewHandle<AgentOnboardingView>,
         target: AuthOnboardingTarget,
     },
-    PostAuthOnboarding {
-        onboarding_view: ViewHandle<AgentOnboardingView>,
-        target: AuthOnboardingTarget,
-        account_class: FtueAccountClass,
-        upgrade_started: bool,
-    },
     Terminal(ViewHandle<Workspace>),
 }
 
@@ -1859,7 +1828,6 @@ pub struct RootView {
     pending_account_first_tutorial_after_settings: bool,
     pending_account_first_sso_login: Option<AccountFirstLoginContext>,
     account_first_refresh_in_flight: bool,
-    paste_auth_token_modal: Option<ViewHandle<PasteAuthTokenModalView>>,
 }
 
 impl RootView {
@@ -1883,10 +1851,6 @@ impl RootView {
 
         ctx.subscribe_to_model(&CloudPreferencesSyncer::handle(ctx), |me, _, event, ctx| {
             me.handle_cloud_preferences_syncer_event(event, ctx);
-        });
-
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), |me, _, event, ctx| {
-            me.handle_account_first_workspaces_event(event, ctx);
         });
 
         let auth_view =
@@ -1970,7 +1934,6 @@ impl RootView {
             pending_account_first_tutorial_after_settings: false,
             pending_account_first_sso_login: None,
             account_first_refresh_in_flight: false,
-            paste_auth_token_modal: None,
         };
 
         match &root_view.auth_onboarding_state {
@@ -2350,7 +2313,7 @@ impl RootView {
         fresh_request_limit: Option<usize>,
         ctx: &mut ViewContext<Self>,
     ) {
-        let Some(context) = self.account_first_login_context(ctx) else {
+        let Some(_context) = self.account_first_login_context(ctx) else {
             return;
         };
         let account_class =
@@ -2370,61 +2333,12 @@ impl RootView {
             FtueAccountClass::Paid => {
                 self.complete_account_first(AccountFirstCompletion::PaidTeam, ctx);
             }
-            FtueAccountClass::FreeIcp | FtueAccountClass::FreeStandard => {
-                let variant = offer_variant_for_account_class(account_class)
-                    .expect("free account classes have an offer");
-                context.onboarding_view.update(ctx, |view, ctx| {
-                    view.show_post_auth_offer(variant, ctx);
-                });
-                self.auth_onboarding_state = AuthOnboardingState::PostAuthOnboarding {
-                    onboarding_view: context.onboarding_view,
-                    target: context.target,
-                    account_class,
-                    upgrade_started: false,
-                };
-                ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
-                self.focus(ctx);
-                ctx.notify();
+            FtueAccountClass::FreeIcp => {
+                self.complete_account_first(AccountFirstCompletion::FreeIcpSetupLater, ctx);
             }
-        }
-    }
-
-    fn handle_account_first_workspaces_event(
-        &mut self,
-        event: &UserWorkspacesEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !matches!(event, UserWorkspacesEvent::TeamsChanged) {
-            return;
-        }
-        let (account_class, upgrade_started) = match &self.auth_onboarding_state {
-            AuthOnboardingState::PostAuthOnboarding {
-                account_class,
-                upgrade_started,
-                ..
-            } => (*account_class, *upgrade_started),
-            _ => return,
-        };
-        if !Self::account_first_is_paid(ctx) {
-            return;
-        }
-
-        if upgrade_started {
-            send_telemetry_from_ctx!(
-                OnboardingEvent::OnboardingUpgradeCompleted {
-                    source_slide: match account_class {
-                        FtueAccountClass::FreeIcp => "head_start",
-                        FtueAccountClass::FreeStandard => "choose_how_to_start",
-                        FtueAccountClass::Paid => "unknown",
-                    }
-                    .to_string(),
-                    account_class: account_class.as_str().to_string(),
-                },
-                ctx
-            );
-            self.complete_account_first(AccountFirstCompletion::UpgradeCompleted, ctx);
-        } else {
-            self.complete_account_first(AccountFirstCompletion::PaidTeam, ctx);
+            FtueAccountClass::FreeStandard => {
+                self.complete_account_first(AccountFirstCompletion::FreeStandardSetupLater, ctx);
+            }
         }
     }
 
@@ -2439,7 +2353,6 @@ impl RootView {
                 target,
                 ..
             } if login_slide_view.as_ref(ctx).is_account_first_onboarding() => target.clone(),
-            AuthOnboardingState::PostAuthOnboarding { target, .. } => target.clone(),
             _ => return,
         };
 
@@ -2576,28 +2489,6 @@ impl RootView {
                 });
             }
             AgentOnboardingEvent::OnboardingCompleted(selected_settings) => {
-                if let AuthOnboardingState::PostAuthOnboarding {
-                    onboarding_view,
-                    account_class,
-                    ..
-                } = &self.auth_onboarding_state
-                {
-                    let onboarding_view = onboarding_view.clone();
-                    let account_class = *account_class;
-                    refresh_pending_onboarding_choices(
-                        selected_settings,
-                        &mut self.pending_post_auth_onboarding_settings,
-                        &mut self.pending_tutorial,
-                    );
-                    let variant = offer_variant_for_account_class(account_class)
-                        .expect("free account classes have an offer");
-                    onboarding_view.update(ctx, |view, ctx| {
-                        view.show_post_auth_offer(variant, ctx);
-                    });
-                    self.focus(ctx);
-                    ctx.notify();
-                    return;
-                }
                 let AuthOnboardingState::Onboarding {
                     target,
                     onboarding_view,
@@ -2731,66 +2622,6 @@ impl RootView {
                 self.start_autoupdate_polling(ctx);
                 ctx.notify();
             }
-            AgentOnboardingEvent::UpgradeRequested => {
-                let upgrade_started = match &mut self.auth_onboarding_state {
-                    AuthOnboardingState::PostAuthOnboarding {
-                        account_class,
-                        upgrade_started,
-                        ..
-                    } if !*upgrade_started => {
-                        *upgrade_started = true;
-                        Some(*account_class)
-                    }
-                    AuthOnboardingState::PostAuthOnboarding { .. }
-                    | AuthOnboardingState::Auth(_)
-                    | AuthOnboardingState::ConfirmIncomingAuth(_)
-                    | AuthOnboardingState::NeedsSsoLink(_)
-                    | AuthOnboardingState::Onboarding { .. }
-                    | AuthOnboardingState::LoginSlide { .. }
-                    | AuthOnboardingState::Terminal(_) => None,
-                    #[cfg(target_family = "wasm")]
-                    AuthOnboardingState::WebImport(_) => None,
-                };
-                if let Some(account_class) = upgrade_started {
-                    send_telemetry_from_ctx!(
-                        OnboardingEvent::OnboardingUpgradeStarted {
-                            source_slide: match account_class {
-                                FtueAccountClass::FreeIcp => "head_start",
-                                FtueAccountClass::FreeStandard => "choose_how_to_start",
-                                FtueAccountClass::Paid => "unknown",
-                            }
-                            .to_string(),
-                            account_class: account_class.as_str().to_string(),
-                        },
-                        ctx
-                    );
-                }
-                let upgrade_url = AuthManager::handle(ctx)
-                    .update(ctx, |auth_manager, _| auth_manager.upgrade_url());
-                ctx.open_url(&upgrade_url);
-            }
-            AgentOnboardingEvent::UpgradeCopyUrlRequested => {
-                let upgrade_url = AuthManager::handle(ctx)
-                    .update(ctx, |auth_manager, _| auth_manager.upgrade_url());
-                ctx.clipboard().write(ClipboardContent {
-                    plain_text: upgrade_url.clone(),
-                    paths: Some(vec![upgrade_url]),
-                    ..Default::default()
-                });
-            }
-            AgentOnboardingEvent::UpgradePasteTokenFromClipboardRequested => {
-                let modal = ctx.add_typed_action_view(PasteAuthTokenModalView::new);
-                ctx.subscribe_to_view(&modal, |me, _, event, ctx| match event {
-                    PasteAuthTokenModalEvent::Cancelled => {
-                        me.paste_auth_token_modal = None;
-                        me.focus(ctx);
-                        ctx.notify();
-                    }
-                });
-                ctx.focus(&modal);
-                self.paste_auth_token_modal = Some(modal);
-                ctx.notify();
-            }
             AgentOnboardingEvent::PrivacySettingsFromTerminalThemeSlideRequested => {
                 let AuthOnboardingState::Onboarding {
                     target,
@@ -2900,28 +2731,6 @@ impl RootView {
                 self.focus(ctx);
                 ctx.notify();
             }
-            AgentOnboardingEvent::OfferSetUpLaterSelected { variant } => match variant {
-                OfferVariant::HeadStart => {
-                    self.complete_account_first(AccountFirstCompletion::FreeIcpSetupLater, ctx)
-                }
-                OfferVariant::ChooseHowToStart => {
-                    self.complete_account_first(AccountFirstCompletion::FreeStandardSetupLater, ctx)
-                }
-            },
-            AgentOnboardingEvent::OfferAiSellSatisfied { variant } => match variant {
-                // Only the free-standard offer sells AI usage.
-                OfferVariant::ChooseHowToStart => {
-                    // The user may have bought a plan or one-time credits;
-                    // record whichever they did.
-                    let completion = if Self::account_first_is_paid(ctx) {
-                        AccountFirstCompletion::UpgradeCompleted
-                    } else {
-                        AccountFirstCompletion::FreeStandardCreditsPurchased
-                    };
-                    self.complete_account_first(completion, ctx);
-                }
-                OfferVariant::HeadStart => {}
-            },
             AgentOnboardingEvent::AppBecameActive => {
                 // Coming back to the app is when a purchase made in the browser
                 // becomes visible, whichever call to action sent the user there.
@@ -3007,28 +2816,7 @@ impl RootView {
                 });
             }
         }
-        // The web checkout confirmation hands the user back through the same
-        // desktop redirect it uses for auth, so the success flag rides along on
-        // a URL that may also have failed to parse as an auth payload.
-        if url_reports_checkout_success(url) {
-            self.notify_onboarding_checkout_succeeded(ctx);
-        }
         true
-    }
-
-    /// Routes a completed web checkout to onboarding. Returns whether an
-    /// AI-sell onboarding screen consumed the signal and advanced.
-    fn notify_onboarding_checkout_succeeded(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let AuthOnboardingState::PostAuthOnboarding {
-            onboarding_view, ..
-        } = &self.auth_onboarding_state
-        else {
-            return false;
-        };
-        let onboarding_view = onboarding_view.clone();
-        onboarding_view.update(ctx, |onboarding_view, ctx| {
-            onboarding_view.on_checkout_succeeded(ctx)
-        })
     }
 
     #[allow(clippy::ptr_arg)]
@@ -3488,7 +3276,6 @@ impl RootView {
 
         match event {
             AuthManagerEvent::AuthComplete => {
-                self.paste_auth_token_modal = None;
                 let login_context = self.account_first_login_context(ctx);
                 let resumed_sso_context = if matches!(
                     self.auth_onboarding_state,
@@ -3501,11 +3288,7 @@ impl RootView {
                 };
                 let account_first_context = login_context.or(resumed_sso_context);
                 let account_first_auth = account_first_context.is_some()
-                    || self.pending_account_first_sso_login.is_some()
-                    || matches!(
-                        self.auth_onboarding_state,
-                        AuthOnboardingState::PostAuthOnboarding { .. }
-                    );
+                    || self.pending_account_first_sso_login.is_some();
 
                 if !account_first_auth {
                     Self::sync_local_onboarding_to_server(&auth_state, ctx);
@@ -3523,13 +3306,6 @@ impl RootView {
                     );
                 } else if let Some(context) = account_first_context {
                     self.begin_account_first_post_auth_refresh(context, ctx);
-                } else if matches!(
-                    self.auth_onboarding_state,
-                    AuthOnboardingState::PostAuthOnboarding { .. }
-                ) {
-                    TeamUpdateManager::handle(ctx).update(ctx, |manager, ctx| {
-                        drop(manager.refresh_workspace_metadata(ctx));
-                    });
                 } else if let AuthOnboardingState::Auth(_)
                 | AuthOnboardingState::ConfirmIncomingAuth(_) =
                     &self.auth_onboarding_state
@@ -3725,11 +3501,6 @@ impl RootView {
     }
 
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        if let Some(modal) = &self.paste_auth_token_modal {
-            ctx.focus(modal);
-            ctx.notify();
-            return true;
-        }
         match &self.auth_onboarding_state {
             AuthOnboardingState::Auth(_) => {
                 ctx.focus(&self.auth_view);
@@ -3745,11 +3516,6 @@ impl RootView {
                 ctx.focus(&self.needs_sso_link_view);
             }
             AuthOnboardingState::Onboarding {
-                onboarding_view, ..
-            } => {
-                ctx.focus(onboarding_view);
-            }
-            AuthOnboardingState::PostAuthOnboarding {
                 onboarding_view, ..
             } => {
                 ctx.focus(onboarding_view);
@@ -3843,10 +3609,6 @@ impl RootView {
         }
         if self.account_first_login_context(ctx).is_some()
             || self.pending_account_first_sso_login.is_some()
-            || matches!(
-                self.auth_onboarding_state,
-                AuthOnboardingState::PostAuthOnboarding { .. }
-            )
         {
             return;
         }
@@ -3916,11 +3678,9 @@ impl View for RootView {
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
         if focus_ctx.is_self_focused() {
             self.focus(ctx);
-        } else if self.paste_auth_token_modal.is_some() {
-            // Modal is open — focus belongs to the editor inside it.
         } else if matches!(
             self.auth_onboarding_state,
-            AuthOnboardingState::Onboarding { .. } | AuthOnboardingState::PostAuthOnboarding { .. }
+            AuthOnboardingState::Onboarding { .. }
         ) {
             // During onboarding, aggressively redirect focus.
             // This ensures keystrokes (Enter) are handled by the correct view rather
@@ -3952,9 +3712,6 @@ impl View for RootView {
             AuthOnboardingState::Onboarding {
                 onboarding_view, ..
             } => ChildView::new(onboarding_view).finish(),
-            AuthOnboardingState::PostAuthOnboarding {
-                onboarding_view, ..
-            } => ChildView::new(onboarding_view).finish(),
             AuthOnboardingState::LoginSlide {
                 login_slide_view, ..
             } => ChildView::new(login_slide_view).finish(),
@@ -3963,10 +3720,6 @@ impl View for RootView {
 
         let mut stack = Stack::new();
         stack.add_child(child);
-
-        if let Some(modal) = &self.paste_auth_token_modal {
-            stack.add_child(ChildView::new(modal).finish());
-        }
 
         if let Some(traffic_light_data) = self.traffic_light_data(app) {
             let theme = Appearance::as_ref(app).theme();
@@ -4148,9 +3901,7 @@ impl AuthOnboardingState {
             AuthOnboardingState::NeedsSsoLink(target) => {
                 *self = AuthOnboardingState::WebImport(target.clone())
             }
-            AuthOnboardingState::Onboarding { .. }
-            | AuthOnboardingState::LoginSlide { .. }
-            | AuthOnboardingState::PostAuthOnboarding { .. } => {
+            AuthOnboardingState::Onboarding { .. } | AuthOnboardingState::LoginSlide { .. } => {
                 // For onboarding/login slide, we don't have a workspace yet, so we can't convert to web import
                 // This case shouldn't normally occur
             }
@@ -4184,8 +3935,7 @@ impl AuthOnboardingState {
             }
             AuthOnboardingState::NeedsSsoLink { .. } => (),
             AuthOnboardingState::Onboarding { target, .. }
-            | AuthOnboardingState::LoginSlide { target, .. }
-            | AuthOnboardingState::PostAuthOnboarding { target, .. } => {
+            | AuthOnboardingState::LoginSlide { target, .. } => {
                 *self = AuthOnboardingState::NeedsSsoLink(target.clone())
             }
             AuthOnboardingState::Terminal(terminal_view_handle) => {
@@ -4215,9 +3965,7 @@ impl AuthOnboardingState {
                 }
                 AuthOnboardingTarget::Terminal(_) => {}
             },
-            AuthOnboardingState::Onboarding { .. }
-            | AuthOnboardingState::LoginSlide { .. }
-            | AuthOnboardingState::PostAuthOnboarding { .. } => {
+            AuthOnboardingState::Onboarding { .. } | AuthOnboardingState::LoginSlide { .. } => {
                 // No workspace to clean up for onboarding/login slide state
             }
             AuthOnboardingState::Terminal(workspace) => {
@@ -4257,7 +4005,6 @@ impl AuthOnboardingState {
             }
             AuthOnboardingState::Onboarding { target, .. }
             | AuthOnboardingState::LoginSlide { target, .. }
-            | AuthOnboardingState::PostAuthOnboarding { target, .. }
             | AuthOnboardingState::NeedsSsoLink(target) => {
                 let AuthOnboardingTarget::Workspace(args) = target else {
                     return false;
