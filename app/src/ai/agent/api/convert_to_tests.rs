@@ -349,36 +349,6 @@ fn injected_attribution_is_sent_as_is() {
 }
 
 #[test]
-fn a_viewer_typed_query_carries_the_viewer_as_author() {
-    let viewer = session_sharing_protocol::common::ProfileData {
-        firebase_uid: "viewer".to_string(),
-        email: Some("viewer@example.com".to_string()),
-        ..Default::default()
-    };
-
-    let query = converted_user_query(user_query_input(
-        "viewer text",
-        Some(BaseUserQuery::for_viewer(Some(&viewer))),
-        HashMap::new(),
-    ));
-
-    assert_eq!(
-        query.query, "viewer text",
-        "the prompt text fills the empty base query"
-    );
-    assert_eq!(query.origin, Some(warp_client_origin()));
-    let Some(api::query_author::Principal::User(user)) = query.author.unwrap().principal else {
-        panic!("expected the viewer as author");
-    };
-    assert_eq!(user.uid, "viewer");
-    assert_eq!(user.email, "viewer@example.com");
-    assert!(
-        user.team_uid.is_empty(),
-        "the sharer never claims a team for a viewer"
-    );
-}
-
-#[test]
 fn base_fields_this_client_does_not_model_pass_through() {
     let base = BaseUserQuery::from_proto(api::request::input::UserQuery {
         origin: Some(api::UserQueryOrigin::default()),

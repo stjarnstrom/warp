@@ -7,8 +7,6 @@ use futures_util::future::join_all;
 use itertools::{Either, Itertools};
 use pathfinder_color::ColorU;
 use rand::Rng;
-#[cfg(not(target_arch = "wasm32"))]
-use session_sharing_protocol::common::Viewer;
 use session_sharing_protocol::common::{
     InputReplicaId, ParticipantId, ParticipantInfo, ParticipantList, ParticipantPresenceUpdate,
     PresenceUpdate, ProfileData, Role, RoleRequestId, Selection,
@@ -780,19 +778,6 @@ impl PresenceManager {
     pub fn single_distinct_present_viewer_uid(&self) -> Option<&str> {
         Self::single_distinct_uid(
             self.get_present_viewers()
-                .map(|v| v.info.profile_data.firebase_uid.as_str()),
-        )
-    }
-
-    /// Like `single_distinct_present_viewer_uid`, but reads directly from a
-    /// participant list before the presence manager finishes processing it.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn single_distinct_present_viewer_uid_from_viewers<'a>(
-        viewers: impl Iterator<Item = &'a Viewer>,
-    ) -> Option<&'a str> {
-        Self::single_distinct_uid(
-            viewers
-                .filter(|v| v.is_present)
                 .map(|v| v.info.profile_data.firebase_uid.as_str()),
         )
     }

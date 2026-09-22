@@ -984,9 +984,7 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
         commands.push(CREATE_DOCKER_SANDBOX);
     }
 
-    if FeatureFlag::CreatingSharedSessions.is_enabled()
-        && FeatureFlag::HOARemoteControl.is_enabled()
-    {
+    if FeatureFlag::HOARemoteControl.is_enabled() {
         commands.push(REMOTE_CONTROL);
     }
 

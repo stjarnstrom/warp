@@ -26,7 +26,6 @@ mod selections;
 pub mod settings;
 pub mod share_modal;
 pub(super) mod shared_handlers;
-pub mod sharer;
 pub mod viewer;
 
 #[cfg(test)]

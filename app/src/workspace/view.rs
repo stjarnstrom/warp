@@ -12098,9 +12098,7 @@ impl Workspace {
         if self.tab_count() == 1 {
             return false;
         }
-        // TODO: remove session sharing flag check when long-running commands are included
-        FeatureFlag::CreatingSharedSessions.is_enabled()
-            && ContextFlag::CreateSharedSession.is_enabled()
+        ContextFlag::CreateSharedSession.is_enabled()
             && *SessionSettings::as_ref(ctx).should_confirm_close_session
     }
 
@@ -27051,8 +27049,7 @@ impl View for Workspace {
             stack.add_child(ChildView::new(create_auth_secret_modal).finish());
         }
 
-        if FeatureFlag::CreatingSharedSessions.is_enabled()
-            && ContextFlag::CreateSharedSession.is_enabled()
+        if ContextFlag::CreateSharedSession.is_enabled()
             && self
                 .current_workspace_state
                 .is_close_session_confirmation_dialog_open

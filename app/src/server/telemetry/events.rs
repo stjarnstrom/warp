@@ -5214,7 +5214,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
 
             Self::AgentModeChangedInputType => EnablementState::Always,
             Self::StartedSharingCurrentSession | Self::StoppedSharingCurrentSession => {
-                EnablementState::Flag(FeatureFlag::CreatingSharedSessions)
+                EnablementState::Always
             }
             Self::JoinedSharedSession => EnablementState::Flag(FeatureFlag::ViewingSharedSessions),
             Self::OpenNotebook | Self::EditNotebook | Self::NotebookAction => {

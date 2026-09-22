@@ -1,15 +1,8 @@
-use base64::Engine as _;
-use prost::Message as _;
-use session_sharing_protocol::common::ProfileData;
 use warp_multi_agent_api as api;
 use warp_multi_agent_api::AgentType;
 
 use super::BaseUserQuery;
 use crate::ai::agent::UserQueryMode;
-
-fn encode(query: &api::request::input::UserQuery) -> String {
-    base64::engine::general_purpose::STANDARD.encode(query.encode_to_vec())
-}
 
 fn base(query: api::request::input::UserQuery) -> BaseUserQuery {
     BaseUserQuery::from_proto(query)
@@ -23,32 +16,6 @@ fn plan_mode() -> api::UserQueryMode {
 
 fn normal_mode() -> api::UserQueryMode {
     api::UserQueryMode { r#type: None }
-}
-
-#[test]
-fn decodes_a_serialized_request_user_query() {
-    let query = api::request::input::UserQuery {
-        query: "take a look at the failing test".to_string(),
-        intended_agent: AgentType::Cli.into(),
-        origin: Some(api::UserQueryOrigin::default()),
-        ..Default::default()
-    };
-
-    let decoded = BaseUserQuery::decode_b64(&encode(&query)).expect("valid payload decodes");
-
-    assert_eq!(decoded.to_proto(), query);
-}
-
-#[test]
-fn rejects_a_payload_that_is_not_base64() {
-    assert!(BaseUserQuery::decode_b64("not-base64!").is_none());
-}
-
-#[test]
-fn rejects_a_payload_that_is_not_a_user_query() {
-    // Field 1, length-delimited, with a truncated length varint.
-    let truncated = base64::engine::general_purpose::STANDARD.encode([0x0a, 0xff]);
-    assert!(BaseUserQuery::decode_b64(&truncated).is_none());
 }
 
 #[test]
@@ -209,66 +176,6 @@ fn external_origin() -> api::UserQueryOrigin {
             api::user_query_origin::ExternalPlatform {},
         )),
     }
-}
-
-fn unavailable_reason(query: &api::request::input::UserQuery) -> &str {
-    let Some(api::user_query_origin::Variant::ServerSynthesized(origin)) = query
-        .origin
-        .as_ref()
-        .and_then(|origin| origin.variant.as_ref())
-    else {
-        panic!(
-            "expected an explicit unavailable origin, got {:?}",
-            query.origin
-        );
-    };
-    &origin.reason
-}
-
-#[test]
-fn a_viewer_with_a_profile_is_recorded_as_the_author_without_a_team() {
-    let viewer = ProfileData {
-        firebase_uid: "viewer".into(),
-        email: Some("viewer@example.com".into()),
-        ..Default::default()
-    };
-
-    let query = BaseUserQuery::for_viewer(Some(&viewer)).to_proto();
-
-    assert_eq!(query.origin, Some(super::warp_client_origin()));
-    assert_eq!(
-        query.author,
-        Some(api::QueryAuthor {
-            principal: Some(api::query_author::Principal::User(api::WarpUser {
-                uid: "viewer".into(),
-                email: "viewer@example.com".into(),
-                team_uid: String::new(),
-            })),
-            resolution: api::IdentityResolution::ClientSession.into(),
-        })
-    );
-    assert!(query.source_message.is_none());
-    assert!(query.query.is_empty(), "the text comes from the prompt");
-}
-
-#[test]
-fn a_viewer_without_a_profile_is_explicitly_unavailable_rather_than_the_sharer() {
-    for profile in [None, Some(&ProfileData::default())] {
-        let query = BaseUserQuery::for_viewer(profile).to_proto();
-        assert_eq!(
-            unavailable_reason(&query),
-            "shared_session_author_unavailable"
-        );
-        assert!(query.author.is_none());
-        assert!(query.source_message.is_none());
-    }
-}
-
-#[test]
-fn unattributed_names_its_reason_and_claims_no_author() {
-    let query = BaseUserQuery::unattributed("user_query_unavailable").to_proto();
-    assert_eq!(unavailable_reason(&query), "user_query_unavailable");
-    assert!(query.author.is_none());
 }
 
 #[test]

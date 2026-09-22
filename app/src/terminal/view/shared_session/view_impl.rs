@@ -2065,24 +2065,6 @@ impl TerminalView {
         self.refresh_size(ctx);
     }
 
-    /// Resizes the sharer's terminal to match the viewer's reported size,
-    /// going through the normal view/model/PTY resize pipeline.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn resize_from_viewer_report(
-        &mut self,
-        viewer_size: WindowSize,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.active_viewer_driven_size = Some((viewer_size.num_rows, viewer_size.num_cols));
-        let size_update = SizeUpdateBuilder::for_viewer_size_report(
-            *self.size_info,
-            viewer_size.num_rows,
-            viewer_size.num_cols,
-        )
-        .build(self, ctx);
-        self.resize_internal(size_update, ctx);
-    }
-
     pub fn render_input_request_edit_access_button(
         &self,
         button_handle: MouseStateHandle,

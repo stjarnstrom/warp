@@ -5,7 +5,6 @@ use std::rc::Rc;
 use chrono::Utc;
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use futures::channel::oneshot;
-use pathfinder_geometry::vector::vec2f;
 use persistence::model::ConversationUsageMetadata;
 use session_sharing_protocol::sharer::SessionSourceType;
 use warp_multi_agent_api::{self as api, client_action as api_client_action};
@@ -271,8 +270,6 @@ fn test_begin_viewing_ambient_session_reuses_existing_model_for_cloud_pane() {
 
 #[test]
 fn test_shared_session_banners() {
-    let _flag = FeatureFlag::CreatingSharedSessions.override_enabled(true);
-
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
 
@@ -417,8 +414,6 @@ fn test_shared_session_banners() {
 
 #[test]
 fn test_resize_shared_session_viewer_from_server() {
-    let _flag = FeatureFlag::CreatingSharedSessions.override_enabled(true);
-
     App::test((), |mut app| async move {
         let terminal = terminal_view_for_viewer(&mut app);
         terminal.update(&mut app, |view, ctx| {
@@ -483,125 +478,6 @@ fn test_resize_shared_session_viewer_from_server() {
         terminal.read(&app, |view, _ctx| {
             assert_eq!(*view.size_info(), expected_size_info);
             assert_eq!(*view.model.lock().block_list().size(), expected_size_info);
-        });
-    })
-}
-
-#[test]
-fn test_resize_shared_session_viewer_independent_of_sharer() {
-    let _create_flag = FeatureFlag::CreatingSharedSessions.override_enabled(true);
-    let _view_flag = FeatureFlag::ViewingSharedSessions.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        let terminal = terminal_view_for_viewer(&mut app);
-        terminal.update(&mut app, |view, ctx| {
-            // Refresh the size at the start of the test to make sure
-            // we're using a consistent size throughout.
-            view.after_terminal_view_layout(vec2f(100., 100.), ctx);
-
-            // Set the sharer's size.
-            let num_rows = view.size_info().rows();
-            let num_cols = view.size_info().columns();
-            view.resize_from_sharer_update(WindowSize { num_rows, num_cols }, ctx);
-        });
-
-        let original_size_info = terminal.read(&app, |view, _| *view.size_info());
-        let original_num_rows = original_size_info.rows();
-        let original_num_cols = original_size_info.columns();
-
-        // Case 1: make the viewer winsize smaller by making the pane narrower.
-        terminal.update(&mut app, |view, ctx| {
-            let narrower = vec2f(
-                original_size_info.pane_width_px().as_f32() - 10.,
-                original_size_info.pane_height_px().as_f32(),
-            );
-            view.after_terminal_view_layout(narrower, ctx);
-        });
-
-        // Make sure the overall size info was changed but the rows, columns
-        // were unchanged because we're respecting the sharer's larger size.
-        terminal.read(&app, |view, _ctx| {
-            let new_size_info = *view.size_info();
-            assert_ne!(original_size_info, new_size_info);
-
-            let expected_size_info =
-                new_size_info.with_rows_and_columns(original_num_rows, original_num_cols);
-            assert_eq!(*view.size_info(), expected_size_info);
-            assert_eq!(*view.model.lock().block_list().size(), expected_size_info);
-        });
-
-        // Case 2: make the viewer winsize larger by making the pane wider.
-        terminal.update(&mut app, |view, ctx| {
-            let wider = vec2f(
-                original_size_info.pane_width_px().as_f32() + 10.,
-                original_size_info.pane_height_px().as_f32(),
-            );
-            view.after_terminal_view_layout(wider, ctx);
-        });
-
-        // Make sure the overall size info was changed, and that the rows, columns
-        // were updated because we're respecting the viewer's larger size.
-        terminal.read(&app, |view, _ctx| {
-            let new_size_info = *view.size_info();
-            assert_ne!(original_size_info, new_size_info);
-
-            assert!(new_size_info.columns() > original_num_cols);
-            assert!(view.model.lock().block_list().size().columns() > original_num_cols);
-        });
-    })
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-#[test]
-fn test_on_session_share_ended_restores_size_after_viewer_driven_resize() {
-    let _flag = FeatureFlag::CreatingSharedSessions.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        initialize_app_for_terminal_view(&mut app);
-        let terminal = add_window_with_terminal(&mut app, None);
-
-        terminal.update(&mut app, |view, ctx| {
-            // Refresh the size at the start of the test to make sure
-            // we're using a consistent size throughout.
-            view.after_terminal_view_layout(vec2f(100., 100.), ctx);
-        });
-
-        let original_size = terminal.read(&app, |view, _| *view.size_info());
-        let viewer_rows = original_size.rows().saturating_sub(2).max(1);
-        let viewer_cols = original_size.columns().saturating_sub(4).max(1);
-        assert!(viewer_rows < original_size.rows() || viewer_cols < original_size.columns());
-
-        // Resize the view as if a viewer with a smaller winsize has joined the session.
-        terminal.update(&mut app, |view, ctx| {
-            view.resize_from_viewer_report(
-                WindowSize {
-                    num_rows: viewer_rows,
-                    num_cols: viewer_cols,
-                },
-                ctx,
-            );
-        });
-
-        terminal.read(&app, |view, _| {
-            assert_eq!(view.size_info().rows(), viewer_rows);
-            assert_eq!(view.size_info().columns(), viewer_cols);
-            assert_eq!(
-                view.active_viewer_driven_size,
-                Some((viewer_rows, viewer_cols))
-            );
-            assert_eq!(*view.model.lock().block_list().size(), *view.size_info());
-        });
-
-        // End the session, assert that the winsize was restored to the original.
-        terminal.update(&mut app, |view, ctx| {
-            view.on_session_share_ended(ctx);
-        });
-
-        terminal.read(&app, |view, _| {
-            assert_eq!(view.size_info().rows(), original_size.rows());
-            assert_eq!(view.size_info().columns(), original_size.columns());
-            assert_eq!(view.active_viewer_driven_size, None);
-            assert_eq!(*view.model.lock().block_list().size(), original_size);
         });
     })
 }

@@ -14,7 +14,6 @@ use session_sharing_protocol::sharer::SessionRetentionReason;
 use warp_cli::share::{ShareAccessLevel, ShareRequest, ShareSubject};
 use warp_completer::completer::CommandOutput;
 use warp_core::command::ExitCode;
-use warp_core::features::FeatureFlag;
 use warp_errors::report_if_error;
 use warp_terminal::model::grid::Dimensions;
 use warp_util::path::ShellFamily;
@@ -268,23 +267,12 @@ impl TerminalDriver {
         let sharing_expected =
             should_share && !warp_core::channel::ChannelState::server_root_url().contains("ngrok");
         let (mut session_share_tx, session_share_rx) = if sharing_expected {
-            if !FeatureFlag::CreatingSharedSessions.is_enabled() {
-                // Session sharing was requested but the feature is not enabled for this
-                // user/team (typically an enterprise/admin setting). Fail immediately
-                // with a clear error rather than waiting for a timeout.
-                log::warn!(
-                    "Session sharing requested but the CreatingSharedSessions feature flag \
-                     is not enabled. This is likely due to a team administrator disabling \
-                     session sharing."
-                );
-                let (tx, rx) = oneshot::channel();
-                let _ = tx.send(Err(ShareSessionError::Disabled));
-                (None, Some(rx))
-            } else {
-                log::info!("Waiting for requested session sharing to start");
-                let (tx, rx) = oneshot::channel();
-                (Some(tx), Some(rx))
-            }
+            // This build cannot create shared sessions, so fail immediately with a
+            // clear error rather than waiting for a timeout.
+            log::warn!("Session sharing requested, but this build cannot create shared sessions");
+            let (tx, rx) = oneshot::channel();
+            let _ = tx.send(Err(ShareSessionError::Disabled));
+            (None, Some(rx))
         } else {
             (None, None)
         };

@@ -1600,8 +1600,7 @@ impl AgentInputFooter {
                 if is_conversation_transcript_context {
                     return None;
                 }
-                let enabled = FeatureFlag::CreatingSharedSessions.is_enabled()
-                    && FeatureFlag::HOARemoteControl.is_enabled()
+                let enabled = FeatureFlag::HOARemoteControl.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled();
                 if !enabled {
                     return None;
@@ -2425,8 +2424,7 @@ impl AgentInputFooter {
                 if is_conversation_transcript_context {
                     return None;
                 }
-                let enabled = FeatureFlag::CreatingSharedSessions.is_enabled()
-                    && FeatureFlag::HOARemoteControl.is_enabled()
+                let enabled = FeatureFlag::HOARemoteControl.is_enabled()
                     && ContextFlag::CreateSharedSession.is_enabled();
                 if !enabled {
                     return None;

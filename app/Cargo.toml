@@ -494,7 +494,6 @@ crash_reporting = [
     "warp_terminal/crash_reporting",
     "ai/crash_reporting",
 ]
-creating_shared_sessions = []
 cross_repo_context = []
 codebase_index_persistence = ["full_source_code_embedding"]
 well_known_mcp_ids = []

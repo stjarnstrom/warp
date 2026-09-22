@@ -2877,8 +2877,7 @@ impl FeaturesPageView {
             session_widgets.push(Box::new(UndoCloseWidget::default()));
         }
 
-        if FeatureFlag::CreatingSharedSessions.is_enabled()
-            && ContextFlag::CreateSharedSession.is_enabled()
+        if ContextFlag::CreateSharedSession.is_enabled()
             && session_settings
                 .should_confirm_close_session
                 .is_supported_on_current_platform()

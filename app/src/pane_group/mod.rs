@@ -8339,9 +8339,7 @@ impl View for PaneGroup {
         if self.terminal_with_open_share_block_modal.is_some() {
             stack
                 .add_child(Clipped::new(ChildView::new(&self.share_block_modal).finish()).finish());
-        } else if FeatureFlag::CreatingSharedSessions.is_enabled()
-            && self.terminal_with_open_share_session_modal.is_some()
-        {
+        } else if self.terminal_with_open_share_session_modal.is_some() {
             stack.add_child(ChildView::new(&self.share_session_modal).finish());
         } else if self
             .terminal_with_shared_session_role_change_modal_open

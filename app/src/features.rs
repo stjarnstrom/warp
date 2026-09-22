@@ -49,8 +49,6 @@ fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::SelectablePrompt,
         #[cfg(feature = "viewing_shared_sessions")]
         FeatureFlag::ViewingSharedSessions,
-        #[cfg(feature = "creating_shared_sessions")]
-        FeatureFlag::CreatingSharedSessions,
         #[cfg(feature = "agent_mode")]
         FeatureFlag::AgentMode,
         #[cfg(feature = "shared_session_long_running_commands")]

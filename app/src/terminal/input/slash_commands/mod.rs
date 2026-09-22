@@ -1031,9 +1031,7 @@ impl Input {
             }
             // `/usage` renders inline in the TUI; the GUI had nowhere left to send it.
             SlashCommandKind::RemoteControl => {
-                if !FeatureFlag::CreatingSharedSessions.is_enabled()
-                    || !FeatureFlag::HOARemoteControl.is_enabled()
-                {
+                if !FeatureFlag::HOARemoteControl.is_enabled() {
                     return false;
                 }
                 if self
