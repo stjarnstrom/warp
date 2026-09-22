@@ -5,10 +5,7 @@ use warpui::elements::{
     ConstrainedBox, Container, CrossAxisAlignment, Flex, FormattedTextElement,
     HighlightedHyperlink, HyperlinkLens, MainAxisAlignment, MainAxisSize, ParentElement,
 };
-use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
-    WeakViewHandle,
-};
+use warpui::{AppContext, Element, Entity, SingletonEntity, View, ViewContext, WeakViewHandle};
 
 use crate::ai::blocklist::error_color;
 use crate::network::NetworkStatus;
@@ -17,20 +14,6 @@ use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
 
 const NO_CONNECTION_PRIMARY_TEXT: &str = "No internet connection";
-
-/// Only the signup link produced this, and it was a credit prompt. The variant
-/// stays until the account gating that still routes `PromptAlertEvent` is
-/// removed.
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptAlertAction {
-    SignUpClickedForAnonymousUser,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptAlertEvent {
-    SignupAnonymousUser,
-}
 
 /// The alert state of the chip that appears to the right of certain parts of the prompt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,7 +121,7 @@ fn does_alert_block_ai_requests(state: &PromptAlertState) -> bool {
 }
 
 impl Entity for PromptAlertView {
-    type Event = PromptAlertEvent;
+    type Event = ();
 }
 
 impl View for PromptAlertView {
@@ -172,11 +155,7 @@ impl View for PromptAlertView {
                     ctx.open_url(url);
                 }
                 HyperlinkLens::Action(action_ref) => {
-                    if let Some(action) = action_ref.as_any().downcast_ref::<PromptAlertAction>() {
-                        event.dispatch_typed_action(action.clone());
-                    } else if let Some(action) =
-                        action_ref.as_any().downcast_ref::<WorkspaceAction>()
-                    {
+                    if let Some(action) = action_ref.as_any().downcast_ref::<WorkspaceAction>() {
                         event.dispatch_typed_action(action.clone());
                     }
                 }
@@ -208,18 +187,6 @@ impl View for PromptAlertView {
         Container::new(chip_row.finish())
             .with_margin_right(16.)
             .finish()
-    }
-}
-
-impl TypedActionView for PromptAlertView {
-    type Action = PromptAlertAction;
-
-    fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        match action {
-            PromptAlertAction::SignUpClickedForAnonymousUser => {
-                ctx.emit(PromptAlertEvent::SignupAnonymousUser);
-            }
-        }
     }
 }
 

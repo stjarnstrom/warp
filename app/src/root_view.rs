@@ -47,7 +47,7 @@ use crate::auth::auth_override_warning_modal::{
     AuthOverrideWarningModal, AuthOverrideWarningModalEvent, AuthOverrideWarningModalVariant,
 };
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView, AuthViewVariant};
+use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView};
 use crate::auth::login_slide::{LoginSlideEvent, LoginSlideSource, LoginSlideView};
 use crate::auth::needs_sso_link_view::NeedsSsoLinkView;
 #[cfg(target_family = "wasm")]
@@ -1852,8 +1852,7 @@ impl RootView {
             me.handle_cloud_preferences_syncer_event(event, ctx);
         });
 
-        let auth_view =
-            ctx.add_typed_action_view(|ctx| AuthView::new(AuthViewVariant::Initial, ctx));
+        let auth_view = ctx.add_typed_action_view(AuthView::new);
 
         let auth_override_view: ViewHandle<_> = ctx.add_typed_action_view(|ctx| {
             AuthOverrideWarningModal::new(ctx, AuthOverrideWarningModalVariant::OnboardingView)
@@ -3264,9 +3263,6 @@ impl RootView {
                 | AuthOnboardingState::ConfirmIncomingAuth(_) =
                     &self.auth_onboarding_state
                 {
-                    self.auth_view.update(ctx, |auth_view, ctx| {
-                        auth_view.set_variant(ctx, AuthViewVariant::Initial);
-                    });
                     self.auth_onboarding_state
                         .complete_auth_and_create_workspace(ctx);
                     self.start_pending_tutorial(ctx);

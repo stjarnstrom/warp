@@ -35,7 +35,6 @@ use crate::ai::predict::generate_ai_input_suggestions::{
     GenerateAIInputSuggestionsRequest, GenerateAIInputSuggestionsResponseV2,
 };
 use crate::ai::predict::next_command_model::HistoryBasedAutosuggestionState;
-use crate::auth::auth_manager::LoginGatedFeature;
 use crate::channel::Channel;
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::{GenericStringObjectFormat, ObjectType, Space};
@@ -621,17 +620,6 @@ pub enum AICommandSearchEntrypoint {
 pub enum SecretInteraction {
     RevealSecret,
     HideSecret,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum AnonymousUserSignupEntrypoint {
-    HitDriveObjectLimit,
-    LoginGatedFeature,
-    SignUpButton,
-    RenotificationBlock,
-    SignUpAIPrompt,
-    NextCommandSuggestionsUpgradeBanner,
-    Unknown,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -1693,15 +1681,8 @@ pub enum TelemetryEvent {
     EnableVimKeybindingsFromBanner,
     DismissVimKeybindingsBanner,
     InitiateReauth,
-    InitiateAnonymousUserSignup {
-        entrypoint: AnonymousUserSignupEntrypoint,
-    },
     AnonymousUserExpirationLockout,
     AnonymousUserLinkedFromBrowser,
-    AnonymousUserAttemptLoginGatedFeature {
-        feature: LoginGatedFeature,
-    },
-    AnonymousUserHitCloudObjectLimit,
     NeedsReauth,
     WarpDriveOpened {
         source: WarpDriveSource,
@@ -3726,12 +3707,6 @@ impl TelemetryEvent {
             TelemetryEvent::SettingsImportConfigFocused(terminal_type_and_profile) => {
                 Some(json!({"terminal_and_type_profile": terminal_type_and_profile}))
             }
-            TelemetryEvent::InitiateAnonymousUserSignup { entrypoint } => {
-                Some(json!({"entrypoint": entrypoint}))
-            }
-            TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { feature } => {
-                Some(json!({"feature": feature}))
-            }
             TelemetryEvent::ToggleWorkspaceDecorationVisibility {
                 previous_value,
                 new_value,
@@ -4085,7 +4060,6 @@ impl TelemetryEvent {
             | TelemetryEvent::NeedsReauth
             | TelemetryEvent::AnonymousUserExpirationLockout
             | TelemetryEvent::AnonymousUserLinkedFromBrowser
-            | TelemetryEvent::AnonymousUserHitCloudObjectLimit
             | TelemetryEvent::CustomSecretRegexAdded
             | TelemetryEvent::CopySecret
             | TelemetryEvent::AutoGenerateMetadataSuccess
@@ -4899,11 +4873,8 @@ impl TelemetryEvent {
             | TelemetryEvent::EnableVimKeybindingsFromBanner
             | TelemetryEvent::DismissVimKeybindingsBanner
             | TelemetryEvent::InitiateReauth
-            | TelemetryEvent::InitiateAnonymousUserSignup { .. }
             | TelemetryEvent::AnonymousUserExpirationLockout
             | TelemetryEvent::AnonymousUserLinkedFromBrowser
-            | TelemetryEvent::AnonymousUserAttemptLoginGatedFeature { .. }
-            | TelemetryEvent::AnonymousUserHitCloudObjectLimit
             | TelemetryEvent::NeedsReauth
             | TelemetryEvent::WarpDriveOpened { .. }
             | TelemetryEvent::ToggleWarpAI { .. }
@@ -5236,13 +5207,10 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 EnablementState::Flag(FeatureFlag::SuggestedRules)
             }
             Self::ToggleFocusPaneOnHover { .. } => EnablementState::Always,
-            Self::InitiateAnonymousUserSignup { .. }
-            | Self::LoginLaterButtonClicked
+            Self::LoginLaterButtonClicked
             | Self::LoginLaterConfirmationButtonClicked
             | Self::AnonymousUserExpirationLockout
-            | Self::AnonymousUserLinkedFromBrowser
-            | Self::AnonymousUserAttemptLoginGatedFeature
-            | Self::AnonymousUserHitCloudObjectLimit => EnablementState::Always,
+            | Self::AnonymousUserLinkedFromBrowser => EnablementState::Always,
 
             Self::AgentModeChangedInputType => EnablementState::Always,
             Self::StartedSharingCurrentSession | Self::StoppedSharingCurrentSession => {
@@ -5727,12 +5695,8 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CreateProjectPromptSubmittedContent => "Create Project Prompt Submitted Content",
             Self::CloneRepoPromptSubmitted => "Clone Repo Prompt Submitted",
             Self::GetStartedSkipToTerminal => "Get Started Skip to Terminal",
-            Self::InitiateAnonymousUserSignup => "Anonymous User Initiated Signup",
             Self::AnonymousUserExpirationLockout => "Anonymous User Expiration Lockout",
             Self::AnonymousUserLinkedFromBrowser => "Anonymous User Linked from Browser",
-            Self::AnonymousUserAttemptLoginGatedFeature => {
-                "Anonymous User Attempted Login-Gated Feature"
-            }
             Self::MCPServerCollectionPaneOpened { .. } => "MCP Server Collection Pane Opened",
             Self::MCPServerAdded { .. } => "MCP Server Added",
             Self::MCPTemplateCreated { .. } => "MCP Template Created",
@@ -5750,7 +5714,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AISuggestedRuleAdded { .. } => "AI Suggested Rule Added",
             Self::AISuggestedRuleEdited { .. } => "AI Suggested Rule Edited",
             Self::AISuggestedRuleContentChanged { .. } => "AI Suggested Rule Content Changed",
-            Self::AnonymousUserHitCloudObjectLimit => "Anonymous User Hit Cloud Object Limit",
             Self::BootstrappingSucceeded => "Bootstrapping Succeeded",
             Self::SessionAbandonedBeforeBootstrap => "Session Abandoned Before Bootstrap",
             Self::ConfirmSuggestion => "Confirm Suggestion",
@@ -6227,18 +6190,11 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::BlockCompletedOnDogfoodOnly => {
                 "Completed a block, with extra information for dogfood only"
             }
-            Self::InitiateAnonymousUserSignup => "An anonymous user initiated the sign up flow",
             Self::AnonymousUserExpirationLockout => {
                 "An anonymous user opened Warp after their conversion deadline and was locked out"
             }
             Self::AnonymousUserLinkedFromBrowser => {
                 "Received an auth payload from anonymous user after linking in browser"
-            }
-            Self::AnonymousUserAttemptLoginGatedFeature => {
-                "Anonymous user attempted to access a login-gated feature"
-            }
-            Self::AnonymousUserHitCloudObjectLimit => {
-                "Anonymous user attempted to create a cloud object past their personal object limit"
             }
             Self::BackgroundBlockStarted => {
                 "Warp created a background-output Block (whenever a processes has been backgrounded and yields some output)"

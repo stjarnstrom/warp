@@ -14,17 +14,15 @@ use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    AppContext, Element, Entity, EventContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
+    AppContext, Element, Entity, EventContext, ModelHandle, SingletonEntity, View, ViewContext,
+    ViewHandle,
 };
 
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{PassiveSuggestionTrigger, StaticQueryType};
 use crate::ai::blocklist::BlocklistAIInputModel;
-use crate::ai::blocklist::prompt::prompt_alert::{
-    PromptAlertEvent, PromptAlertState, PromptAlertView,
-};
+use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertState, PromptAlertView};
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::appearance::Appearance;
 use crate::server::telemetry::InteractionSource;
@@ -283,11 +281,6 @@ fn get_tooltip_text_for_alert_state(_alert_state: &PromptAlertState) -> Option<S
     None
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptSuggestionsEvent {
-    SignupAnonymousUser,
-}
-
 pub struct PromptSuggestionsView {
     ai_input_model: ModelHandle<BlocklistAIInputModel>,
     prompt_alert: ViewHandle<PromptAlertView>,
@@ -299,10 +292,7 @@ impl PromptSuggestionsView {
         ai_input_model: ModelHandle<BlocklistAIInputModel>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let prompt_alert = ctx.add_typed_action_view(PromptAlertView::new);
-        ctx.subscribe_to_view(&prompt_alert, |me, _, event, ctx| {
-            me.handle_prompt_alert_event(event, ctx);
-        });
+        let prompt_alert = ctx.add_view(PromptAlertView::new);
 
         ctx.subscribe_to_model(&ai_input_model, |_, _, _, ctx| {
             ctx.notify();
@@ -318,18 +308,10 @@ impl PromptSuggestionsView {
     pub fn set_banner_state(&mut self, banner_state: PromptSuggestionBannerState) {
         self.banner_state = Some(banner_state);
     }
-
-    fn handle_prompt_alert_event(&mut self, event: &PromptAlertEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            PromptAlertEvent::SignupAnonymousUser => {
-                ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
-            }
-        }
-    }
 }
 
 impl Entity for PromptSuggestionsView {
-    type Event = PromptSuggestionsEvent;
+    type Event = ();
 }
 
 impl View for PromptSuggestionsView {
@@ -408,17 +390,5 @@ impl View for PromptSuggestionsView {
             .with_padding_top(1.)
             .with_overdraw_bottom(1.)
             .finish()
-    }
-}
-
-impl TypedActionView for PromptSuggestionsView {
-    type Action = PromptSuggestionsEvent;
-
-    fn handle_action(&mut self, action: &PromptSuggestionsEvent, ctx: &mut ViewContext<Self>) {
-        match action {
-            PromptSuggestionsEvent::SignupAnonymousUser => {
-                ctx.emit(PromptSuggestionsEvent::SignupAnonymousUser);
-            }
-        }
     }
 }

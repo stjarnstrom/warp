@@ -21,7 +21,7 @@ use warpui::{
 
 use super::UserUid;
 use super::auth_manager::{AuthManager, AuthManagerEvent};
-use super::auth_view_body::{AuthStep, AuthViewBodyAction, AuthViewBodyEvent};
+use super::auth_view_body::AuthViewBodyEvent;
 use super::credentials::RefreshToken;
 use super::login_failure_notification::{self, LoginFailureReason};
 use crate::appearance::Appearance;
@@ -78,7 +78,6 @@ pub struct AuthView {
     pub last_login_failure_reason: Option<LoginFailureReason>,
     close_login_notification_mouse_state: MouseStateHandle,
     highlighted_hyperlink_state: HighlightedHyperlink,
-    auth_view_variant: AuthViewVariant,
 }
 
 const AUTH_URL_HOST: &str = "auth";
@@ -139,22 +138,11 @@ impl AuthRedirectPayload {
 
 const MODAL_WIDTH: f32 = 352.;
 
-#[derive(Clone, Copy, Debug)]
-pub enum AuthViewVariant {
-    Initial,
-    RequireLoginCloseable,
-    HitDriveObjectLimitCloseable,
-    ShareRequirementCloseable,
-}
-
 impl AuthView {
-    pub fn new(variant: AuthViewVariant, ctx: &mut ViewContext<Self>) -> Self {
-        let auth_screen_view = ctx.add_typed_action_view(|ctx| AuthViewBody::new(variant, ctx));
+    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
+        let auth_screen_view = ctx.add_typed_action_view(AuthViewBody::new);
         ctx.subscribe_to_view(&auth_screen_view, |me, _, event, ctx| match event {
             AuthViewBodyEvent::Close => me.close(ctx),
-            AuthViewBodyEvent::SignUpButtonClicked => {
-                me.dismiss_error_notification(ctx);
-            }
             AuthViewBodyEvent::AuthTokenEntered(token) => {
                 me.last_login_failure_reason = None;
                 me.handle_pasted_auth_url(token.clone(), ctx);
@@ -188,37 +176,7 @@ impl AuthView {
             last_login_failure_reason: None,
             close_login_notification_mouse_state: Default::default(),
             highlighted_hyperlink_state: Default::default(),
-            auth_view_variant: variant,
         }
-    }
-
-    pub fn set_variant(&mut self, ctx: &mut ViewContext<Self>, variant: AuthViewVariant) {
-        self.auth_view_variant = variant;
-        self.update_auth_body(
-            ctx,
-            |body: &mut AuthViewBody, _: &mut ViewContext<'_, AuthViewBody>| {
-                body.set_variant(variant)
-            },
-        );
-    }
-
-    fn set_auth_step(&mut self, ctx: &mut ViewContext<Self>, step: AuthStep) {
-        self.update_auth_body(
-            ctx,
-            |body: &mut AuthViewBody, _: &mut ViewContext<'_, AuthViewBody>| {
-                body.set_auth_step(step)
-            },
-        );
-    }
-
-    pub fn skip_to_browser_open_step(&mut self, ctx: &mut ViewContext<Self>) {
-        self.set_auth_step(ctx, AuthStep::BrowserOpen);
-    }
-
-    pub fn start_sign_in(&mut self, ctx: &mut ViewContext<Self>) {
-        self.update_auth_body(ctx, |body, ctx| {
-            body.handle_action(&AuthViewBodyAction::Login, ctx);
-        });
     }
 
     fn focus(&self, ctx: &mut ViewContext<Self>) {
@@ -368,12 +326,7 @@ impl View for AuthView {
             );
         }
 
-        let background_color = match self.auth_view_variant {
-            AuthViewVariant::Initial => appearance.theme().background().into(),
-            AuthViewVariant::RequireLoginCloseable
-            | AuthViewVariant::HitDriveObjectLimitCloseable
-            | AuthViewVariant::ShareRequirementCloseable => ColorU::transparent_black(),
-        };
+        let background_color = appearance.theme().background().into_solid();
 
         // TODO(liam): use theme colors for background and window border
         Container::new(stack.finish())

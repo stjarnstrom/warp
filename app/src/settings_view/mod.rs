@@ -250,7 +250,6 @@ pub enum SettingsViewEvent {
     CheckForUpdate,
     LaunchNetworkLogging,
     OpenWarpDrive,
-    SignupAnonymousUser,
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -1267,9 +1266,6 @@ impl SettingsView {
         // Warp Drive page
         let warp_drive_page_handle =
             ctx.add_typed_action_view(warp_drive_page::WarpDriveSettingsPageView::new);
-        ctx.subscribe_to_view(&warp_drive_page_handle, |me, _, event, ctx| {
-            me.handle_warp_drive_page_event(event, ctx);
-        });
 
         let platform_page_handle = ctx.add_typed_action_view(platform_page::PlatformPageView::new);
         ctx.subscribe_to_view(&platform_page_handle, |me, _, event, ctx| {
@@ -1673,12 +1669,8 @@ impl SettingsView {
         event: &MainSettingsPageEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        match event {
-            MainSettingsPageEvent::CheckForUpdate => ctx.emit(SettingsViewEvent::CheckForUpdate),
-            MainSettingsPageEvent::SignupAnonymousUser => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
-            }
-            _ => (),
+        if let MainSettingsPageEvent::CheckForUpdate = event {
+            ctx.emit(SettingsViewEvent::CheckForUpdate)
         }
     }
 
@@ -1811,18 +1803,6 @@ impl SettingsView {
         }
     }
 
-    fn handle_warp_drive_page_event(
-        &mut self,
-        event: &warp_drive_page::WarpDriveSettingsPageEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            warp_drive_page::WarpDriveSettingsPageEvent::SignUp => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
-            }
-        }
-    }
-
     fn handle_warp_agent_page_event(
         &mut self,
         event: &WarpAgentPageEvent,
@@ -1837,9 +1817,6 @@ impl SettingsView {
             #[cfg(feature = "local_fs")]
             WarpAgentPageEvent::OpenCustomRouterFile(path) => {
                 ctx.emit(SettingsViewEvent::OpenCustomRouterFile(path.clone()));
-            }
-            WarpAgentPageEvent::SignupAnonymousUser => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
             }
             WarpAgentPageEvent::ShowModal | WarpAgentPageEvent::HideModal => {
                 // Modal rendering is handled in get_modal_content_for_page
@@ -1894,9 +1871,6 @@ impl SettingsView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            CodeIndexingPageEvent::SignupAnonymousUser => {
-                ctx.emit(SettingsViewEvent::SignupAnonymousUser)
-            }
             CodeIndexingPageEvent::OpenLspLogs { log_path } => {
                 ctx.emit(SettingsViewEvent::OpenLspLogs {
                     log_path: log_path.clone(),

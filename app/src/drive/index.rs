@@ -9,7 +9,6 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 use url::Url;
 use warp_core::context_flag::ContextFlag;
 use warp_core::settings::Setting;
-use warp_core::ui::theme::color::internal_colors;
 use warp_errors::{report_error, report_if_error};
 use warp_util::sync::Condition;
 use warpui::clipboard::ClipboardContent;
@@ -55,9 +54,7 @@ use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::ai::facts::{AIFact, AIMemory};
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::banner::BannerState;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, CloudViewModelEvent, UpdateTimestamp};
@@ -78,9 +75,7 @@ use crate::server::cloud_objects::update_manager::{
 };
 use crate::server::ids::{ClientId, ObjectUid, ServerId, SyncId};
 use crate::server::sync_queue::SyncQueue;
-use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, SharingDialogSource, TelemetryEvent,
-};
+use crate::server::telemetry::{SharingDialogSource, TelemetryEvent};
 use crate::settings::SharedObjectLimitBannerSettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
@@ -348,7 +343,6 @@ pub enum DriveIndexAction {
     EscapeKey,
     /// Hitting cmd+enter on a WD item toggles the context menu.
     ToggleDriveItemContextMenu,
-    SignupAnonymousUser,
     DismissPersonalObjectLimits,
     /// Dismiss (and remember dismissing) the shared object limit banner shown
     /// in the Warp Drive sidebar when a plan's notebook/workflow limit is hit.
@@ -388,21 +382,6 @@ impl DriveIndexAction {
                 space,
                 initial_folder_id,
             },
-        }
-    }
-
-    pub fn blocked_for_anonymous_user(&self) -> bool {
-        use DriveIndexAction::*;
-        matches!(self, OpenTeamSettingsPage)
-    }
-}
-
-impl From<&DriveIndexAction> for LoginGatedFeature {
-    fn from(val: &DriveIndexAction) -> LoginGatedFeature {
-        use DriveIndexAction::*;
-        match val {
-            OpenTeamSettingsPage => "Open Team Settings",
-            _ => "Unknown reason",
         }
     }
 }
@@ -471,8 +450,6 @@ struct MouseStateHandles {
     join_team_button_mouse_state: MouseStateHandle,
     create_team_button_mouse_state: MouseStateHandle,
     shared_object_limit_hit_banner_close_mouse_state: MouseStateHandle,
-    anonymous_sign_up_button_mouse_state: MouseStateHandle,
-    anonymous_object_limit_close_button_mouse_state: MouseStateHandle,
     search_button_mouse_state: MouseStateHandle,
 }
 
@@ -3911,259 +3888,6 @@ impl DriveIndex {
         ctx.notify();
     }
 
-    fn render_personal_limit_status(
-        &self,
-        appearance: &Appearance,
-        ctx: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        let personal_object_limits = self.auth_state.personal_object_limits()?;
-
-        let num_workflows = CloudModel::as_ref(ctx)
-            .active_non_welcome_workflows_in_space(Space::Personal, ctx)
-            .count();
-        let num_notebooks = CloudModel::as_ref(ctx)
-            .active_non_welcome_notebooks_in_space(Space::Personal, ctx)
-            .count();
-        let num_env_var_collections = CloudModel::as_ref(ctx)
-            .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
-            .count();
-
-        let theme = appearance.theme();
-        let background_color = theme.surface_2();
-        let border_color = theme.outline().into();
-        let sub_text_color = blended_colors::text_sub(theme, background_color);
-
-        let close_icon_button = Hoverable::new(
-            self.mouse_state_handles
-                .anonymous_object_limit_close_button_mouse_state
-                .clone(),
-            |_| {
-                ConstrainedBox::new(
-                    Icon::X
-                        .to_warpui_icon(appearance.theme().main_text_color(background_color))
-                        .finish(),
-                )
-                .with_width(12.)
-                .with_height(12.)
-                .finish()
-            },
-        )
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(DriveIndexAction::DismissPersonalObjectLimits)
-        })
-        .with_cursor(Cursor::PointingHand)
-        .finish();
-
-        let header = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_child(
-                Text::new_inline("Warp Drive".to_string(), appearance.ui_font_family(), 14.)
-                    .with_color(theme.main_text_color(background_color).into())
-                    .with_style(Properties {
-                        weight: warpui::fonts::Weight::Bold,
-                        ..Default::default()
-                    })
-                    .finish(),
-            )
-            .with_child(Shrinkable::new(1., Empty::new().finish()).finish())
-            .with_child(close_icon_button)
-            .finish();
-
-        let personal_object_limit_description =
-            "Sign up for free to increase your storage limit and unlock more features.";
-
-        let body_text = appearance
-            .ui_builder()
-            .wrappable_text(personal_object_limit_description, true)
-            .with_style(UiComponentStyles {
-                font_size: Some(12.),
-                font_color: Some(sub_text_color),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-
-        let workflow_usage = Container::new(self.render_personal_object_limit_row(
-            appearance,
-            DriveObjectType::Workflow,
-            num_workflows,
-            personal_object_limits.workflow_limit,
-        ))
-        .with_margin_bottom(8.)
-        .finish();
-
-        let notebook_usage = Container::new(self.render_personal_object_limit_row(
-            appearance,
-            DriveObjectType::Notebook {
-                is_ai_document: false,
-            },
-            num_notebooks,
-            personal_object_limits.notebook_limit,
-        ))
-        .with_margin_bottom(8.)
-        .finish();
-
-        let env_var_usage = self.render_personal_object_limit_row(
-            appearance,
-            DriveObjectType::EnvVarCollection,
-            num_env_var_collections,
-            personal_object_limits.env_var_limit,
-        );
-
-        let usage_section = Container::new(
-            Flex::column()
-                .with_children([workflow_usage, notebook_usage, env_var_usage])
-                .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                .finish(),
-        )
-        .with_background(theme.surface_3())
-        .with_border(Border::all(1.).with_border_color(border_color))
-        .with_uniform_padding(8.)
-        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-        .finish();
-
-        let button_styles = UiComponentStyles {
-            font_size: Some(14.),
-            font_family_id: Some(appearance.ui_font_family()),
-            font_color: Some(
-                appearance
-                    .theme()
-                    .main_text_color(appearance.theme().accent())
-                    .into(),
-            ),
-            font_weight: Some(Weight::Bold),
-            padding: Some(Coords {
-                top: 8.,
-                bottom: 8.,
-                left: 64.,
-                right: 64.,
-            }),
-            border_color: Some(appearance.theme().outline().into()),
-            background: Some(appearance.theme().accent().into()),
-            ..Default::default()
-        };
-
-        let hovered_and_clicked_styles = UiComponentStyles {
-            background: Some(internal_colors::accent_bg_strong(appearance.theme()).into()),
-            ..button_styles
-        };
-
-        let button = appearance
-            .ui_builder()
-            .button(
-                ButtonVariant::Basic,
-                self.mouse_state_handles
-                    .anonymous_sign_up_button_mouse_state
-                    .clone(),
-            )
-            .with_style(button_styles)
-            .with_hovered_styles(hovered_and_clicked_styles)
-            .with_active_styles(hovered_and_clicked_styles)
-            .with_centered_text_label("Sign up".to_string())
-            .build()
-            .on_click(|ctx, _, _| ctx.dispatch_typed_action(DriveIndexAction::SignupAnonymousUser))
-            .with_cursor(Cursor::PointingHand)
-            .finish();
-
-        Some(
-            ConstrainedBox::new(
-                Container::new(
-                    Flex::column()
-                        .with_main_axis_alignment(MainAxisAlignment::Start)
-                        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                        .with_child(header)
-                        .with_child(
-                            Container::new(body_text)
-                                .with_margin_top(4.)
-                                .with_margin_bottom(12.)
-                                .finish(),
-                        )
-                        .with_child(usage_section)
-                        .with_child(Container::new(button).with_margin_top(12.).finish())
-                        .finish(),
-                )
-                .with_background(background_color)
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.)))
-                .with_uniform_padding(12.)
-                .with_uniform_margin(12.)
-                .with_border(Border::all(1.).with_border_color(border_color))
-                .finish(),
-            )
-            .with_max_width(350.)
-            .finish(),
-        )
-    }
-
-    fn render_personal_object_limit_row(
-        &self,
-        appearance: &Appearance,
-        object_type: DriveObjectType,
-        amount: usize,
-        max_amount: usize,
-    ) -> Box<dyn Element> {
-        let main_text_color = appearance
-            .theme()
-            .main_text_color(appearance.theme().surface_3())
-            .into();
-        let sub_text_color = appearance
-            .theme()
-            .hint_text_color(appearance.theme().surface_3())
-            .into();
-
-        let text_color = match amount {
-            0 => sub_text_color,
-            _ => main_text_color,
-        };
-
-        let name = match object_type {
-            DriveObjectType::Notebook { .. } => "Notebooks",
-            DriveObjectType::Workflow => "Workflows",
-            DriveObjectType::EnvVarCollection => "Environment Variables",
-            DriveObjectType::Folder => "Folders",
-            DriveObjectType::AgentModeWorkflow => "Agent Workflows",
-            DriveObjectType::AIFact => "AI Fact",
-            DriveObjectType::AIFactCollection => "Rules",
-            DriveObjectType::MCPServer => "MCP Server",
-            DriveObjectType::MCPServerCollection => "MCP Servers",
-        };
-        let name_styles = UiComponentStyles {
-            font_family_id: Some(appearance.ui_font_family()),
-            font_size: Some(12.),
-            font_color: Some(text_color),
-            ..Default::default()
-        };
-
-        let remaining = format!("{amount}/{max_amount}");
-        let remaining_styles = UiComponentStyles {
-            font_family_id: Some(appearance.monospace_font_family()),
-            font_size: Some(12.),
-            font_color: Some(text_color),
-            ..Default::default()
-        };
-
-        Flex::row()
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_child(
-                appearance
-                    .ui_builder()
-                    .span(name)
-                    .with_style(name_styles)
-                    .build()
-                    .finish(),
-            )
-            .with_child(
-                appearance
-                    .ui_builder()
-                    .span(remaining)
-                    .with_style(remaining_styles)
-                    .build()
-                    .finish(),
-            )
-            .finish()
-    }
-
     fn render_shared_object_limit_hit_banner(
         &self,
         appearance: &Appearance,
@@ -4802,17 +4526,6 @@ impl DriveIndex {
             return;
         };
 
-        if self.auth_state.is_anonymous_or_logged_out() {
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    "Share Object",
-                    AuthViewVariant::ShareRequirementCloseable,
-                    ctx,
-                )
-            });
-            return;
-        }
-
         self.reset_menus(ctx);
         if let Some(server_id) = cloud_object_type_and_id.server_id() {
             self.share_dialog_open_for_object = Some(*warp_drive_item_id);
@@ -5041,32 +4754,7 @@ impl View for DriveIndex {
         )
         .finish();
 
-        let index_content = match (
-            self.should_show_personal_object_limit_status,
-            self.render_personal_limit_status(appearance, app),
-        ) {
-            (true, Some(personal_object_limit_card)) => {
-                // Render column with a spacer to ensure the tip appears at the bottom of drive
-                let col = Flex::column()
-                    .with_child(index)
-                    .with_child(Shrinkable::new(1., Empty::new().finish()).finish())
-                    .finish();
-
-                let mut stack = Stack::new().with_constrain_absolute_children();
-                stack.add_child(col);
-                stack.add_positioned_child(
-                    personal_object_limit_card,
-                    OffsetPositioning::offset_from_parent(
-                        vec2f(0., 0.),
-                        ParentOffsetBounds::WindowByPosition,
-                        ParentAnchor::BottomMiddle,
-                        ChildAnchor::BottomMiddle,
-                    ),
-                );
-                stack.finish()
-            }
-            _ => index,
-        };
+        let index_content = index;
 
         let mut drive = Flex::column();
 
@@ -5123,18 +4811,6 @@ impl TypedActionView for DriveIndex {
     type Action = DriveIndexAction;
 
     fn handle_action(&mut self, action: &DriveIndexAction, ctx: &mut ViewContext<Self>) {
-        // Block anonymous users from performing team actions
-        if self.auth_state.is_anonymous_or_logged_out() && action.blocked_for_anonymous_user() {
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    action.into(),
-                    AuthViewVariant::RequireLoginCloseable,
-                    ctx,
-                )
-            });
-            return;
-        }
-
         match action {
             DriveIndexAction::CreateObject {
                 object_type,
@@ -5524,12 +5200,6 @@ impl TypedActionView for DriveIndex {
                     SharingDialogSource::DriveIndex,
                     ctx,
                 );
-            }
-            DriveIndexAction::SignupAnonymousUser => {
-                let entrypoint = AnonymousUserSignupEntrypoint::SignUpButton;
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.initiate_anonymous_user_linking(entrypoint, ctx);
-                });
             }
             DriveIndexAction::DismissPersonalObjectLimits => {
                 self.dismiss_personal_object_limit_status(ctx);

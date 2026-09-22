@@ -32,7 +32,7 @@ use warpui::{
 use crate::BlocklistAIHistoryModel;
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 use crate::ai::blocklist::prompt::PromptIconButtonTheme;
-use crate::ai::blocklist::prompt::prompt_alert::{PromptAlertEvent, PromptAlertView};
+use crate::ai::blocklist::prompt::prompt_alert::PromptAlertView;
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIInputModel, InputConfig, InputType,
 };
@@ -322,7 +322,6 @@ pub enum UniversalDeveloperInputButtonBarEvent {
     EnableAutoDetection,
     SelectFile,
     SetAIContextMenuOpen(bool),
-    PromptAlert(PromptAlertEvent),
     ModelSelectorOpened,
     ModelSelectorClosed,
     OpenSettings(SettingsSection),
@@ -527,12 +526,7 @@ impl UniversalDeveloperInputButtonBar {
             ctx.notify();
         });
 
-        let prompt_alert = ctx.add_typed_action_view(PromptAlertView::new);
-        ctx.subscribe_to_view(&prompt_alert, |_, _, event, ctx| {
-            ctx.emit(UniversalDeveloperInputButtonBarEvent::PromptAlert(
-                event.clone(),
-            ));
-        });
+        let prompt_alert = ctx.add_view(PromptAlertView::new);
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |_, _, _, ctx| {
             ctx.notify();

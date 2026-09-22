@@ -38,7 +38,6 @@ use warpui::elements::{
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::keymap::{ContextPredicate, Keystroke};
-use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::{SwitchStateHandle, TooltipConfig};
 use warpui::{
@@ -78,7 +77,6 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::geap_credentials::force_refresh_geap_credentials;
 use crate::ai::llms::{LLMId, LLMPreferences, LLMProvider, is_using_api_key_for_provider};
 use crate::appearance::{Appearance, AppearanceEvent};
-use crate::auth::AuthStateProvider;
 use crate::editor::{
     EditorOptions, EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     SingleLineEditorOptions, TextColors, TextOptions,
@@ -2183,17 +2181,11 @@ impl WarpAgentPageView {
         }
 
         let global_ai_switch_state = SwitchStateHandle::default();
-        let global_ai_sign_up_button = MouseStateHandle::default();
         PageType::new_categorized(
             categories,
             Some(PageTitle::new("Warp Agent").with_trailing_element(
                 move |_view, appearance, app| {
-                    render_global_ai_toggle(
-                        &global_ai_switch_state,
-                        &global_ai_sign_up_button,
-                        appearance,
-                        app,
-                    )
+                    render_global_ai_toggle(&global_ai_switch_state, appearance, app)
                 },
             )),
         )
@@ -2286,7 +2278,6 @@ pub enum WarpAgentPageEvent {
     OpenCustomRouterEditor(Option<crate::ai::custom_model_routers::CustomModelRouter>),
     #[cfg(feature = "local_fs")]
     OpenCustomRouterFile(PathBuf),
-    SignupAnonymousUser,
     ShowModal,
     HideModal,
 }
@@ -2322,7 +2313,6 @@ pub enum WarpAgentPageAction {
     SetOrchestrationMessageDisplayMode(OrchestrationMessageDisplayMode),
     SetPromptSubmissionMode(PromptSubmissionMode),
     SetLongRunningCommandSubmissionMode(LongRunningCommandSubmissionMode),
-    SignupAnonymousUser,
     ToggleAwsBedrockAutoLogin,
     ToggleAwsBedrockCredentialsEnabled,
     RefreshAwsBedrockCredentials,
@@ -2733,9 +2723,6 @@ impl TypedActionView for WarpAgentPageView {
                 });
                 ctx.notify();
             }
-            WarpAgentPageAction::SignupAnonymousUser => {
-                ctx.emit(WarpAgentPageEvent::SignupAnonymousUser);
-            }
             WarpAgentPageAction::ToggleAwsBedrockAutoLogin => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.aws_bedrock_auto_login.toggle_and_save_value(ctx));
@@ -2958,17 +2945,12 @@ impl From<ViewHandle<WarpAgentPageView>> for SettingsPageViewHandle {
 /// The page title's trailing widget: the global master switch for all AI features.
 fn render_global_ai_toggle(
     switch_state: &SwitchStateHandle,
-    sign_up_button: &MouseStateHandle,
     appearance: &Appearance,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let ui_builder = appearance.ui_builder();
     let is_ai_disabled_due_to_remote_session_org_policy =
         AISettings::as_ref(app).is_ai_disabled_due_to_remote_session_org_policy(app);
-
-    let is_anonymous = AuthStateProvider::as_ref(app)
-        .get()
-        .is_anonymous_or_logged_out();
 
     let mut row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
 
@@ -2993,74 +2975,20 @@ fn render_global_ai_toggle(
         );
     }
 
-    // Show sign-up button for anonymous users, toggle for logged-in users
-    if is_anonymous {
-        row.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    Container::new(
-                        Text::new_inline(
-                            "To use AI features, please create an account.",
-                            appearance.ui_font_family(),
-                            14.,
-                        )
-                        .with_color(
-                            appearance
-                                .theme()
-                                .sub_text_color(appearance.theme().surface_2())
-                                .into_solid(),
-                        )
-                        .finish(),
-                    )
-                    .with_margin_right(16.)
-                    .finish(),
-                )
-                .with_child(
-                    Container::new(
-                        ui_builder
-                            .button(ButtonVariant::Accent, sign_up_button.clone())
-                            .with_style(UiComponentStyles {
-                                font_size: Some(14.),
-                                font_weight: Some(Weight::Semibold),
-                                border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-                                padding: Some(Coords {
-                                    top: 8.,
-                                    bottom: 8.,
-                                    left: 24.,
-                                    right: 24.,
-                                }),
-                                ..Default::default()
-                            })
-                            .with_text_label("Sign up".to_owned())
-                            .build()
-                            .on_click(move |ctx, _, _| {
-                                ctx.dispatch_typed_action(WarpAgentPageAction::SignupAnonymousUser);
-                            })
-                            .finish(),
-                    )
-                    .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
-                    .finish(),
-                )
+    row.add_child(
+        Container::new(
+            ui_builder
+                .switch(switch_state.clone())
+                .check(AISettings::as_ref(app).is_any_ai_enabled(app))
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(WarpAgentPageAction::ToggleGlobalAI);
+                })
                 .finish(),
-        );
-    } else {
-        row.add_child(
-            Container::new(
-                ui_builder
-                    .switch(switch_state.clone())
-                    .check(AISettings::as_ref(app).is_any_ai_enabled(app))
-                    .build()
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(WarpAgentPageAction::ToggleGlobalAI);
-                    })
-                    .finish(),
-            )
-            .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
-            .finish(),
-        );
-    }
-
+        )
+        .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
+        .finish(),
+    );
     row.finish()
 }
 

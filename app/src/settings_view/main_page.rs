@@ -12,10 +12,9 @@ use warp_server_client::iap::{IapCredentialsState, IapManager, IapManagerEvent};
 use warpui::assets::asset_cache::AssetSource;
 use warpui::elements::{
     Align, Border, CacheOption, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Element, Empty, Flex, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
-    Radius, Shrinkable, Text,
+    Element, Empty, Flex, Image, MainAxisAlignment, MouseStateHandle, ParentElement, Radius,
+    Shrinkable, Text,
 };
-use warpui::fonts::Weight;
 use warpui::keymap::ContextPredicate;
 use warpui::platform::Cursor;
 use warpui::ui_components::button::ButtonVariant;
@@ -33,9 +32,8 @@ use super::settings_page::{
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
-use crate::auth::auth_manager::{AuthManager, LoginGatedFeature};
+use crate::auth::auth_manager::AuthManager;
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::AuthViewVariant;
 use crate::autoupdate::{self, AutoupdateStage, AutoupdateState};
 use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::workspace::WorkspaceAction;
@@ -111,27 +109,9 @@ pub enum MainPageAction {
     DownloadUpdate,
     CheckForUpdate,
     ToggleSettingsSync,
-    SignupAnonymousUser,
     OpenUrl(String),
     #[cfg(not(target_family = "wasm"))]
     RefreshIapCredentials,
-}
-
-impl MainPageAction {
-    fn blocked_for_anonymous_user(&self) -> bool {
-        use MainPageAction::*;
-        matches!(self, ToggleSettingsSync,)
-    }
-}
-
-impl From<&MainPageAction> for LoginGatedFeature {
-    fn from(val: &MainPageAction) -> LoginGatedFeature {
-        use MainPageAction::*;
-        match val {
-            ToggleSettingsSync => "Toggle Settings Sync",
-            _ => "Unknown reason",
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -139,7 +119,6 @@ pub enum MainSettingsPageEvent {
     CheckForUpdate,
     #[allow(dead_code)]
     OpenWarpDrive,
-    SignupAnonymousUser,
 }
 
 pub struct MainSettingsPageView {
@@ -156,22 +135,6 @@ impl TypedActionView for MainSettingsPageView {
     type Action = MainPageAction;
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        // Block anonymous users from upgrading
-        if AuthStateProvider::as_ref(ctx)
-            .get()
-            .is_anonymous_or_logged_out()
-            && action.blocked_for_anonymous_user()
-        {
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    action.into(),
-                    AuthViewVariant::RequireLoginCloseable,
-                    ctx,
-                )
-            });
-            return;
-        }
-
         match action {
             MainPageAction::Relaunch => {
                 autoupdate::initiate_relaunch_for_update(ctx);
@@ -200,9 +163,6 @@ impl TypedActionView for MainSettingsPageView {
                     ctx
                 );
                 ctx.notify();
-            }
-            MainPageAction::SignupAnonymousUser => {
-                ctx.emit(MainSettingsPageEvent::SignupAnonymousUser);
             }
             MainPageAction::OpenUrl(url) => {
                 ctx.open_url(url);
@@ -289,7 +249,6 @@ impl MainSettingsPageView {
 
 #[derive(Default)]
 struct AccountWidgetStateHandles {
-    anonymous_user_sign_up_button: MouseStateHandle,
     enterprise_contact_us_link: MouseStateHandle,
 }
 
@@ -299,55 +258,6 @@ struct AccountWidget {
 }
 
 impl AccountWidget {
-    fn render_anonymous_account_info(&self, appearance: &Appearance) -> Box<dyn Element> {
-        let button_styles = UiComponentStyles {
-            font_size: Some(14.),
-            font_weight: Some(Weight::Semibold),
-            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-            padding: Some(Coords {
-                top: 12.,
-                bottom: 12.,
-                left: 40.,
-                right: 40.,
-            }),
-            ..Default::default()
-        };
-
-        let user_info = appearance
-            .ui_builder()
-            .button(
-                ButtonVariant::Accent,
-                self.ui_state_handles.anonymous_user_sign_up_button.clone(),
-            )
-            .with_style(button_styles)
-            .with_text_label("Sign up".to_owned())
-            .build()
-            .on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(MainPageAction::SignupAnonymousUser);
-            })
-            .finish();
-
-        let plan_info = Flex::column()
-            .with_main_axis_alignment(MainAxisAlignment::SpaceEvenly)
-            .with_cross_axis_alignment(CrossAxisAlignment::End);
-
-        Flex::row()
-            .with_child(
-                Shrinkable::new(
-                    1.0,
-                    Flex::row()
-                        .with_child(user_info)
-                        .with_main_axis_alignment(MainAxisAlignment::Start)
-                        .with_main_axis_size(MainAxisSize::Max)
-                        .finish(),
-                )
-                .finish(),
-            )
-            .with_child(Align::new(plan_info.finish()).right().finish())
-            .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .finish()
-    }
-
     fn render_account_info(
         &self,
         view: &MainSettingsPageView,
@@ -475,7 +385,13 @@ impl SettingsWidget for AccountWidget {
     type View = MainSettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "account sign up"
+        "account"
+    }
+
+    fn should_render(&self, app: &AppContext) -> bool {
+        !AuthStateProvider::as_ref(app)
+            .get()
+            .is_anonymous_or_logged_out()
     }
 
     fn render(
@@ -484,20 +400,16 @@ impl SettingsWidget for AccountWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let account_info = if view.auth_state.is_anonymous_or_logged_out() {
-            self.render_anonymous_account_info(appearance)
-        } else {
-            let profile_image_source = view.auth_state.user_photo_url().map(|url| {
-                asset_cache::url_source_with_persistence(url, &warp_core::paths::cache_dir())
-            });
-            self.render_account_info(
-                view,
-                profile_image_source.as_ref(),
-                view.auth_state.as_ref(),
-                app,
-                appearance,
-            )
-        };
+        let profile_image_source = view.auth_state.user_photo_url().map(|url| {
+            asset_cache::url_source_with_persistence(url, &warp_core::paths::cache_dir())
+        });
+        let account_info = self.render_account_info(
+            view,
+            profile_image_source.as_ref(),
+            view.auth_state.as_ref(),
+            app,
+            appearance,
+        );
 
         Flex::column()
             .with_child(Container::new(account_info).finish())
