@@ -20,14 +20,13 @@ use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::sync_queue::SyncQueue;
 use crate::settings::{
-    AISettings, CodeSettings, PrivacySettings, UsageDisplayUnit,
-    apply_account_first_onboarding_settings, apply_onboarding_settings,
+    AISettings, CodeSettings, PrivacySettings, apply_account_first_onboarding_settings,
+    apply_onboarding_settings,
 };
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspace::tab_settings::TabSettings;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::{TeamContextForOperation, UserWorkspaces};
-use crate::workspaces::workspace::FtueAccountClass;
 
 /// These tests run on a mocked `UserWorkspaces` with no teams, so no team's autonomy policy
 /// can apply and the scope only has to exist. Which team it names is asserted nowhere here;
@@ -182,8 +181,10 @@ fn apply_onboarding_settings_preserves_existing_cloud_profile_on_existing_user_l
     })
 }
 
+/// First run creates no account, so Warp's AI stays off while the UI choices
+/// still apply.
 #[test]
-fn account_first_settings_enable_agent_for_authenticated_users_and_apply_ui_choices() {
+fn account_first_settings_leave_agent_disabled_and_apply_ui_choices() {
     let _account_first = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);
@@ -219,106 +220,20 @@ fn account_first_settings_enable_agent_for_authenticated_users_and_apply_ui_choi
             }),
         };
 
-        for (account_class, expected_ai) in [
-            (None, false),
-            (Some(FtueAccountClass::FreeStandard), true),
-            (Some(FtueAccountClass::FreeIcp), true),
-            (Some(FtueAccountClass::Paid), true),
-        ] {
-            app.update(|ctx| {
-                apply_account_first_onboarding_settings(
-                    &selected_settings,
-                    account_class,
-                    true,
-                    team_context_for_test(),
-                    ctx,
-                );
-            });
-            app.read(|ctx| {
-                assert_eq!(*AISettings::as_ref(ctx).is_any_ai_enabled, expected_ai);
-                assert!(!*TabSettings::as_ref(ctx).use_vertical_tabs);
-                assert!(*TabSettings::as_ref(ctx).show_code_review_button);
-                assert!(!*WarpDriveSettings::as_ref(ctx).enable_warp_drive);
-                assert!(*CodeSettings::as_ref(ctx).show_project_explorer);
-                assert!(!*CodeSettings::as_ref(ctx).show_global_search);
-            });
-        }
-    });
-}
-
-#[test]
-fn apply_account_first_onboarding_settings_sets_dollars_for_new_accounts_only() {
-    let _account_first = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(SyncQueue::mock);
-        app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(TeamTesterStatus::mock);
-        app.add_singleton_model(UpdateManager::mock);
-        app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-        app.add_singleton_model(PrivacySettings::mock);
-        app.add_singleton_model(UserWorkspaces::default_mock);
-        app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(&LaunchMode::new_for_unit_test(), ctx)
-        });
-
-        let selected_settings = SelectedSettings::Terminal {
-            ui_customization: None,
-            cli_agent_toolbar_enabled: true,
-            show_agent_notifications: true,
-        };
-
         app.update(|ctx| {
             apply_account_first_onboarding_settings(
                 &selected_settings,
-                None,
-                true,
                 team_context_for_test(),
                 ctx,
             );
         });
         app.read(|ctx| {
-            assert_eq!(
-                AISettings::as_ref(ctx).usage_display_unit,
-                UsageDisplayUnit::Credits,
-                "skipping account creation must leave the Credits default untouched"
-            );
-        });
-
-        app.update(|ctx| {
-            apply_account_first_onboarding_settings(
-                &selected_settings,
-                Some(FtueAccountClass::FreeStandard),
-                false,
-                team_context_for_test(),
-                ctx,
-            );
-        });
-        app.read(|ctx| {
-            assert_eq!(
-                AISettings::as_ref(ctx).usage_display_unit,
-                UsageDisplayUnit::Credits,
-                "an existing account logging in must not have its choice overwritten"
-            );
-        });
-
-        app.update(|ctx| {
-            apply_account_first_onboarding_settings(
-                &selected_settings,
-                Some(FtueAccountClass::FreeStandard),
-                true,
-                team_context_for_test(),
-                ctx,
-            );
-        });
-        app.read(|ctx| {
-            assert_eq!(
-                AISettings::as_ref(ctx).usage_display_unit,
-                UsageDisplayUnit::Dollars,
-                "a freshly created account should default to Dollars"
-            );
+            assert!(!*AISettings::as_ref(ctx).is_any_ai_enabled);
+            assert!(!*TabSettings::as_ref(ctx).use_vertical_tabs);
+            assert!(*TabSettings::as_ref(ctx).show_code_review_button);
+            assert!(!*WarpDriveSettings::as_ref(ctx).enable_warp_drive);
+            assert!(*CodeSettings::as_ref(ctx).show_project_explorer);
+            assert!(!*CodeSettings::as_ref(ctx).show_global_search);
         });
     });
 }

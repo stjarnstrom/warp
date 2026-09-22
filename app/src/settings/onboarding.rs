@@ -8,38 +8,20 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{ActionPermission, WriteToPtyPermission};
 use crate::drive::settings::WarpDriveSettings;
 use crate::settings::ai::DefaultSessionMode;
-use crate::settings::{AISettings, CodeSettings, UsageDisplayUnit};
+use crate::settings::{AISettings, CodeSettings};
 use crate::workspace::tab_settings::TabSettings;
 use crate::workspaces::user_workspaces::{TeamContextForOperation, UserWorkspaces};
-use crate::workspaces::workspace::FtueAccountClass;
 
+/// Applies the choices made during first run.
+///
+/// Warp's own AI stays off: it runs on a Warp account, and first run never
+/// creates one.
 pub(crate) fn apply_account_first_onboarding_settings(
     selected_settings: &SelectedSettings,
-    account_class: Option<FtueAccountClass>,
-    is_new_account: bool,
     team_context: TeamContextForOperation,
     app: &mut AppContext,
 ) {
-    // Every authenticated account-first user gets the Warp Agent surface,
-    // including standard-free accounts with no included Warp credits. Skipping
-    // account creation is the only outcome that leaves Agent disabled.
-    let is_ai_enabled = match account_class {
-        None => false,
-        Some(
-            FtueAccountClass::Paid | FtueAccountClass::FreeIcp | FtueAccountClass::FreeStandard,
-        ) => true,
-    };
-
-    // Preserve an existing account's synced preference on a new device.
-    if account_class.is_some() && is_new_account {
-        AISettings::handle(app).update(app, |settings, ctx| {
-            report_if_error!(
-                settings
-                    .usage_display_unit
-                    .set_value(UsageDisplayUnit::Dollars, ctx)
-            );
-        });
-    }
+    let is_ai_enabled = false;
 
     match selected_settings {
         SelectedSettings::AgentDrivenDevelopment {

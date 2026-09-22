@@ -13,56 +13,26 @@ use warpui::{
 };
 
 use super::{
-    AccountFirstCompletion, AuthOnboardingState, AuthOnboardingTarget,
-    HAS_COMPLETED_ONBOARDING_KEY, NewWorkspaceSource, RootView, WorkspaceArgs,
-    has_completed_local_onboarding, refresh_pending_onboarding_choices,
-    requires_post_onboarding_login,
+    AuthOnboardingState, AuthOnboardingTarget, HAS_COMPLETED_ONBOARDING_KEY, NewWorkspaceSource,
+    RootView, WorkspaceArgs, has_completed_local_onboarding, refresh_pending_onboarding_choices,
 };
 use crate::GlobalResourceHandles;
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
-use crate::auth::login_slide::{LoginSlideSource, LoginSlideView};
+use crate::auth::login_slide::LoginSlideView;
 use crate::server::server_api::ServerApiProvider;
+use crate::settings::PrivacySettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::themes::onboarding_theme_picker_themes;
 use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::workspaces::workspace::FtueAccountClass;
 
 fn initialize_app(app: &mut App) {
     app.update(crate::settings::init_and_register_user_preferences);
     app.add_singleton_model(|_ctx| ServerApiProvider::new_for_test());
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
     app.add_singleton_model(AuthManager::new_for_test);
-}
-
-#[test]
-fn account_first_class_uses_paid_status_then_fresh_request_limit() {
-    assert_eq!(
-        RootView::account_first_class(true, Some(0)),
-        FtueAccountClass::Paid
-    );
-    assert_eq!(
-        RootView::account_first_class(true, Some(300)),
-        FtueAccountClass::Paid
-    );
-    assert_eq!(
-        RootView::account_first_class(true, None),
-        FtueAccountClass::Paid
-    );
-    assert_eq!(
-        RootView::account_first_class(false, Some(300)),
-        FtueAccountClass::FreeIcp
-    );
-    assert_eq!(
-        RootView::account_first_class(false, Some(0)),
-        FtueAccountClass::FreeStandard
-    );
-    assert_eq!(
-        RootView::account_first_class(false, None),
-        FtueAccountClass::FreeStandard
-    );
 }
 
 fn set_local_onboarding_completed(app: &mut App, completed: bool) {
@@ -74,59 +44,6 @@ fn set_local_onboarding_completed(app: &mut App, completed: bool) {
             )
             .unwrap();
     });
-}
-
-#[test]
-fn account_first_requires_login_even_without_ai_or_drive_settings() {
-    let _account_first = FeatureFlag::AccountFirstOnboarding.override_enabled(true);
-
-    assert!(requires_post_onboarding_login(false, false, false));
-    assert!(!requires_post_onboarding_login(true, false, false));
-}
-
-#[test]
-fn fallback_flow_only_requires_login_for_account_backed_settings() {
-    let _account_first = FeatureFlag::AccountFirstOnboarding.override_enabled(false);
-
-    assert!(!requires_post_onboarding_login(false, false, false));
-    assert!(requires_post_onboarding_login(false, true, false));
-    assert!(requires_post_onboarding_login(false, false, true));
-}
-
-#[test]
-fn account_first_completion_metadata_matches_terminal_outcomes() {
-    let cases = [
-        (
-            AccountFirstCompletion::AccountSkipped,
-            "account_skipped",
-            None,
-            false,
-        ),
-        (
-            AccountFirstCompletion::PaidTeam,
-            "paid_team",
-            Some(FtueAccountClass::Paid),
-            true,
-        ),
-        (
-            AccountFirstCompletion::FreeIcpSetupLater,
-            "free_icp_setup_later",
-            Some(FtueAccountClass::FreeIcp),
-            true,
-        ),
-        (
-            AccountFirstCompletion::FreeStandardSetupLater,
-            "free_standard_setup_later",
-            Some(FtueAccountClass::FreeStandard),
-            true,
-        ),
-    ];
-
-    for (completion, completion_type, account_class, starts_agent_tutorial) in cases {
-        assert_eq!(completion.completion_type(), completion_type);
-        assert_eq!(completion.account_class(), account_class);
-        assert_eq!(completion.starts_agent_tutorial(), starts_agent_tutorial);
-    }
 }
 
 #[test]
@@ -301,16 +218,16 @@ fn test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states() {
         app.add_singleton_model(|_| Appearance::mock());
         app.add_singleton_model(|_| KeybindingChangedNotifier::new());
         app.add_singleton_model(UserWorkspaces::default_mock);
+        // The slide now always renders the privacy toggles, which read this.
+        app.add_singleton_model(PrivacySettings::mock);
 
         let (_, harness) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
             let login_slide_view = ctx.add_typed_action_view(|ctx| {
                 LoginSlideView::new(
                     true,
-                    false,
                     "Dark",
                     false,
                     OnboardingIntention::AgentDrivenDevelopment,
-                    LoginSlideSource::OnboardingFlow,
                     ctx,
                 )
             });
