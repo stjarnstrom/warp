@@ -23,7 +23,6 @@ use itertools::Itertools as _;
 use oneshot::{Canceled, Receiver};
 use repo_metadata::local_model::IndexedRepoState;
 use repo_metadata::{RepoMetadataModel, RepositoryIdentifier};
-use session_sharing_protocol::sharer::SessionRetentionReason;
 use tracing::Instrument as _;
 use uuid::Uuid;
 use warp_cli::agent::{Harness, OutputFormat, RepositoryPreparationOverride};
@@ -1305,16 +1304,6 @@ impl AgentDriver {
             td.add_share_requests(share_requests, ctx);
         });
     }
-    fn extend_shared_session_retention(
-        &mut self,
-        reason: SessionRetentionReason,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.terminal_driver.update(ctx, |driver, ctx| {
-            driver.extend_shared_session_retention(reason, ctx);
-        });
-    }
-
     /// Runs `task` to completion and reports its terminal state to the server.
     ///
     /// Exit guarantee: before the returned future resolves (after which the
@@ -1334,7 +1323,6 @@ impl AgentDriver {
     ) -> impl Future<Output = Result<(), AgentDriverError>> + use<> {
         let (tx, rx) = oneshot::channel();
         let foreground = ctx.spawner();
-        let foreground_for_error = foreground.clone();
         let server_api = ServerApiProvider::as_ref(ctx).get_ai_client();
         let task_id = self.task_id;
 
@@ -1600,24 +1588,10 @@ impl AgentDriver {
             // Success/blocked/cancelled are handled by LocalAgentTaskSyncModel.
             // TerminatedBySignal is excluded: the run task reports it before its
             // teardown, since SIGKILL follows shortly after SIGTERM.
-            if let (Some(task_id), Err(err)) = (task_id, &result) {
-                if !matches!(err, AgentDriverError::TerminatedBySignal) {
-                    report_driver_error(task_id, err, &server_api_for_error).await;
-                }
-                if matches!(
-                    err,
-                    AgentDriverError::EnvironmentSetupFailed(_)
-                        | AgentDriverError::SetupCommandExitedShell { .. }
-                ) {
-                    let _ = foreground_for_error
-                        .spawn(|me, ctx| {
-                            me.extend_shared_session_retention(
-                                SessionRetentionReason::SetupFailed,
-                                ctx,
-                            );
-                        })
-                        .await;
-                }
+            if let (Some(task_id), Err(err)) = (task_id, &result)
+                && !matches!(err, AgentDriverError::TerminatedBySignal)
+            {
+                report_driver_error(task_id, err, &server_api_for_error).await;
             }
 
             result
@@ -3593,10 +3567,6 @@ impl AgentDriver {
                             ctx,
                         );
                     }
-                    terminal
-                        .model
-                        .lock()
-                        .send_cloud_mode_setup_phase_ended_for_shared_session();
                 })
             });
             if self.skip_initial_turn && prepared_conversation_id.is_none() {

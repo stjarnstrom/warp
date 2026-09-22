@@ -116,9 +116,7 @@ use session_sharing_protocol::common::{
     ServerConversationToken as SessionSharingServerConversationToken,
     WindowSize as SessionSharingWindowSize,
 };
-use session_sharing_protocol::sharer::{
-    RoleUpdateReason, SessionEndedReason, SessionRetentionReason,
-};
+use session_sharing_protocol::sharer::{RoleUpdateReason, SessionEndedReason};
 use settings::{Setting, ToggleableSetting};
 use shared_session::cloud_conversation_continuation::CloudConversationContinuationUiState;
 pub(crate) use shared_session::cloud_conversation_continuation::{
@@ -1813,9 +1811,6 @@ pub enum Event {
     StopSharingCurrentSession {
         reason: SessionEndedReason,
     },
-    ExtendSessionRetention {
-        reason: SessionRetentionReason,
-    },
     CloseRequested,
     /// Used to focus and bring this session to the foreground.
     FocusSession,
@@ -2768,7 +2763,6 @@ pub struct TerminalView {
 
     /// When true, automatically stop the shared session when the CLI agent session ends.
     /// Set when sharing is started from the remote control entrypoint.
-    auto_stop_sharing_on_cli_end: bool,
 
     /// The inserted conversation-ended tombstone, if this view currently has one.
     conversation_ended_tombstone_view_id: Option<EntityId>,
@@ -3894,16 +3888,6 @@ impl TerminalView {
         ctx.subscribe_to_model(&ai_input_model, Self::handle_ai_input_model_event);
         ctx.subscribe_to_model(&ai_action_model, Self::handle_ai_action_model_event);
         ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
-            if let CLIAgentSessionsModelEvent::Ended {
-                terminal_view_id, ..
-            } = event
-                && *terminal_view_id == me.view_id
-                && me.auto_stop_sharing_on_cli_end
-                && me.model.lock().shared_session_status().is_active_sharer()
-            {
-                me.auto_stop_sharing_on_cli_end = false;
-                me.stop_sharing_session(SharedSessionActionSource::NonUser, ctx);
-            }
             me.handle_cli_agent_sessions_event(event, ctx)
         });
         ctx.subscribe_to_model(
@@ -4443,7 +4427,6 @@ impl TerminalView {
             get_relevant_files_controller,
             shared_session: None,
             pending_share_source: None,
-            auto_stop_sharing_on_cli_end: false,
             conversation_ended_tombstone_view_id: None,
             ai_input_model,
             ai_context_model,
@@ -7934,25 +7917,11 @@ impl TerminalView {
 
                 // We use the basic AI source when this is a non-shared
                 // command originating from the agent.
-                let mut source = CommandExecutionSource::AI {
+                let source = CommandExecutionSource::AI {
                     metadata: agent_metadata.clone(),
                 };
 
                 let model = self.model.lock();
-                if model.shared_session_status().is_sharer()
-                    && let Some(participant_id) = self
-                        .shared_session_presence_manager()
-                        .map(|m| m.as_ref(ctx).id())
-                {
-                    // If this is a shared session, we use the SharedSession source
-                    // with ai metadata for the terminal command included.
-                    source = CommandExecutionSource::SharedSession {
-                        participant_id: participant_id.clone(),
-                        block_id: model.block_list().active_block_id().clone(),
-                        ai_metadata: Some(agent_metadata.clone()),
-                        preserve_input: false,
-                    }
-                }
                 let block_id = model.active_block_id().clone();
                 drop(model);
 
@@ -8626,7 +8595,7 @@ impl TerminalView {
 
             (
                 self.ambient_agent_task_id_for_details_panel_from_model(&model, ctx),
-                status.is_active_viewer() || status.is_active_sharer(),
+                status.is_active_viewer(),
                 status.is_finished_viewer(),
             )
         };
@@ -8704,8 +8673,9 @@ impl TerminalView {
     }
 
     /// Whether or not this terminal view is actively sharing its session.
+    /// This build cannot create shared sessions, so it is always false.
     pub fn is_sharing_session(&self) -> bool {
-        self.model.lock().shared_session_status().is_active_sharer()
+        false
     }
 
     pub fn is_shared_ambient_agent_session(&self) -> bool {

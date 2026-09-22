@@ -845,10 +845,7 @@ impl TerminalView {
             });
         }
         self.refresh_conversation_details_panel_if_open(ctx);
-        let has_live_shared_session = {
-            let status = self.model.lock().shared_session_status().clone();
-            status.is_active_viewer() || status.is_active_sharer()
-        };
+        let has_live_shared_session = self.model.lock().shared_session_status().is_active_viewer();
         if has_live_shared_session {
             return;
         }

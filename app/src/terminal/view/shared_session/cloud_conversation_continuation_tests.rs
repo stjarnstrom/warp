@@ -1336,22 +1336,6 @@ fn routing_omits_task_id_for_non_ambient_shared_session_viewer() {
 }
 
 #[test]
-fn routing_is_local_for_active_sharer_local_orchestration_child() {
-    App::test((), |mut app| async move {
-        // See the comment in `routing_is_live_remote_vm_for_active_viewer`.
-        let _agent_management_guard = FeatureFlag::AgentManagementView.override_enabled(false);
-        app.add_singleton_model(AgentConversationsModel::new);
-        let model = ambient_pane_model(ambient_task_id(1), SharedSessionStatus::ActiveSharer);
-        app.update(|ctx| {
-            assert_eq!(
-                resolve_ai_query_routing(EntityId::new(), None, &model, ctx),
-                AIQueryRouting::Local
-            );
-        });
-    });
-}
-
-#[test]
 fn routing_is_new_cloud_vm_for_owned_oz_disconnected_pane() {
     App::test((), |mut app| async move {
         let TestHandles {

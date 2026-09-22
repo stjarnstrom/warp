@@ -4199,21 +4199,6 @@ impl PaneGroup {
             return;
         }
 
-        if let Some(terminal_manager) = self
-            .terminal_session_by_id(pane_id)
-            .map(|session| session.terminal_manager(ctx))
-            && terminal_manager.read(ctx, |terminal_manager, _ctx| {
-                terminal_manager
-                    .model()
-                    .lock()
-                    .shared_session_status()
-                    .is_sharer()
-            })
-        {
-            ctx.emit(Event::CloseSharedSessionPaneRequested { pane_id });
-            return;
-        }
-
         let summary = UnsavedStateSummary::for_pane(self, pane_id, ctx);
         if summary.save_unsaved_code_and_should_warn(ctx)
             && ChannelState::channel() != Channel::Integration

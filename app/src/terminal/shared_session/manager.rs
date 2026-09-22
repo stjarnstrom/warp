@@ -74,11 +74,7 @@ impl Manager {
                 SharedSessionStatus::NotShared | SharedSessionStatus::FinishedViewer => {
                     self.ended_session_id(terminal_view_id)
                 }
-                SharedSessionStatus::ViewPending
-                | SharedSessionStatus::ActiveViewer { .. }
-                | SharedSessionStatus::SharePendingPreBootstrap { .. }
-                | SharedSessionStatus::SharePending
-                | SharedSessionStatus::ActiveSharer => None,
+                SharedSessionStatus::ViewPending | SharedSessionStatus::ActiveViewer { .. } => None,
             })
     }
 

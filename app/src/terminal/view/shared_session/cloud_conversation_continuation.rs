@@ -245,10 +245,6 @@ pub(crate) fn resolve_ai_query_routing(
     if !is_ambient && !is_transcript_viewer {
         return AIQueryRouting::Local;
     }
-    if status.is_active_sharer() {
-        return AIQueryRouting::Local;
-    }
-
     // Disconnected / ended / transcript ambient pane: defer to the resolved continuation state.
     let Some(task_id) = ambient_agent_task_id else {
         return AIQueryRouting::Local;

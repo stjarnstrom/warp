@@ -111,14 +111,7 @@ pub(in crate::pane_group) fn host_terminal_shared_session_source_type(
     ctx: &AppContext,
 ) -> Option<SharedSessionSource> {
     let model = parent_terminal_view.as_ref(ctx).model.lock();
-    if let Some(source) = model.shared_session_source() {
-        return Some(source.clone());
-    }
-    if let SharedSessionStatus::SharePendingPreBootstrap { source } = model.shared_session_status()
-    {
-        return Some(source.clone());
-    }
-    None
+    model.shared_session_source().cloned()
 }
 
 /// Builds the `IsSharedSessionCreator` for a child pane spawned by

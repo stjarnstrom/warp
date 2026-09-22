@@ -110,19 +110,6 @@ pub enum SharedSessionStatus {
 
     /// We were viewing a shared session but it ended.
     FinishedViewer,
-
-    /// We haven't yet attempted to share the session because it is not bootstrapped yet.
-    /// The `source` encodes what kind of shared session will be created once
-    /// the session finishes bootstrapping.
-    SharePendingPreBootstrap { source: SharedSessionSource },
-
-    /// The session is bootstrapped and we're in the process of
-    /// sharing the session but have not yet established the
-    /// connection with the server.
-    SharePending,
-
-    /// This session is actively being shared.
-    ActiveSharer,
 }
 
 impl SharedSessionStatus {
@@ -163,22 +150,8 @@ impl SharedSessionStatus {
         )
     }
 
-    pub fn is_share_pending(&self) -> bool {
-        matches!(
-            self,
-            SharedSessionStatus::SharePending
-                | SharedSessionStatus::SharePendingPreBootstrap { .. }
-        )
-    }
-
-    pub fn is_active_sharer(&self) -> bool {
-        matches!(self, SharedSessionStatus::ActiveSharer)
-    }
-
-    pub fn is_sharer(&self) -> bool {
-        self.is_share_pending() || self.is_active_sharer()
-    }
-
+    /// Kept under its historical name: this build cannot share, so the only
+    /// way to be in a non-`NotShared` state is as a viewer.
     pub fn is_sharer_or_viewer(&self) -> bool {
         !matches!(self, Self::NotShared)
     }
@@ -192,9 +165,6 @@ impl SharedSessionStatus {
                 role: Role::Executor | Role::Full,
             } => "SharedSessionStatus_Executor",
             Self::FinishedViewer => "SharedSessionStatus_FinishedViewer",
-            Self::SharePendingPreBootstrap { .. } => "SharedSessionStatus_SharePendingPreBootstrap",
-            Self::SharePending => "SharedSessionStatus_SharePending",
-            Self::ActiveSharer => "SharedSessionStatus_ActiveSharer",
         }
     }
 

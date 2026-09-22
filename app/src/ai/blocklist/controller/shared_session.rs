@@ -9,7 +9,7 @@ use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_multi_agent_api::client_action::Action;
 use warp_multi_agent_api::message::Message;
-use warp_multi_agent_api::response_event::{ClientActions, stream_finished};
+use warp_multi_agent_api::response_event::ClientActions;
 use warpui::{AppContext, ModelContext, SingletonEntity};
 
 use super::response_stream::ResponseStreamId;
@@ -74,20 +74,6 @@ impl BlocklistAIController {
     pub fn set_should_suppress_existing_agent_conversation_replay(&mut self, value: bool) {
         self.shared_session_state
             .should_suppress_replayed_response_for_existing_conversation = value;
-    }
-
-    /// Returns the current conversation ID for the active shared session stream.
-    /// Returns None if there's no active shared session conversation.
-    pub(crate) fn get_current_shared_session_conversation_id(
-        &self,
-        app: &AppContext,
-    ) -> Option<AIConversationId> {
-        self.shared_session_state
-            .current_response_id
-            .as_ref()
-            .and_then(|response_id| {
-                BlocklistAIHistoryModel::as_ref(app).conversation_for_response_stream(response_id)
-            })
     }
 
     /// Resolves a shared cancel control action to the live, not-yet-finished conversation bound
@@ -558,99 +544,6 @@ impl BlocklistAIController {
             // request that's free to bootstrap a new conversation.
             (None, None) => SharedSessionPromptTarget::Rejected { target: None },
         }
-    }
-
-    /// Sends a synthetic cancellation event to viewers when the sharer cancels a conversation.
-    /// This ensures viewers see the conversation as cancelled and update their UI accordingly.
-    pub(super) fn send_cancellation_to_viewers(&mut self, ctx: &mut ModelContext<Self>) {
-        if !self
-            .terminal_model
-            .lock()
-            .shared_session_status()
-            .is_sharer()
-        {
-            return;
-        }
-
-        // Get the current conversation and build usage metadata from it.
-        let conversation_id = self.get_current_shared_session_conversation_id(ctx);
-        let usage_metadata = conversation_id.and_then(|conv_id| {
-            BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conv_id)
-                .map(|conversation| stream_finished::ConversationUsageMetadata {
-                    context_window_usage: conversation.context_window_usage(),
-                    credits_spent: conversation.inference_credits_spent(),
-                    #[allow(deprecated)]
-                    platform_credits_spent: conversation.platform_credits_spent(),
-                    summarized: conversation.was_summarized(),
-                    total_input_tokens: 0,
-                    total_charges: None,
-                    #[allow(deprecated)]
-                    token_usage: conversation
-                        .token_usage()
-                        .iter()
-                        .map(|u| u.to_proto_combined())
-                        .collect(),
-                    tool_usage_metadata: Some(conversation.tool_usage_metadata().into()),
-                    warp_token_usage: conversation
-                        .token_usage()
-                        .iter()
-                        .filter_map(|u| u.to_proto_warp_usage())
-                        .collect(),
-                    byok_token_usage: conversation
-                        .token_usage()
-                        .iter()
-                        .filter_map(|u| u.to_proto_byok_usage())
-                        .collect(),
-                    custom_endpoint_token_usage: conversation
-                        .token_usage()
-                        .iter()
-                        .filter_map(|u| u.to_proto_custom_endpoint_usage())
-                        .collect(),
-                    context_window_segments: conversation
-                        .context_window_segments()
-                        .iter()
-                        .map(Into::into)
-                        .collect(),
-                })
-        });
-
-        // Create a synthetic StreamFinished event to notify viewers of the cancellation.
-        // We use "Done" reason rather than a specific cancellation reason because
-        // the proto doesn't have explicit variants for UserCommandExecuted or ManuallyCancelled.
-        // TODO: we should probably add representations for said variants in the proto for this usecase.
-        let finished_event = warp_multi_agent_api::ResponseEvent {
-            r#type: Some(warp_multi_agent_api::response_event::Type::Finished(
-                warp_multi_agent_api::response_event::StreamFinished {
-                    reason: Some(stream_finished::Reason::Done(stream_finished::Done {})),
-                    conversation_usage_metadata: usage_metadata,
-                    token_usage: vec![],
-                    should_refresh_model_config: false,
-                    #[allow(deprecated)]
-                    request_cost: None,
-                    request_charges: None,
-                },
-            )),
-        };
-
-        // Send the cancellation event to viewers.
-        // If no initiator is tracked, fall back to the sharer's participant ID.
-        let forked_from_token = conversation_id.and_then(|conv_id| {
-            BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&conv_id)
-                .and_then(|conv| {
-                    conv.forked_from_server_conversation_token()
-                        .map(|t| t.as_str().to_string())
-                })
-        });
-        self.terminal_model
-            .lock()
-            .send_agent_response_for_shared_session(
-                &finished_event,
-                self.get_current_response_initiator()
-                    .or_else(|| self.get_sharer_participant_id()),
-                forked_from_token,
-            );
     }
 
     /// Marks an action as remotely executing when a viewer receives a CommandExecutionStarted event.

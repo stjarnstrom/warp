@@ -2177,7 +2177,6 @@ pub fn init(app: &mut AppContext) {
     .with_group(bindings::BindingGroup::Settings.as_str())
     .with_context_predicate(
         id!("Input")
-            & id!(SharedSessionStatus::ActiveSharer.as_keymap_context())
             & !id!("LongRunningCommand")
             & !id!(flags::ACTIVE_AGENT_VIEW)
             & !id!(flags::ACTIVE_INLINE_AGENT_VIEW),
@@ -7639,25 +7638,6 @@ impl Input {
         preserve_input: bool,
         ctx: &mut ViewContext<Self>,
     ) -> bool {
-        // Cancel any active agent conversation when the sharer executes a command on behalf of the viewer
-        // (this is handled automatically when the sharer executes a command that they requested).
-        // This will also notify viewers to cancel their representation of the conversation.
-        let is_participant_viewer = self
-            .shared_session_presence_manager
-            .as_ref()
-            .and_then(|pm| pm.as_ref(ctx).get_participant(&participant_id))
-            .and_then(|participant| participant.role)
-            .is_some();
-        if FeatureFlag::AgentMode.is_enabled()
-            && self.model.lock().shared_session_status().is_sharer()
-            && is_participant_viewer
-        {
-            self.cancel_active_agent_conversation_for_shared_session(
-                CancellationReason::UserCommandExecuted,
-                ctx,
-            );
-        }
-
         let block_id = self.model.lock().block_list().active_block_id().clone();
         self.try_execute_command_from_source(
             command,
@@ -8096,7 +8076,7 @@ impl Input {
     ) {
         if matches!(
             self.model.lock().shared_session_status(),
-            SharedSessionStatus::ActiveViewer { .. } | SharedSessionStatus::ActiveSharer
+            SharedSessionStatus::ActiveViewer { .. }
         ) {
             self.editor.update(ctx, |editor, ctx| {
                 if let SharedSessionStatus::ActiveViewer { role } =
@@ -8156,7 +8136,7 @@ impl Input {
     /// and fan out a cancellation control action.
     pub(crate) fn cancel_active_agent_conversation_for_shared_session(
         &mut self,
-        cancellation_reason: CancellationReason,
+        _cancellation_reason: CancellationReason,
         ctx: &mut ViewContext<Self>,
     ) {
         let active_conversation =
@@ -8176,21 +8156,6 @@ impl Input {
             if let Some(server_conversation_token) = server_conversation_token {
                 ctx.emit(Event::CancelSharedSessionConversation {
                     server_conversation_token,
-                });
-            }
-        } else if self.model.lock().shared_session_status().is_sharer() {
-            let active_conversation_id = active_conversation
-                .filter(|conversation| conversation.status().is_in_progress())
-                .map(|conversation| conversation.id());
-
-            if let Some(active_conversation_id) = active_conversation_id {
-                // First, cancel locally via the existing pipeline.
-                self.ai_controller.update(ctx, |controller, ctx| {
-                    controller.cancel_conversation_progress(
-                        active_conversation_id,
-                        cancellation_reason,
-                        ctx,
-                    );
                 });
             }
         }
@@ -10768,15 +10733,8 @@ impl Input {
                         }
                         // Remote edits from shared session viewers should trigger autodetection
                         // on the sharer's side, so that the sharer's input mode adjusts as viewers type.
-                        EditOrigin::RemoteEdit => {
-                            let is_sharer = self.model.lock().shared_session_status().is_sharer();
-                            !is_inline_menu_open
-                                && is_sharer
-                                && self
-                                    .ai_input_model
-                                    .as_ref(ctx)
-                                    .should_run_input_autodetection(ctx)
-                        }
+                        // Only a sharer saw remote edits, and this build cannot share.
+                        EditOrigin::RemoteEdit => false,
                         // System edits should never trigger autodetection.
                         EditOrigin::SystemEdit => false,
                     }

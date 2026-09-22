@@ -3137,36 +3137,6 @@ impl BlocklistAIController {
                 let history_model = BlocklistAIHistoryModel::handle(ctx);
                 match event {
                     Ok(event) => {
-                        // If this controller is part of a shared session, forward the entire response event to viewers first.
-                        if FeatureFlag::AgentSharedSessions.is_enabled() {
-                            let mut model = self.terminal_model.lock();
-                            if model.shared_session_status().is_sharer() {
-                                // Get the participant who initiated this response, falling back to the sharer if needed.
-                                let participant_id = self
-                                    .get_current_response_initiator()
-                                    .or_else(|| self.get_sharer_participant_id());
-
-                                // For forked conversations (e.g. when loading from cloud), include
-                                // the original conversation token so viewers can link the new
-                                // server-assigned token to their existing conversation.
-                                //
-                                // This token is cleared after the first Init event (see below),
-                                // so it's only sent once per forked conversation.
-                                let forked_from_token = history_model
-                                    .as_ref(ctx)
-                                    .conversation(&conversation_id)
-                                    .and_then(|conv| {
-                                        conv.forked_from_server_conversation_token()
-                                            .map(|t| t.as_str().to_string())
-                                    });
-
-                                model.send_agent_response_for_shared_session(
-                                    &event,
-                                    participant_id,
-                                    forked_from_token,
-                                );
-                            }
-                        }
                         let Some(event) = event.r#type else {
                             return;
                         };
@@ -3367,7 +3337,6 @@ impl BlocklistAIController {
                         )
                     {
                         // For any terminal status (not just canceled), we need to inform viewers the stream has stopped.
-                        self.send_cancellation_to_viewers(ctx);
                     }
 
                     history_model.update(ctx, |history_model, ctx| {

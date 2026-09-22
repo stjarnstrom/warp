@@ -7,14 +7,11 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use anyhow::Context as _;
 use futures::channel::oneshot;
 use session_sharing_protocol::common::{Role, SessionId};
-use session_sharing_protocol::sharer::SessionRetentionReason;
 use warp_cli::share::{ShareAccessLevel, ShareRequest, ShareSubject};
 use warp_completer::completer::CommandOutput;
 use warp_core::command::ExitCode;
-use warp_errors::report_if_error;
 use warp_terminal::model::grid::Dimensions;
 use warp_util::path::ShellFamily;
 use warpui::r#async::FutureExt;
@@ -36,7 +33,7 @@ use crate::terminal::model::session::ExecuteCommandOptions;
 use crate::terminal::model::terminal_model::ShellProcessInfo;
 use crate::terminal::shared_session::{self, IsSharedSessionCreator, SharedSessionSource};
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::{ConversationRestorationInNewPaneType, Event};
+use crate::terminal::view::ConversationRestorationInNewPaneType;
 use crate::workspaces::user_workspaces::{TeamScope, TeamScopeForCli, UserWorkspaces};
 
 /// Describes why a terminal session bootstrap failed.
@@ -710,33 +707,6 @@ impl TerminalDriver {
                 }),
             }
         }
-    }
-
-    pub fn extend_shared_session_retention(
-        &mut self,
-        reason: SessionRetentionReason,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let result = self.terminal_view.try_update(ctx, |terminal, ctx| {
-            if !terminal
-                .model
-                .lock()
-                .shared_session_status()
-                .is_active_sharer()
-            {
-                log::warn!(
-                    "Tried to extend shared session retention before sharing was active: {reason:?}"
-                );
-                return;
-            }
-
-            log::info!("Emitting request to extend shared session retention: {reason:?}");
-            ctx.emit(Event::ExtendSessionRetention { reason });
-        });
-        report_if_error!(
-            result.context("Could not extend shared session retention"),
-            extra: { "retention_reason" => ?reason }
-        );
     }
 }
 

@@ -8,9 +8,7 @@ use async_channel::Sender;
 use base64::Engine;
 use itertools::Either;
 use serde::Serialize;
-use session_sharing_protocol::common::{
-    AICommandMetadata, OrderedTerminalEventType, ParticipantId,
-};
+use session_sharing_protocol::common::ParticipantId;
 use session_sharing_protocol::sharer::SessionSourceType;
 use string_offset::CharOffset;
 use warp_completer::meta::Span;
@@ -78,7 +76,6 @@ use crate::terminal::model::index::VisibleRow;
 use crate::terminal::model::iterm_image::{ITermImage, ITermImageMetadata};
 use crate::terminal::model::secrets::ObfuscateSecrets;
 use crate::terminal::model::session::SessionInfo;
-use crate::terminal::shared_session::ai_agent::encode_agent_response_event;
 use crate::terminal::shared_session::{SharedSessionSource, SharedSessionStatus};
 use crate::terminal::shell::{ShellName, ShellType};
 use crate::terminal::ssh::util::{InteractiveSshCommand, SshLoginState};
@@ -501,7 +498,6 @@ pub struct TerminalModel {
     /// This field is only [`Some`] if this session is shared.
     /// TODO: consider combining this with `shared_session_status` because
     /// the state can technically diverge.
-    ordered_terminal_events_for_shared_session_tx: Option<Sender<OrderedTerminalEventType>>,
 
     /// A sender for write to pty events for a shared session viewer.
     ///
@@ -1114,7 +1110,6 @@ impl TerminalModel {
             shared_session_source: None,
             is_dummy_cloud_mode_session,
             conversation_transcript_viewer_status: None,
-            ordered_terminal_events_for_shared_session_tx: None,
             write_to_pty_events_for_shared_session_tx: None,
             is_receiving_agent_conversation_replay: false,
             notify_on_end_of_ssh_login: None,
@@ -1262,28 +1257,6 @@ impl TerminalModel {
         )
     }
 
-    pub fn set_ordered_terminal_events_for_shared_session_tx(
-        &mut self,
-        tx: Sender<OrderedTerminalEventType>,
-    ) {
-        self.ordered_terminal_events_for_shared_session_tx = Some(tx);
-    }
-
-    pub fn clear_ordered_terminal_events_for_shared_session_tx(&mut self) {
-        self.ordered_terminal_events_for_shared_session_tx = None;
-    }
-
-    fn ai_metadata_to_protocol(metadata: &AgentInteractionMetadata) -> AICommandMetadata {
-        AICommandMetadata {
-            tool_call_id: metadata
-                .requested_command_action_id()
-                .map(|id| id.to_string())
-                .unwrap_or_default(),
-            // Any command with a long-running control state is considered agent-monitored.
-            is_agent_monitored: metadata.long_running_control_state().is_some(),
-        }
-    }
-
     pub fn set_write_to_pty_events_for_shared_session_tx(&mut self, tx: Sender<Vec<u8>>) {
         self.write_to_pty_events_for_shared_session_tx = Some(tx);
     }
@@ -1304,77 +1277,6 @@ impl TerminalModel {
 
     pub fn clear_write_to_pty_events_for_shared_session_tx(&mut self) {
         self.write_to_pty_events_for_shared_session_tx = None;
-    }
-
-    /// Sends an Agent ResponseEvent to viewers if this session is shared.
-    /// The participant_id should be the ID of the participant who initiated the query.
-    /// The forked_from_conversation_token is used for forked conversations to help viewers
-    /// link the new server-assigned token to an existing conversation from historical replay.
-    pub fn send_agent_response_for_shared_session(
-        &mut self,
-        response: &warp_multi_agent_api::ResponseEvent,
-        response_initiator: Option<ParticipantId>,
-        forked_from_conversation_token: Option<String>,
-    ) {
-        // We should always have a response initiator for shared sessions,
-        // but if we don't we should still send the response event to the viewers
-        // (as opposed to completely failing and skipping the send).
-        if response_initiator.is_none() {
-            report_error!(anyhow::anyhow!(
-                "No response initiator tracked for agent response event."
-            ));
-        }
-
-        if self.shared_session_status().is_sharer() {
-            if let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx {
-                let encoded = encode_agent_response_event(response);
-                if let Err(e) = tx.try_send(OrderedTerminalEventType::AgentResponseEvent {
-                    response_initiator,
-                    response_event: encoded,
-                    forked_from_conversation_token,
-                }) {
-                    log::warn!("Failed to send OrderedTerminalEventType::AgentResponseEvent: {e}");
-                }
-            }
-        } else {
-            log::debug!("Not sharing this session; ignoring agent response event");
-        }
-    }
-
-    pub fn send_agent_conversation_replay_started_for_shared_session(&mut self) {
-        if self.shared_session_status().is_sharer()
-            && let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-            && let Err(e) = tx.try_send(OrderedTerminalEventType::AgentConversationReplayStarted)
-        {
-            log::warn!(
-                "Failed to send OrderedTerminalEventType::AgentConversationReplayStarted: {e}"
-            );
-        }
-    }
-
-    pub fn send_agent_conversation_replay_ended_for_shared_session(&mut self) {
-        if self.shared_session_status().is_sharer()
-            && let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-            && let Err(e) = tx.try_send(OrderedTerminalEventType::AgentConversationReplayEnded)
-        {
-            log::warn!(
-                "Failed to send OrderedTerminalEventType::AgentConversationReplayEnded: {e}"
-            );
-        }
-    }
-
-    /// Signal to viewers that the Cloud Mode Setup V2 phase is complete and no
-    /// follow-up `AppendedExchange` is coming (e.g. because the AgentDriver is
-    /// short-circuiting an empty-prompt handoff via `skip_initial_turn`).
-    /// Viewers use this to clear `BlockList::is_executing_oz_environment_startup_commands`
-    /// and tear down the "Running setup commands…" chip.
-    pub fn send_cloud_mode_setup_phase_ended_for_shared_session(&mut self) {
-        if self.shared_session_status().is_sharer()
-            && let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-            && let Err(e) = tx.try_send(OrderedTerminalEventType::CloudModeSetupPhaseEnded)
-        {
-            log::warn!("Failed to send OrderedTerminalEventType::CloudModeSetupPhaseEnded: {e}");
-        }
     }
 
     /// Whether the session sharing server is currently replaying
@@ -1714,7 +1616,7 @@ impl TerminalModel {
     /// Starts the execution for a command in a shared session (sharer or viewer).
     pub fn start_command_execution_for_shared_session(
         &mut self,
-        participant_id: ParticipantId,
+        _participant_id: ParticipantId,
         agent_metadata: Option<AgentInteractionMetadata>,
     ) -> StartCommandOutcome {
         let outcome = self.start_command_execution_for_kind(CommandStartKind::SharedSession);
@@ -1730,17 +1632,6 @@ impl TerminalModel {
         }
 
         // TODO (suraj): add participant ID to active block metadata.
-
-        // If this is a sharer, send an event to indicate the start of the command execution
-        // along with the identity of the participant that ran the command.
-        if let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-            && let Err(e) = tx.try_send(OrderedTerminalEventType::CommandExecutionStarted {
-                participant_id,
-                ai_metadata: agent_metadata.as_ref().map(Self::ai_metadata_to_protocol),
-            })
-        {
-            log::warn!("Failed to send OrderedTerminalEventType::CommandExecutionStarted: {e}");
-        }
         outcome
     }
 
@@ -2112,21 +2003,6 @@ impl TerminalModel {
             };
             self.block_list.resize(&size_update, update_old_blocks);
         }
-
-        if size_update.rows_or_columns_changed() {
-            let num_rows = size_update.new_size.rows();
-            let num_cols = size_update.new_size.columns();
-            if let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-                && let Err(e) = tx.try_send(OrderedTerminalEventType::Resize {
-                    window_size: session_sharing_protocol::common::WindowSize {
-                        num_rows,
-                        num_cols,
-                    },
-                })
-            {
-                log::warn!("Failed to send OrderedTerminalEventType::Resize: {e}");
-            }
-        }
     }
 
     pub fn update_blockheight_items(
@@ -2230,39 +2106,6 @@ impl TerminalModel {
         self.obfuscate_secrets = obfuscate_secrets;
         self.alt_screen.set_obfuscate_secrets(obfuscate_secrets);
         self.block_list.set_obfuscate_secrets(obfuscate_secrets);
-    }
-
-    /// Disables secret obfuscation for shared session creators only.
-    ///
-    /// Specifically, secret obfuscation is disabled starting
-    /// from the `first_scrollback_block_index` onwards.
-    pub fn disable_secret_obfuscation_for_shared_sesson_creator(
-        &mut self,
-        first_scrollback_block_index: BlockIndex,
-    ) {
-        if !self.shared_session_status.is_sharer() {
-            log::warn!(
-                "Tried to disable secret obfuscation without being a shared session creator."
-            );
-            return;
-        }
-
-        let setting = ObfuscateSecrets::No;
-        self.obfuscate_secrets = setting;
-
-        // Disable obfuscation in the alt-screen.
-        self.alt_screen.set_obfuscate_secrets(setting);
-
-        // Ensure that all scrollback blocks and any subsequent blocks don't have their secrets obfuscated.
-        let active_block_index = self.block_list.active_block_index();
-        for block_index in
-            BlockIndex::range_as_iter(first_scrollback_block_index..active_block_index)
-        {
-            self.block_list
-                .set_obfuscate_secrets_for_block(block_index, setting);
-        }
-        self.block_list
-            .set_obfuscate_secrets_for_subsequent_blocks(setting);
     }
 
     fn restored_block_commands(&self) -> Vec<HistoryEntry> {
@@ -2374,7 +2217,6 @@ impl TerminalModel {
         // the blocklist (for the local shell).
         self.exit_alt_screen(true);
 
-        let block_id = data.next_block_id.to_string();
         self.block_list
             .ensure_active_block_executing_for_completion();
         let is_for_in_band_command = self.block_list().active_block().is_in_band_command_block();
@@ -2382,14 +2224,6 @@ impl TerminalModel {
         let active_block_completion = self.block_list.complete_active_block_and_advance(data);
 
         if active_block_completion == ActiveBlockCompletion::NewlyFinished {
-            if let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-                && let Err(e) = tx.try_send(OrderedTerminalEventType::CommandExecutionFinished {
-                    next_block_id: block_id.into(),
-                })
-            {
-                log::warn!("Failed to send OrderedTerminalEventType::CommandFinished: {e}");
-            }
-
             self.emit_handler_event(HandlerEvent::CommandFinished {
                 command_type: if is_for_in_band_command {
                     CommandType::InBandCommand
@@ -3324,21 +3158,6 @@ impl ansi::Handler for TerminalModel {
 
         // Send a copy of the bytes to subscribers.
         self.event_proxy.send_pty_read_event(bytes);
-
-        // Send a copy of the bytes for the active shared session, if applicable.
-        // When processing a synchronized output frame, `on_finish_byte_processing` is called
-        // both when the frame is flushed and when we initially process the raw bytes (the ordering of the two
-        // depends on whether we receive the start and end markers in the same batch of bytes). We only want to send
-        // the raw bytes to viewers, not the flushed frame - they'll handle the synchronized output framing themselves.
-        if !input.is_synchronized_output_frame()
-            && self.shared_session_status().is_sharer()
-            && let Some(tx) = &self.ordered_terminal_events_for_shared_session_tx
-            && let Err(e) = tx.try_send(OrderedTerminalEventType::PtyBytesRead {
-                bytes: bytes.to_owned(),
-            })
-        {
-            log::warn!("Failed to send OrderedTerminalEventType::PtyBytesRead: {e}");
-        }
 
         delegate!(self.on_finish_byte_processing(input))
     }

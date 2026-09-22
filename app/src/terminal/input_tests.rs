@@ -10190,41 +10190,8 @@ fn unfreeze_agent_input_does_not_clear_buffer() {
 
         let tips_model = app.add_model(|_| TipsCompleted::default());
 
-        // Test for ActiveSharer
-        let (_, sharer_terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model, None, ctx)
-        });
-        sharer_terminal.update(&mut app, |view, _| {
-            let mut model = view.model.lock();
-            model.block_list_mut().set_bootstrapped();
-            model.set_shared_session_status(SharedSessionStatus::ActiveSharer);
-        });
-        let sharer_input = sharer_terminal.read(&app, |view, _| view.input().clone());
-
-        sharer_input.update(&mut app, |input, ctx| {
-            input.replace_buffer_content("help me write a test", ctx);
-        });
-        assert_eq!(
-            sharer_input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "help me write a test"
-        );
-
-        sharer_input.update(&mut app, |input, ctx| {
-            input.unfreeze_agent_input(false, ctx);
-        });
-
-        // Buffer must be unchanged — clearing is the responsibility of system_clear_buffer
-        // via the SentRequest event, not of this unfreeze function.
-        assert_eq!(
-            sharer_input.read(&app, |i, ctx| i.buffer_text(ctx)),
-            "help me write a test",
-            "unfreeze_agent_input must not clear the sharer's buffer"
-        );
-
-        // Same for ActiveViewer
-        let tips_model2 = app.add_model(|_| TipsCompleted::default());
         let (_, viewer_terminal) = app.add_window(WindowStyle::NotStealFocus, move |ctx| {
-            TerminalView::new_for_test(tips_model2, None, ctx)
+            TerminalView::new_for_test(tips_model, None, ctx)
         });
         viewer_terminal.update(&mut app, |view, _| {
             let mut model = view.model.lock();

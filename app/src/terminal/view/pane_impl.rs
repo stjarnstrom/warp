@@ -671,14 +671,6 @@ impl BackingView for TerminalView {
                         .into_item(),
                 );
             }
-
-            if shared_session_status.is_sharer() {
-                items.push(
-                    MenuItemFields::new("Stop sharing session")
-                        .with_on_select_action(TerminalAction::StopSharingCurrentSession { source })
-                        .into_item(),
-                );
-            }
             if !ContextFlag::HideOpenOnDesktopButton.is_enabled()
                 && *UserAppInstallDetectionSettings::as_ref(ctx)
                     .user_app_installation_detected
