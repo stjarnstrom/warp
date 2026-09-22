@@ -934,17 +934,14 @@ impl TerminalView {
         let viewers = shared_session.pane_header_viewer_avatars(app);
 
         // Get role change menu info based on session kind
-        let (role_change_menu, is_role_change_menu_open, mouse_state_handle) =
-            match shared_session.kind() {
-                SharedSessionKind::Viewer(viewer) => (
-                    Some(viewer.role_change_menu.clone()),
-                    viewer.is_role_change_menu_open,
-                    viewer.role_change_menu_button.clone(),
-                ),
-                SharedSessionKind::Sharer(sharer) => {
-                    (None, false, sharer.revoke_all_mouse_state_handle().clone())
-                }
-            };
+        let (role_change_menu, is_role_change_menu_open, mouse_state_handle) = {
+            let SharedSessionKind::Viewer(viewer) = shared_session.kind();
+            (
+                Some(viewer.role_change_menu.clone()),
+                viewer.is_role_change_menu_open,
+                viewer.role_change_menu_button.clone(),
+            )
+        };
 
         // Hide role change button in cloud mode conversations
         let hide_role_change_button = self.model.lock().is_shared_ambient_agent_session();

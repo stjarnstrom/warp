@@ -2,13 +2,12 @@ use instant::Duration;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use session_sharing_protocol::common::{ParticipantId, ParticipantInfo, Role};
-use session_sharing_protocol::sharer::RoleUpdateReason;
 use warpui::accessibility::AccessibilityContent;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::elements::{
-    Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
-    Fill, Flex, Hoverable, MainAxisAlignment, MouseStateHandle, OffsetPositioning, ParentAnchor,
-    ParentElement, ParentOffsetBounds, Radius, Stack,
+    ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Fill,
+    Flex, Hoverable, MainAxisAlignment, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Stack,
 };
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
@@ -484,89 +483,6 @@ pub fn render_tooltip(label: String, appearance: &Appearance) -> Box<dyn Element
         .finish()
 }
 
-/// Helper function to render a button that revokes executor role from all viewers.
-pub fn render_revoke_all_button(
-    mouse_state_handle: MouseStateHandle,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    let edit = Icon::Edit
-        .to_warpui_icon(appearance.theme().foreground())
-        .finish();
-    let slash = Icon::Slash
-        .to_warpui_icon(appearance.theme().terminal_colors().normal.red.into())
-        .finish();
-    let mut stack = Stack::new().with_constrain_absolute_children();
-
-    stack.add_positioned_child(
-        edit,
-        OffsetPositioning::offset_from_parent(
-            vec2f(0., 0.),
-            ParentOffsetBounds::WindowByPosition,
-            ParentAnchor::TopLeft,
-            ChildAnchor::TopLeft,
-        ),
-    );
-
-    stack.add_positioned_child(
-        slash,
-        OffsetPositioning::offset_from_parent(
-            vec2f(0., 0.),
-            ParentOffsetBounds::WindowByPosition,
-            ParentAnchor::TopLeft,
-            ChildAnchor::TopLeft,
-        ),
-    );
-
-    Hoverable::new(mouse_state_handle, |state| {
-        let mut button = Container::new(
-            ConstrainedBox::new(stack.finish())
-                .with_width(16.)
-                .with_height(16.)
-                .finish(),
-        )
-        .with_border(Border::all(1.))
-        .with_uniform_padding(4.)
-        .with_margin_right(2.);
-
-        let mut stack = Stack::new();
-        if state.is_hovered() {
-            let background_color = if state.is_clicked() {
-                appearance.theme().background().into()
-            } else {
-                appearance.theme().surface_2().into()
-            };
-            button = button
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-                .with_background_color(background_color)
-                .with_border(
-                    Border::all(1.).with_border_color(appearance.theme().surface_3().into()),
-                );
-
-            stack.add_positioned_child(
-                render_tooltip("Revoke all edit permissions".to_string(), appearance),
-                OffsetPositioning::offset_from_parent(
-                    vec2f(0., 3.),
-                    ParentOffsetBounds::Unbounded,
-                    ParentAnchor::BottomMiddle,
-                    ChildAnchor::TopMiddle,
-                ),
-            );
-        }
-
-        stack.add_child(button.finish());
-        stack.finish()
-    })
-    .on_click(|ctx, _, _| {
-        // We have to dispatch a pane header action because the button is rendered in the pane header.
-        ctx.dispatch_typed_action(PaneHeaderCustomAction::<TerminalAction, TerminalAction>(
-            TerminalAction::MakeAllParticipantsReaders {
-                reason: RoleUpdateReason::UpdatedBySharer,
-            },
-        ));
-    })
-    .finish()
-}
-
 /// Helper function to render a button that indicates a viewer's role.
 pub fn render_viewer_role_button(
     role: Option<Role>,
@@ -631,24 +547,6 @@ pub fn render_participants_and_role_elements(
     let mut row = Flex::row()
         .with_main_axis_alignment(MainAxisAlignment::Center)
         .with_cross_axis_alignment(CrossAxisAlignment::Center);
-
-    // Only render button for sharer (client is sharer iff role is none)
-    // when there exists viewers that are executors.
-    let num_executors = participants
-        .iter()
-        .filter(|participant| {
-            participant
-                .as_ref(app)
-                .role()
-                .is_some_and(|r| r.can_execute())
-        })
-        .count();
-    if role.is_none() && num_executors > 0 {
-        row.add_child(render_revoke_all_button(
-            mouse_state_handle.clone(),
-            appearance,
-        ));
-    }
 
     for participant in participants.iter() {
         row.add_child(

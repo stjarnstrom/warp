@@ -1,7 +1,6 @@
 //! An adapter to make session-sharing work with the [`TerminalView`].
 
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
 
 use chrono::{DateTime, Local};
 use markdown_parser::FormattedTextFragment;
@@ -11,7 +10,6 @@ use warp_core::features::FeatureFlag;
 use warpui::elements::MouseStateHandle;
 use warpui::{AppContext, Element, ModelHandle, ViewContext, ViewHandle};
 
-use super::sharer::Sharer;
 use super::viewer::Viewer;
 use crate::auth::UserUid;
 use crate::banner::{Banner, BannerTextContent};
@@ -20,53 +18,24 @@ use crate::terminal::shared_session::presence_manager::PresenceManager;
 use crate::terminal::shared_session::render_util::{
     ParticipantAvatarParams, participant_avatar_for_selected_block,
 };
-use crate::terminal::view::{TerminalAction, TerminalView, throttle};
+use crate::terminal::view::{TerminalAction, TerminalView};
 use crate::ui_components::icons::Icon;
 
 /// The kind of shared session this is.
 pub enum Kind {
-    /// This [`TerminalView`] is being shared.
-    Sharer(Sharer),
-
     /// This [`TerminalView`] is being viewed.
     Viewer(Viewer),
 }
 
 impl Kind {
     pub fn as_viewer(&self) -> Option<&Viewer> {
-        match self {
-            Self::Viewer(v) => Some(v),
-            _ => None,
-        }
+        let Self::Viewer(v) = self;
+        Some(v)
     }
 
     pub fn as_viewer_mut(&mut self) -> Option<&mut Viewer> {
-        match self {
-            Self::Viewer(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_sharer(&self) -> Option<&Sharer> {
-        match self {
-            Self::Sharer(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    pub fn as_sharer_mut(&mut self) -> Option<&mut Sharer> {
-        match self {
-            Self::Sharer(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    pub fn is_sharer(&self) -> bool {
-        self.as_sharer().is_some()
-    }
-
-    pub fn is_viewer(&self) -> bool {
-        self.as_viewer().is_some()
+        let Self::Viewer(v) = self;
+        Some(v)
     }
 }
 
@@ -143,41 +112,6 @@ impl Adapter {
         let viewer = Kind::Viewer(Viewer::new(ctx));
         Self::new(
             viewer,
-            presence_manager,
-            session_id,
-            started_at,
-            source_type,
-            ctx,
-        )
-    }
-
-    pub fn new_for_sharer(
-        sharer_id: ParticipantId,
-        firebase_uid: UserUid,
-        session_id: SessionId,
-        started_at: DateTime<Local>,
-        source_type: SessionSourceType,
-        ctx: &mut ViewContext<TerminalView>,
-    ) -> Self {
-        let presence_manager =
-            ctx.add_model(|_| PresenceManager::new_for_sharer(sharer_id, firebase_uid));
-
-        // The inactivity timer is reset every 10 seconds
-        // as long as sharer activity was detected during the interval.
-        // For ambient agent sessions, we skip the inactivity timer entirely.
-        let (activity_tx, activity_rx) = async_channel::unbounded();
-        if !matches!(source_type, SessionSourceType::AmbientAgent { .. }) {
-            let throttled_activity_rx = throttle(Duration::from_secs(10), activity_rx);
-            ctx.spawn_stream_local(
-                throttled_activity_rx,
-                |view, _, ctx| view.reset_sharer_inactivity_timer(ctx),
-                |_, _| {},
-            );
-        }
-
-        let sharer = Kind::Sharer(Sharer::new(activity_tx, ctx));
-        Self::new(
-            sharer,
             presence_manager,
             session_id,
             started_at,

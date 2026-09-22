@@ -21,8 +21,8 @@ fn test_choosing_preset_colors() {
     App::test((), |mut app| async move {
         // Initialize with a sharer.
         let firebase_uid = UserUid::new("mock_firebase_uid");
-        let presence_manager =
-            app.add_model(|_| PresenceManager::new_for_sharer(ParticipantId::new(), firebase_uid));
+        let presence_manager = app
+            .add_model(|_| PresenceManager::new_empty_for_test(ParticipantId::new(), firebase_uid));
 
         let sharer_id = ParticipantId::new();
         let sharer = Sharer {
@@ -385,7 +385,7 @@ fn test_selected_block_index_for_avatar() {
 #[test]
 fn query_attribution_profile_retains_absent_viewers_without_using_the_sharer() {
     let sharer_id = ParticipantId::new();
-    let mut manager = PresenceManager::new_for_sharer(sharer_id.clone(), UserUid::new("host"));
+    let mut manager = PresenceManager::new_empty_for_test(sharer_id.clone(), UserUid::new("host"));
     let viewer_id = ParticipantId::new();
     let info = ParticipantInfo {
         id: viewer_id.clone(),

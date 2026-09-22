@@ -7,7 +7,7 @@ use warpui::{
     WindowId,
 };
 
-use super::{SharedSessionActionSource, SharedSessionStatus};
+use super::SharedSessionStatus;
 use crate::terminal::TerminalView;
 
 struct SharedSessionState {
@@ -224,18 +224,6 @@ impl Manager {
 
     pub fn clear_joined(&mut self) {
         self.joined.clear();
-    }
-
-    pub fn stop_all_shared_sessions(&mut self, ctx: &mut ModelContext<Self>) {
-        let view_ids = self.shared_view_ids().collect_vec();
-
-        for view_id in view_ids {
-            if let Some(terminal_view) = self.shared_view_by_id(&view_id, ctx) {
-                terminal_view.update(ctx, |view, ctx| {
-                    view.stop_sharing_session(SharedSessionActionSource::NonUser, ctx);
-                });
-            }
-        }
     }
 
     pub fn rejoin_all_shared_sessions(&mut self, ctx: &mut ModelContext<Self>) {

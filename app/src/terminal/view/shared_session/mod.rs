@@ -3,7 +3,6 @@
 pub(in crate::terminal::view) mod adapter;
 pub(crate) mod cloud_conversation_continuation;
 mod conversation_ended_tombstone_view;
-pub(in crate::terminal::view) mod sharer;
 #[cfg(test)]
 pub mod test_utils;
 mod view_impl;

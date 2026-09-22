@@ -574,17 +574,7 @@ impl SharingDialog {
                     }
                 }
             }
-            Some(ShareableObject::Session { handle, .. }) => {
-                // Sharer always has Full access.
-                if handle.upgrade(app).is_some_and(|handle| {
-                    handle
-                        .as_ref(app)
-                        .sharer_session_kind()
-                        .is_some_and(|kind| kind.is_sharer())
-                }) {
-                    return SharingAccessLevel::Full;
-                }
-
+            Some(ShareableObject::Session { .. }) => {
                 if let Some(owner) = self.owner(app) {
                     // If we are the user owner, we have Full access.
                     if let Some(user_uid) = AuthStateProvider::as_ref(app).get().user_id()

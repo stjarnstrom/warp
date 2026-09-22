@@ -309,9 +309,8 @@ pub fn log_out(app: &mut AppContext) {
     EnvVarCollectionManager::handle(app).update(app, |manager, _| manager.reset());
     WorkflowManager::handle(app).update(app, |manager, _| manager.reset());
 
-    // Stop and leave all shared sessions
-    SharedSessionManager::handle(app).update(app, |manager, ctx| {
-        manager.stop_all_shared_sessions(ctx);
+    // Leave every joined session.
+    SharedSessionManager::handle(app).update(app, |manager, _| {
         manager.clear_joined();
     });
 

@@ -458,10 +458,9 @@ impl AuthManager {
                     });
                 }
 
-                // Force refresh for shared sessions if user may have changed.
+                // Force refresh for joined sessions if user may have changed.
                 if !from_refresh {
                     SharedSessionManager::handle(ctx).update(ctx, |manager, ctx| {
-                        manager.stop_all_shared_sessions(ctx);
                         manager.rejoin_all_shared_sessions(ctx);
                     });
                 }

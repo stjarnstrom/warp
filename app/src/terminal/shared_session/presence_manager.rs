@@ -244,7 +244,11 @@ pub fn get_available_color(chosen_colors: &HashSet<ColorU>) -> ColorU {
 }
 
 impl PresenceManager {
-    pub fn new_for_sharer(id: ParticipantId, firebase_uid: UserUid) -> Self {
+    /// A manager with no participants, for tests that populate `present_viewers`
+    /// and `absent_viewers` directly. Production only ever builds one by joining,
+    /// via [`Self::new_for_viewer`].
+    #[cfg(test)]
+    pub fn new_empty_for_test(id: ParticipantId, firebase_uid: UserUid) -> Self {
         Self {
             id: id.clone(),
             firebase_uid,
