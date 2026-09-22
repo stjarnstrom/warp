@@ -41,7 +41,6 @@ use crate::pane_group::{PaneGroup, PaneId};
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::shared_session::SharedSessionStatus;
 use crate::terminal::shared_session::manager::Manager;
-use crate::terminal::shared_session::render_util::shared_session_indicator_color;
 use crate::terminal::view::TerminalViewState;
 use crate::themes::theme::{AnsiColorIdentifier, Fill as ThemeFill, VerticalGradient};
 use crate::ui_components::buttons::icon_button;
@@ -991,8 +990,6 @@ enum Indicator {
     /// This pane's inputs are being synced.
     Synced,
     Error,
-    /// At least one of the panes in this tab is being shared.
-    Shared,
     /// One of the panes in this tab is maximized.
     Maximized,
     /// We should show a shell indicator for the tab.
@@ -1060,7 +1057,6 @@ pub struct TabComponent<'a> {
 struct TabStyles {
     background: Option<ThemeFill>,
     error_color: ColorU,
-    sharing_color: ColorU,
     synced_input_indicator_color: ColorU,
 
     /// Default styles of the TabComponent
@@ -1085,7 +1081,6 @@ impl TabStyles {
         let active_tab_bar_color: Option<ThemeFill> =
             tab_color.map(|color| color.to_ansi_color(&theme.terminal_colors().normal).into());
         let error_color = theme.ui_error_color();
-        let sharing_color = shared_session_indicator_color(appearance);
         let background = active_tab_bar_color.map(|color| {
             ThemeFill::VerticalGradient(VerticalGradient::new(
                 theme.background().into(),
@@ -1095,7 +1090,6 @@ impl TabStyles {
         TabStyles {
             background,
             error_color,
-            sharing_color,
             synced_input_indicator_color: ColorU::from_u32(TAB_INDICATOR_SYNCED_COLOR),
             default: UiComponentStyles::default()
                 .set_font_color(theme.nonactive_ui_text_color().into())
@@ -1136,10 +1130,6 @@ impl<'a> TabComponent<'a> {
             .pane_group
             .as_ref(ctx)
             .has_active_code_pane_with_unsaved_indicator(ctx);
-        let is_being_shared = tab
-            .pane_group
-            .as_ref(ctx)
-            .is_terminal_pane_being_shared(ctx);
         let should_show_indicators = *TabSettings::as_ref(ctx).show_indicators.value();
         let shortcut_hint_label = if reveals_tab_shortcut_hints(ctx) {
             tab_activate_binding_name(tab_index, tab_bar.tab_count)
@@ -1159,8 +1149,7 @@ impl<'a> TabComponent<'a> {
         let is_maximized = tab.pane_group.as_ref(ctx).is_focused_pane_maximized(ctx);
         let shell_indicator_type = tab.pane_group.as_ref(ctx).focused_shell_indicator_type(ctx);
 
-        // If a session is being shared, we want to show that indicator in the tab bar above all else.
-        // Otherwise, if the tab indicator setting is explicitly turned off, we don't want to show any indicator.
+        // If the tab indicator setting is explicitly turned off, we don't want to show any indicator.
         // But if it's on, we want to show the synced indicator if this tab is being synced.
         // If we aren't showing the synced indicator (and we know the setting is on),
         // we will show long-running, error indicators, etc. as applicable.
@@ -1168,8 +1157,6 @@ impl<'a> TabComponent<'a> {
             Indicator::AmbientAgent
         } else if active_pane_has_unsaved_code_changes {
             Indicator::UnsavedChanges
-        } else if is_being_shared {
-            Indicator::Shared
         } else if !should_show_indicators {
             Indicator::None
         } else if are_inputs_synced {
@@ -1620,11 +1607,6 @@ impl<'a> TabComponent<'a> {
             Indicator::Error => Some(
                 Icon::AlertTriangle
                     .to_warpui_icon(self.styles.error_color.into())
-                    .finish(),
-            ),
-            Indicator::Shared => Some(
-                Icon::Sharing
-                    .to_warpui_icon(self.styles.sharing_color.into())
                     .finish(),
             ),
             Indicator::Maximized => Some(

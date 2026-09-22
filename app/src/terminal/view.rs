@@ -8672,12 +8672,6 @@ impl TerminalView {
         self.is_ssh_file_uploader = is_uploader;
     }
 
-    /// Whether or not this terminal view is actively sharing its session.
-    /// This build cannot create shared sessions, so it is always false.
-    pub fn is_sharing_session(&self) -> bool {
-        false
-    }
-
     pub fn is_shared_ambient_agent_session(&self) -> bool {
         self.model.lock().is_shared_ambient_agent_session()
     }
