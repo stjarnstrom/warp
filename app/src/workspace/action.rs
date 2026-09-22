@@ -26,15 +26,11 @@ use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::PendingAttachment;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::items::WarpDriveItemId;
 use crate::palette::PaletteMode;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
 use crate::server::ids::{ServerId, SyncId};
-use crate::server::telemetry::{
-    AddTabWithShellSource, AgentModeEntrypoint, PaletteSource, SharingDialogSource,
-};
+use crate::server::telemetry::{AddTabWithShellSource, AgentModeEntrypoint, PaletteSource};
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
@@ -314,7 +310,6 @@ pub enum WorkspaceAction {
     ToggleErrorUnderlining,
     ToggleSyntaxHighlighting,
     CheckForUpdate,
-    ExportAllWarpDriveObjects,
     SetA11yVerbosityLevel(AccessibilityVerbosity),
     ToggleNotifications,
     ToggleTabColor {
@@ -338,12 +333,8 @@ pub enum WorkspaceAction {
     CreatePersonalNotebook,
     ImportToPersonalDrive,
     ImportToTeamDrive,
-    CreateTeamNotebook,
     CreatePersonalWorkflow,
     CreateTeamWorkflow,
-    CreatePersonalFolder,
-    CreateTeamFolder,
-    CreateTeamEnvVarCollection,
     CreatePersonalEnvVarCollection,
     CreatePersonalAIPrompt,
     CreateTeamAIPrompt,
@@ -365,14 +356,8 @@ pub enum WorkspaceAction {
         cursor_position: Vector2F,
     },
     DropGroup,
-    /// Toggles the left panel. In Code Mode V1 this toggles Warp Drive.
-    /// In Code Mode V2 this toggles the left panel which contains both the project explorer and
-    /// Warp Drive. This happens as explicit action from the user.
+    /// Toggles the left panel. This happens as an explicit action from the user.
     ToggleLeftPanel,
-    /// Toggles directly to the Warp Drive tab of the left panel in Code Mode V2
-    ToggleWarpDrive,
-    /// Unconditionally opens Warp Drive.
-    OpenWarpDrive,
     /// Toggles the right panel. This happens as an explicit action from the user.
     ToggleRightPanel,
     /// Opens the code review panel (right panel) without toggling. If already open,
@@ -454,14 +439,6 @@ pub enum WorkspaceAction {
     FocusLeftPanel,
     /// Moves focus to the panel on the right
     FocusRightPanel,
-    /// An action to view a newly created/edited workflow in WD from the toast
-    ViewObjectInWarpDrive(WarpDriveItemId),
-    /// Open the object's sharing settings in WD.
-    OpenObjectSharingSettings {
-        object_id: CloudObjectTypeAndId,
-        source: SharingDialogSource,
-    },
-    UndoTrash(CloudObjectTypeAndId),
     /// Open a local path in the file explorer.
     OpenInExplorer {
         path: PathBuf,
@@ -953,7 +930,6 @@ impl WorkspaceAction {
             | CopyVersion(_)
             | DownloadNewVersion
             | ConfigureKeybindingSettings { .. }
-            | ExportAllWarpDriveObjects
             | ShowSettings
             | ShowSettingsPage(_)
             | ShowSettingsPageWithSearch { .. }
@@ -1004,12 +980,8 @@ impl WorkspaceAction {
             | ImportToPersonalDrive
             | ImportToTeamDrive
             | CreatePersonalNotebook
-            | CreateTeamNotebook
             | CreatePersonalWorkflow
             | CreateTeamWorkflow
-            | CreatePersonalFolder
-            | CreateTeamFolder
-            | CreateTeamEnvVarCollection
             | CreatePersonalEnvVarCollection
             | CreatePersonalAIPrompt
             | CreateTeamAIPrompt
@@ -1019,8 +991,6 @@ impl WorkspaceAction {
             | DragGroup { .. }
             | StartGroupDrag(_)
             | ToggleLeftPanel
-            | ToggleWarpDrive
-            | OpenWarpDrive
             | ClosePanel
             | ToggleRightPanel
             | OpenCodeReviewPanel(..)
@@ -1078,10 +1048,7 @@ impl WorkspaceAction {
             | RunCommand { .. }
             | InsertInInput { .. }
             | InsertForkSlashCommand
-            | UndoTrash(_)
             | OpenFilePath { .. }
-            | ViewObjectInWarpDrive(_)
-            | OpenObjectSharingSettings { .. }
             | TerminateApp
             | SignInAnonymousWebUser
             | TabHoverWidthStart { .. }

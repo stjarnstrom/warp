@@ -5,8 +5,8 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObject;
+use crate::drive::DriveObjectType;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
-use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
 use crate::search::command_palette::styles::SEARCH_ITEM_TEXT_PADDING;
@@ -143,9 +143,7 @@ impl SearchItem for WorkflowSearchItem {
     }
 
     fn execute_result(&self) -> Self::Action {
-        CommandPaletteItemAction::ViewInWarpDrive {
-            id: CloudObjectTypeAndId::Workflow(self.cloud_workflow.id),
-        }
+        self.accept_result()
     }
 
     fn accessibility_label(&self) -> String {

@@ -54,11 +54,10 @@ use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::auth::{AuthStateProvider, LoginFailureReason};
 use crate::autoupdate::{AutoupdateState, AutoupdateStateEvent, RequestType, UpdateReady};
 use crate::changelog_model::ChangelogRequestType;
+use crate::cloud_object::ObjectType;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
 use crate::drive::export::ExportManager;
-use crate::drive::items::WarpDriveItemId;
-use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
+use crate::drive::{OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
@@ -91,12 +90,10 @@ use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill, ThemeKind, WarpThem
 use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs};
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates, traffic_light_data};
-use crate::view_components::DismissibleToast;
 use crate::window_settings::WindowSettings;
 use crate::workspace::hoa_onboarding::mark_hoa_onboarding_completed;
 use crate::workspace::view::OnboardingTutorial;
 use crate::workspace::{PaneViewLocator, Workspace, WorkspaceAction, WorkspaceRegistry};
-use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::{ResolvedTeamScope, UserWorkspaces, UserWorkspacesEvent};
 use crate::{
@@ -326,10 +323,6 @@ pub fn init(app: &mut AppContext) {
     app.add_action(
         "root_view:add_session_at_path",
         RootView::add_session_at_path,
-    );
-    app.add_action(
-        "root_view:handle_team_intent_link_action",
-        RootView::handle_team_intent_link_action,
     );
     app.add_action(
         "root_view:open_team_settings_page",
@@ -1118,13 +1111,6 @@ fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
         ),
         _ => log::info!("Open object type {:?} not yet supported", arg.object_type),
     }
-}
-
-fn display_object_missing_error_in_window(window_id: WindowId, ctx: &mut AppContext) {
-    crate::workspace::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-        let toast = DismissibleToast::error(String::from("Resource not found or access denied"));
-        toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-    });
 }
 
 fn open_new_workspace_with_notebook_open(
@@ -2452,73 +2438,24 @@ impl RootView {
         ctx: &mut ViewContext<Self>,
     ) -> bool {
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let cloud_model = CloudModel::as_ref(ctx);
-
             match arg.object_type {
                 ObjectType::Notebook => {
                     handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let notebook_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_notebook(
-                                &NotebookSource::Existing(notebook_id),
-                                &settings,
-                                ctx,
-                                false,
-                            );
-                        });
+                        workspace.open_notebook(
+                            &NotebookSource::Existing(SyncId::ServerId(arg.server_id)),
+                            &arg.settings,
+                            ctx,
+                            false,
+                        );
                     });
                 }
                 ObjectType::Workflow => {
                     handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let workflow_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_workflow_from_intent(workflow_id, &settings, ctx);
-                        });
-                    });
-                }
-                ObjectType::GenericStringObject(GenericStringObjectFormat::Json(
-                    JsonObjectType::EnvVarCollection,
-                )) => {
-                    if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
-                        display_object_missing_error_in_window(ctx.window_id(), ctx);
-                        return false;
-                    }
-
-                    let item_id =
-                        WarpDriveItemId::Object(CloudObjectTypeAndId::from_generic_string_object(
-                            GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
+                        workspace.open_workflow_from_intent(
                             SyncId::ServerId(arg.server_id),
-                        ));
-
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.view_in_and_focus_warp_drive(item_id, ctx);
-                        });
-                    });
-                }
-                ObjectType::Folder => {
-                    if cloud_model.get_by_uid(&arg.server_id.uid()).is_none() {
-                        display_object_missing_error_in_window(ctx.window_id(), ctx);
-                        return false;
-                    }
-
-                    let item_id = WarpDriveItemId::Object(CloudObjectTypeAndId::Folder(
-                        SyncId::ServerId(arg.server_id),
-                    ));
-                    handle.update(ctx, |workspace, ctx| {
-                        let initialized_section_states =
-                            workspace.has_warp_drive_initialized_sections(ctx);
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.view_in_and_focus_warp_drive(item_id, ctx);
-                        });
+                            &arg.settings,
+                            ctx,
+                        );
                     });
                 }
                 _ => {
@@ -2680,29 +2617,6 @@ impl RootView {
         } else {
             log::warn!("Auth not complete before trying to fill input");
         }
-        true
-    }
-
-    /// Shows the user the settings view of their newly joined team
-    /// within the app.
-    pub fn handle_team_intent_link_action(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {
-        // Force-open warp drive.
-        let window_id = ctx.window_id();
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            ctx.dispatch_typed_action_for_view(
-                window_id,
-                handle.id(),
-                &WorkspaceAction::OpenWarpDrive,
-            );
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open warp drive");
-        }
-
-        // Use the team tester model to notify relevant subscribers to refresh their data.
-        TeamTesterStatus::handle(ctx).update(ctx, |model, ctx| {
-            model.initiate_data_pollers(true, ctx);
-        });
         true
     }
 

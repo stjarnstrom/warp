@@ -75,7 +75,6 @@ use async_channel::{Receiver, Sender};
 use base64::Engine as _;
 pub use block_banner::{BLOCK_BANNER_HEIGHT, WithinBlockBanner};
 use block_banner::{WarpifyBannerState, render_warpification_banner};
-use block_onboarding::onboarding_drive_sharing_block::OnboardingDriveSharingBlock;
 use bookmarks::render_floating_block_snapshot;
 use chrono::{DateTime, Local, NaiveDateTime};
 use command_corrections::rules::generic::history::History as CommandCorrectionsHistoryRule;
@@ -349,7 +348,7 @@ use crate::resource_center::{
 };
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::ids::{ObjectUid, SyncId};
+use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApi;
 use crate::server::telemetry::{
     self, AgentModeAttachContextMethod, AgentModeEntrypoint, AgentModeRewindEntrypoint,
@@ -1455,10 +1454,6 @@ pub enum ContextMenuAction {
         exchange_id: AIAgentExchangeId,
         conversation_id: AIConversationId,
     },
-    /// Save the AI block prompt as an agent mode workflow (saved prompt)
-    SavePromptAsAgentModeWorkflow {
-        ai_block_view_id: EntityId,
-    },
 }
 
 #[derive(Clone)]
@@ -1539,7 +1534,6 @@ impl fmt::Debug for ContextMenuAction {
             ForkAIConversationFromExactExchange { .. } => {
                 f.write_str("ForkAIConversationFromExactExchange")
             }
-            SavePromptAsAgentModeWorkflow { .. } => f.write_str("SavePromptAsAgentModeWorkflow"),
         }
     }
 }
@@ -1705,7 +1699,6 @@ pub enum Event {
     OpenWorkflowModalWithCloudWorkflow(SyncId),
     // Tell the pane group to open the workflow modal with an unsaved workflow.
     OpenWorkflowModalWithTemporary(Box<Workflow>),
-    OpenWarpDriveObjectInPane(ObjectUid),
     OpenSuggestedAgentModeWorkflowModal {
         workflow_and_id: SuggestedAgentModeWorkflowAndId,
     },
@@ -1940,10 +1933,6 @@ pub enum Event {
     },
     OpenAddRulePane,
     OpenRulesPane,
-    OpenAddPromptPane {
-        /// The initial prompt body content.
-        initial_content: Option<String>,
-    },
     OpenEnvironmentManagementPane,
     OpenFilesPalette {
         source: PaletteSource,
@@ -2063,7 +2052,6 @@ pub enum Event {
 #[derive(Clone, Copy, Debug)]
 pub enum LeftPanelTargetView {
     FileTree,
-    WarpDrive,
 }
 
 #[derive(Clone)]
@@ -4296,19 +4284,16 @@ impl TerminalView {
                 ctx,
             )
         });
-        ctx.subscribe_to_view(&conversation_details_panel, |me, _, event, ctx| {
-            match event {
+        ctx.subscribe_to_view(
+            &conversation_details_panel,
+            |me, _, event, ctx| match event {
                 ConversationDetailsPanelEvent::Close => {
                     me.is_conversation_details_panel_open = false;
                     ctx.notify();
                 }
-                ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                    // Convert NotebookId -> SyncId -> ObjectUid (String)
-                    let object_uid = SyncId::from(*notebook_uid).uid();
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(object_uid));
-                }
-            }
-        });
+                ConversationDetailsPanelEvent::OpenPlanNotebook { .. } => {}
+            },
+        );
 
         let window_id = ctx.window_id();
         let mut terminal_view = Self {
@@ -14287,33 +14272,6 @@ impl TerminalView {
         None
     }
 
-    pub fn insert_drive_sharing_onboarding_block(
-        &mut self,
-        object_id: CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.reset_onboarding_blocks(ctx);
-
-        WarpDriveSettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(settings.sharing_onboarding_block_shown.set_value(true, ctx));
-        });
-
-        let block_view_handle =
-            ctx.add_view(|ctx| OnboardingDriveSharingBlock::new(object_id, ctx));
-
-        self.insert_rich_content(
-            None,
-            block_view_handle,
-            None,
-            RichContentInsertionPosition::Append {
-                insert_below_long_running_block: false,
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(TelemetryEvent::DriveSharingOnboardingBlockShown, ctx);
-    }
-
     fn should_display_vim_banner(
         &self,
         session: &Arc<Session>,
@@ -21075,9 +21033,7 @@ impl TerminalView {
                 ctx.notify();
             }
             AIBlockEvent::OpenCitation(citation) => match citation {
-                AIAgentCitation::WarpDriveObject { uid } => {
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(uid.clone()));
-                }
+                AIAgentCitation::WarpDriveObject { .. } => {}
                 AIAgentCitation::WarpDocumentation { path } => {
                     ctx.open_url(&format!("https://docs.warp.dev/{path}"));
                 }
@@ -21101,11 +21057,7 @@ impl TerminalView {
             AIBlockEvent::OpenAIFactCollection { sync_id } => {
                 ctx.emit(Event::OpenAIFactCollection { sync_id: *sync_id });
             }
-            AIBlockEvent::OpenWorkflow { sync_id } => {
-                if let Some(object) = CloudModel::as_ref(ctx).get_workflow(sync_id) {
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(object.uid()));
-                }
-            }
+            AIBlockEvent::OpenWorkflow { .. } => {}
             AIBlockEvent::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
                 ctx.emit(Event::OpenSuggestedAgentModeWorkflowModal {
                     workflow_and_id: workflow_and_id.clone(),
@@ -25784,22 +25736,6 @@ impl TerminalView {
                     ctx,
                 );
             }
-            SavePromptAsAgentModeWorkflow { ai_block_view_id } => {
-                for rich_content in self.rich_content_views.iter() {
-                    if let Some(ai_metadata) = rich_content.ai_block_metadata()
-                        && ai_metadata.ai_block_handle.id() == *ai_block_view_id
-                    {
-                        let prompt_text = ai_metadata
-                            .ai_block_handle
-                            .as_ref(ctx)
-                            .get_preceding_user_query(ctx);
-                        ctx.emit(Event::OpenAddPromptPane {
-                            initial_content: Some(prompt_text),
-                        });
-                        break;
-                    }
-                }
-            }
         }
     }
 
@@ -27272,7 +27208,6 @@ impl TypedActionView for TerminalView {
             | OpenAddRulePane
             | OpenRulesPane
             | OpenEditSkillPane { .. }
-            | OpenAddPromptPane
             | AddProjectAtCurrentDirectory
             | CodebaseIndexSpeedbumpBanner(_)
             | AgentModeSetupSpeedbumpBanner(_)
@@ -28262,9 +28197,6 @@ impl TypedActionView for TerminalView {
                     });
                 }
             }
-            OpenAddPromptPane => ctx.emit(Event::OpenAddPromptPane {
-                initial_content: None,
-            }),
             PickRepoToOpen => {
                 ctx.dispatch_typed_action(&WorkspaceAction::OpenRepository { path: None });
             }

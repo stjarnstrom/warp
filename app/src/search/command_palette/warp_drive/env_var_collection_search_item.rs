@@ -6,8 +6,8 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObject;
+use crate::drive::DriveObjectType;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
-use crate::drive::{CloudObjectTypeAndId, DriveObjectType};
 use crate::env_vars::CloudEnvVarCollection;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::render_search_item_icon;
@@ -152,14 +152,7 @@ impl SearchItem for EnvVarCollectionSearchItem {
     }
 
     fn execute_result(&self) -> Self::Action {
-        CommandPaletteItemAction::ViewInWarpDrive {
-            id: CloudObjectTypeAndId::GenericStringObject {
-                object_type: crate::cloud_object::GenericStringObjectFormat::Json(
-                    crate::cloud_object::JsonObjectType::EnvVarCollection,
-                ),
-                id: self.cloud_env_var_collection.id,
-            },
-        }
+        self.accept_result()
     }
 
     fn accessibility_label(&self) -> String {

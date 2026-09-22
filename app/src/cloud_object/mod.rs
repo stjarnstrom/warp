@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
 use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -13,7 +12,6 @@ use url::Url;
 use warp_core::channel::Channel;
 use warp_core::features::FeatureFlag;
 use warp_graphql::queries::get_updated_cloud_objects::UpdatedObjectInput;
-use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, SingletonEntity};
 
 use self::breadcrumbs::ContainingObject;
@@ -22,10 +20,8 @@ use self::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use self::model::persistence::CloudModel;
-use crate::appearance::Appearance;
 use crate::auth::UserUid;
 use crate::channel::ChannelState;
-use crate::drive::items::WarpDriveItem;
 use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
@@ -158,10 +154,6 @@ pub trait CloudObject: Debug {
     fn should_show_activity_toasts(&self) -> bool {
         true
     }
-
-    /// Creates a new Warp Drive item for this object.  Returns None if this
-    /// object is not rendered in Warp Drive.
-    fn to_warp_drive_item(&self, appearance: &Appearance) -> Option<Box<dyn WarpDriveItem>>;
 
     /// Returns the web link of this object. Will return none if we do not support web links
     /// for this particular object (i.e. if it's not yet sync'd to the server, or if we don't
@@ -452,13 +444,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
 
     /// Creates a new warp drive item for this model type. Returns None
     /// if this object does not render in Warp Drive.
-    fn to_warp_drive_item(
-        &self,
-        id: SyncId,
-        appearance: &Appearance,
-        object: &Self::CloudObjectType,
-    ) -> Option<Box<dyn WarpDriveItem>>;
-
     /// Returns the display name for this model (e.g. to show in the Warp Drive index)
     fn display_name(&self) -> String;
 
@@ -778,10 +763,6 @@ where
         self.model().renders_in_warp_drive()
     }
 
-    fn to_warp_drive_item(&self, appearance: &Appearance) -> Option<Box<dyn WarpDriveItem>> {
-        self.model().to_warp_drive_item(self.id, appearance, self)
-    }
-
     fn can_export(&self) -> bool {
         self.model().can_export()
     }
@@ -897,10 +878,6 @@ pub trait CloudObjectMetadataExt {
     /// Returns a semantic summary of the object's creator. For example, "Alice" or "joan@warp.dev".
     #[cfg_attr(target_family = "wasm", expect(dead_code))]
     fn semantic_creator(&self, app: &AppContext) -> Option<String>;
-
-    /// Returns semantic summary of countdown of days until permadeletion.
-    /// Ex: "27 days until permanent deletion"
-    fn semantic_permadeletion_countdown(&self, app: &AppContext) -> Option<String>;
 }
 
 impl CloudObjectMetadataExt for CloudObjectMetadata {
@@ -936,48 +913,6 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
             .as_ref()
             .and_then(|uid| user_profiles.displayable_identifier_for_uid(UserUid::new(uid)))
     }
-
-    fn semantic_permadeletion_countdown(&self, app: &AppContext) -> Option<String> {
-        // 2 cases:
-        // 1) Either the object is a root level object.
-        // 2) Or the object is inside folder(s), call recursive function to get trashed_ts of top level folder.
-        if let Some(trashed_ts) = self
-            .trashed_ts
-            .or_else(|| get_top_folder_trashed_ts(self.folder_id, app))
-        {
-            let deletion_time = trashed_ts.utc() + Duration::days(31);
-            let current_time = Utc::now();
-            let days_left = deletion_time.signed_duration_since(current_time).num_days();
-
-            let full_string = match days_left {
-                0 | 1 => "1 day until permanent deletion".to_string(),
-                _ => format!("{days_left} days until permanent deletion"),
-            };
-            Some(full_string)
-        } else {
-            None
-        }
-    }
-}
-
-/// Helper function to retrieve trashed_ts of top level folder given a folder_id of an object.
-fn get_top_folder_trashed_ts(
-    folder_id: Option<SyncId>,
-    app: &AppContext,
-) -> Option<ServerTimestamp> {
-    let mut folder_id = folder_id;
-    let cloud_model = CloudModel::as_ref(app);
-    while let Some(current_folder_id) = folder_id {
-        // If the parent folder isn't in CloudModel, short-circuit so we don't loop forever.
-        let folder = cloud_model.get_folder_by_uid(&current_folder_id.uid())?;
-
-        if let Some(_parent_folder_id) = folder.metadata.folder_id {
-            folder_id = folder.metadata.folder_id
-        } else {
-            return folder.metadata.trashed_ts;
-        }
-    }
-    None
 }
 
 pub use cloud_object_client::{

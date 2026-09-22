@@ -171,13 +171,12 @@ impl UriHost {
                             ctx,
                         );
                     }
-                    // Otherwise default to previous behavior.
+                    // Otherwise show the team's settings page too: the old default
+                    // force-opened Warp Drive, which no longer exists.
                     _ => {
-                        // TODO: Parse URL to ensure the user is logged into the right account
-                        // Shows the user the settings view of their newly joined team within the app.
                         open_window_with_action(
                             primary_window_id,
-                            "root_view:handle_team_intent_link_action",
+                            "root_view:open_team_settings_page",
                             ctx,
                         );
                     }

@@ -46,7 +46,6 @@ use crate::cloud_object::{
 };
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit;
-use crate::drive::items::WarpDriveItemId;
 use crate::drive::sharing::{ContentEditability, ShareableObject, SharingAccessLevel};
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
@@ -75,14 +74,14 @@ use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::AIClient;
 use crate::server::telemetry::{
-    CloudObjectTelemetryMetadata, SharingDialogSource, TelemetryCloudObjectType, TelemetryEvent,
+    CloudObjectTelemetryMetadata, TelemetryCloudObjectType, TelemetryEvent,
 };
 use crate::settings::AISettings;
 use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
+use crate::ui_components::breadcrumb::BreadcrumbState;
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
@@ -207,7 +206,6 @@ impl WorkflowEditorErrorState {
 
 #[derive(Debug, Clone)]
 pub enum WorkflowAction {
-    ViewInWarpDrive(WarpDriveItemId),
     AddArgument,
     ToggleViewMode,
     RunWorkflow,
@@ -231,12 +229,6 @@ pub enum WorkflowViewEvent {
     Pane(PaneEvent),
     CreatedWorkflow(SyncId),
     UpdatedWorkflow(SyncId),
-    ViewInWarpDrive(WarpDriveItemId),
-    OpenDriveObjectShareDialog {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-    },
     RunWorkflow {
         workflow: Arc<WorkflowType>,
         source: WorkflowSource,
@@ -694,7 +686,7 @@ impl WorkflowView {
     pub fn load(
         &mut self,
         workflow: CloudWorkflow,
-        settings: &OpenWarpDriveObjectSettings,
+        _settings: &OpenWarpDriveObjectSettings,
         mode: WorkflowViewMode,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -823,25 +815,6 @@ impl WorkflowView {
         self.update_breadcrumb(ctx);
         self.update_editors_interactivity(ctx);
         self.refresh_pane_overflow_menu(ctx);
-
-        if let Some(focused_folder_id) = settings.focused_folder_id.map(SyncId::ServerId) {
-            self.view_in_warp_drive(
-                WarpDriveItemId::Object(CloudObjectTypeAndId::Folder(focused_folder_id)),
-                ctx,
-            );
-        }
-
-        if let Some(invitee_email) = settings.invitee_email.clone() {
-            let object_id_to_share = settings
-                .focused_folder_id
-                .map(|id| CloudObjectTypeAndId::Folder(SyncId::ServerId(id)))
-                .unwrap_or(CloudObjectTypeAndId::Workflow(workflow.id));
-            ctx.emit(WorkflowViewEvent::OpenDriveObjectShareDialog {
-                cloud_object_type_and_id: object_id_to_share,
-                invitee_email: Some(invitee_email),
-                source: SharingDialogSource::InviteeRequest,
-            });
-        }
 
         if matches!(mode, WorkflowViewMode::View) {
             self.focus_first_argument_value(ctx);
@@ -2582,10 +2555,6 @@ impl WorkflowView {
         })
     }
 
-    fn view_in_warp_drive(&mut self, id: WarpDriveItemId, ctx: &mut ViewContext<Self>) {
-        ctx.emit(WorkflowViewEvent::ViewInWarpDrive(id));
-    }
-
     fn issue_request(&mut self, ctx: &mut ViewContext<Self>) {
         let ai_client = self.ai_client.clone();
         let command = self.content_editor.as_ref(ctx).buffer_text(ctx);
@@ -2867,24 +2836,6 @@ impl View for WorkflowView {
         };
 
         let mut row = Flex::row();
-        row.add_child(
-            Shrinkable::new(
-                2.,
-                Container::new(render_breadcrumbs(
-                    self.breadcrumbs.clone(),
-                    appearance,
-                    |ctx, _, breadcrumb| {
-                        ctx.dispatch_typed_action(WorkflowAction::ViewInWarpDrive(
-                            breadcrumb.kind.into_item_id(),
-                        ));
-                    },
-                ))
-                .with_horizontal_margin(CORE_HORIZONATAL_MARGIN)
-                .with_vertical_margin(vertical_margin / 2.)
-                .finish(),
-            )
-            .finish(),
-        );
 
         let editability = if FeatureFlag::SharedWithMe.is_enabled() {
             self.editability(app)
@@ -3038,7 +2989,6 @@ impl TypedActionView for WorkflowView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            WorkflowAction::ViewInWarpDrive(id) => self.view_in_warp_drive(*id, ctx),
             WorkflowAction::AddArgument => self.add_argument(ctx),
             WorkflowAction::ToggleViewMode => self.toggle_view_mode(ctx),
             WorkflowAction::CloseUnsavedDialog => self.hide_unsaved_changes_dialog(ctx),

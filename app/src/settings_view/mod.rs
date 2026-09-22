@@ -249,7 +249,6 @@ pub enum SettingsViewEvent {
     StartResize,
     CheckForUpdate,
     LaunchNetworkLogging,
-    OpenWarpDrive,
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -1235,7 +1234,6 @@ impl SettingsView {
         let teams_page_handle = ctx.add_typed_action_view(TeamsPageView::new);
         ctx.subscribe_to_view(&teams_page_handle, |_, _, event, ctx| match event {
             TeamsPageViewEvent::TeamsChanged => ctx.notify(),
-            TeamsPageViewEvent::OpenWarpDrive => ctx.emit(SettingsViewEvent::OpenWarpDrive),
             TeamsPageViewEvent::ShowToast { message, flavor } => {
                 ctx.emit(SettingsViewEvent::ShowToast {
                     message: message.clone(),

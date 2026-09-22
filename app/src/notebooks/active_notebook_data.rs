@@ -2,7 +2,6 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::{CloudNotebookModel, NotebookId};
 use crate::ai::document::ai_document_model::AIDocumentId;
-use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
 use crate::cloud_object::{CloudObject, Owner, Space};
@@ -259,17 +258,6 @@ impl ActiveNotebookData {
             &self.active_notebook,
             ActiveNotebook::CommittedNotebook(SyncId::ServerId(_))
         )
-    }
-
-    /// Calculate the breadcrumbs for this object.
-    pub fn breadcrumbs(&self, ctx: &AppContext) -> Option<Vec<ContainingObject>> {
-        let cloud_notebook = match &self.active_notebook {
-            ActiveNotebook::None => None,
-            ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(ctx).get_notebook(id),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.as_ref()),
-        };
-
-        cloud_notebook.map(|notebook| notebook.containing_objects_path(ctx))
     }
 
     /// The space that the active notebook is shown in for this user.

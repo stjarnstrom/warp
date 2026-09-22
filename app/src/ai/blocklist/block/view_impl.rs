@@ -69,6 +69,7 @@ use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;
 use crate::ai::blocklist::inline_action::inline_action_icons::icon_size;
 use crate::ai::blocklist::model::AIBlockModelHelper;
 use crate::appearance::Appearance;
+use crate::cloud_object::ObjectType;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::settings::{AISettings, InputModeSettings, InputSettings};
 use crate::settings_view::SettingsSection;
@@ -650,13 +651,22 @@ pub fn render_citation(
 
     let (icon, name) = match citation {
         AIAgentCitation::WarpDriveObject { uid } => {
-            let item = CloudModel::as_ref(app)
-                .get_by_uid(uid)?
-                .to_warp_drive_item(appearance)?;
-            (
-                item.icon(appearance, Some(theme.active_ui_text_color())),
-                item.display_name().unwrap_or(String::from("Untitled")),
-            )
+            let object = CloudModel::as_ref(app).get_by_uid(uid)?;
+            let icon = match object.object_type() {
+                ObjectType::Folder => Icon::Folder,
+                ObjectType::Notebook => Icon::Notebook,
+                ObjectType::Workflow => Icon::Workflow,
+                ObjectType::GenericStringObject(_) => Icon::File,
+            }
+            .to_warpui_icon(theme.active_ui_text_color())
+            .finish();
+            let name = object.display_name();
+            let name = if name.is_empty() {
+                String::from("Untitled")
+            } else {
+                name
+            };
+            (Some(icon), name)
         }
         AIAgentCitation::WarpDocumentation { .. } => {
             let icon = Icon::Warp.to_warpui_icon(theme.foreground()).finish();

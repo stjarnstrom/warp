@@ -209,7 +209,6 @@ pub enum TeamsPageAction {
     SendEmailInvites {
         team_uid: ServerId,
     },
-    OpenWarpDrive,
     OpenAdminPanel {
         team_uid: ServerId,
     },
@@ -265,7 +264,6 @@ impl TryFrom<&TeamsPageAction> for TelemetryEvent {
 #[derive(Clone)]
 pub enum TeamsPageViewEvent {
     TeamsChanged,
-    OpenWarpDrive,
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -543,7 +541,6 @@ impl TypedActionView for TeamsPageView {
                 self.send_email_invites(*team_uid, ctx);
                 ctx.notify();
             }
-            TeamsPageAction::OpenWarpDrive => ctx.emit(TeamsPageViewEvent::OpenWarpDrive),
             TeamsPageAction::ShowLeaveTeamConfirmationDialog => {
                 let variant = self.leave_team_confirmation_variant(ctx);
                 self.show_team_action_confirmation(
@@ -1701,7 +1698,6 @@ impl TeamsPageView {
                 ctx,
             );
         });
-        ctx.dispatch_typed_action(&WorkspaceAction::OpenWarpDrive);
     }
 
     fn set_team_member_role(

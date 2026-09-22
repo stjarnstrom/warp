@@ -76,7 +76,6 @@ use crate::app_state::{
 use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
 use crate::channel::{Channel, ChannelState};
-use crate::cloud_object::Space;
 use crate::code::active_file::ActiveFileModel;
 use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
@@ -84,8 +83,7 @@ use crate::code::editor_management::CodeSource;
 use crate::code::view::{CodeView, CodeViewAction};
 use crate::code_review::comments::{AttachedReviewComment, PendingImportedReviewComment};
 use crate::code_review::diff_state::DiffMode;
-use crate::drive::items::WarpDriveItemId;
-use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs};
+use crate::drive::OpenWarpDriveObjectArgs;
 use crate::env_vars::EnvVarCollectionType;
 use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::{self, PaneMode, PaneTemplateType};
@@ -101,9 +99,9 @@ use crate::resource_center::{
 };
 #[cfg(target_family = "wasm")]
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::ids::{ObjectUid, SyncId};
+use crate::server::ids::SyncId;
 use crate::server::server_api::{ServerApi, ServerApiProvider};
-use crate::server::telemetry::{PaletteSource, SharingDialogSource, TelemetryEvent};
+use crate::server::telemetry::{PaletteSource, TelemetryEvent};
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
@@ -523,13 +521,6 @@ pub enum Event {
     OpenWorkflowModalWithCommand(String),
     // Tell the workspace to open the workflow for edit.
     OpenCloudWorkflowForEdit(SyncId),
-    // Tell the workspace to open the share dialog for the given drive object. The share dialog will
-    // open in the index. If the invitee email is provided, it will be added to the share dialog.
-    OpenDriveObjectShareDialog {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-    },
     // Tell the workspace to open the workflow modal with an unsaved workflow.
     OpenWorkflowModalWithTemporary(Box<Workflow>),
     OpenPromptEditor,
@@ -587,11 +578,6 @@ pub enum Event {
     FocusPaneInWorkspace {
         locator: PaneViewLocator,
     },
-    ViewInWarpDrive(WarpDriveItemId),
-    MoveToSpace {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        space: Space,
-    },
     PaneFocused,
     DroppedOnTabBar {
         origin: ActionOrigin,
@@ -617,7 +603,6 @@ pub enum Event {
     },
     /// Clears the hovered tab index so it no longer appears as highlighted drop target
     ClearHoveredTabIndex,
-    OpenWarpDriveObjectInPane(ObjectUid),
     /// Tell the workspace to open the given child agent conversation in a
     /// fresh tab. Bubbled up by `TerminalView::Event::OpenChildAgentInNewTab`
     /// from the orchestration pill bar's 3-dot menu.
@@ -675,10 +660,6 @@ pub enum Event {
     OpenConversationHistory,
     OpenMCPSettingsPage {
         page: Option<MCPServersSettingsPage>,
-    },
-    OpenAddPromptPane {
-        /// The initial prompt body content.
-        initial_content: Option<String>,
     },
     OpenAddRulePane,
     OpenEnvironmentManagementPane,

@@ -487,9 +487,6 @@ impl Input {
             SlashCommandKind::AddMcp => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenAddMCPPane);
             }
-            SlashCommandKind::AddPrompt => {
-                ctx.dispatch_typed_action(&TerminalAction::OpenAddPromptPane);
-            }
             SlashCommandKind::AddRule => {
                 ctx.dispatch_typed_action(&TerminalAction::OpenAddRulePane);
             }

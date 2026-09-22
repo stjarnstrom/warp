@@ -2071,7 +2071,6 @@ pub(crate) fn initialize_app(
     tab_configs::params_modal::init(ctx);
     ai::blocklist::init(ctx);
     ai::blocklist::block::status_bar::init(ctx);
-    drive::index::init(ctx);
     drive::sharing::dialog::init(ctx);
     ai_assistant::panel::init(ctx);
     settings_view::update_environment_form::init(ctx);

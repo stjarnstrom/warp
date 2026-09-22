@@ -1161,9 +1161,6 @@ fn handle_terminal_view_event(
             Event::RoleRequestCancelled(role_request_id) => {
                 group.remove_shared_session_role_request(role_request_id.clone(), ctx);
             }
-            Event::OpenWarpDriveObjectInPane(uid) => {
-                ctx.emit(pane_group::Event::OpenWarpDriveObjectInPane(uid.clone()));
-            }
             Event::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
                 ctx.emit(pane_group::Event::OpenSuggestedAgentModeWorkflowModal {
                     workflow_and_id: workflow_and_id.clone(),
@@ -1280,11 +1277,6 @@ fn handle_terminal_view_event(
             }
             Event::OpenRulesPane => {
                 ctx.emit(crate::pane_group::Event::OpenAIFactCollection { sync_id: None });
-            }
-            Event::OpenAddPromptPane { initial_content } => {
-                ctx.emit(crate::pane_group::Event::OpenAddPromptPane {
-                    initial_content: initial_content.clone(),
-                });
             }
             Event::OpenEnvironmentManagementPane => {
                 ctx.emit(crate::pane_group::Event::OpenEnvironmentManagementPane);

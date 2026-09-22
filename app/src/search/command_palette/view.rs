@@ -23,7 +23,6 @@ use warpui::{
 use super::super::palette_styles as styles;
 use super::CommandPaletteMixer;
 use crate::appearance::Appearance;
-use crate::drive::CloudObjectTypeAndId;
 use crate::features::FeatureFlag;
 use crate::palette::PaletteMode;
 use crate::root_view::OpenLaunchConfigArg;
@@ -95,7 +94,6 @@ pub enum Event {
     /// Open a notebook identified by `id`.
     OpenNotebook { id: SyncId },
     /// View the relevant object in the Warp Drive sidebar.
-    ViewInWarpDrive { id: CloudObjectTypeAndId },
     /// Open a file at the given path.
     OpenFile {
         path: String,
@@ -395,7 +393,6 @@ impl View {
                 | (PaletteMode::LaunchConfig, QueryFilter::LaunchConfigurations)
                 | (PaletteMode::Files, QueryFilter::Files)
                 | (PaletteMode::Conversations, QueryFilter::Conversations)
-                | (PaletteMode::WarpDrive, QueryFilter::Drive)
         )
     }
 
@@ -901,9 +898,6 @@ impl View {
                 ctx.emit(Event::InvokeEnvironmentVariables { id })
             }
             CommandPaletteItemAction::OpenNotebook { id } => ctx.emit(Event::OpenNotebook { id }),
-            CommandPaletteItemAction::ViewInWarpDrive { id } => {
-                ctx.emit(Event::ViewInWarpDrive { id })
-            }
             CommandPaletteItemAction::NewSession { source } => {
                 self.dispatch_typed_action_on_view(source.action().deref(), ctx);
             }

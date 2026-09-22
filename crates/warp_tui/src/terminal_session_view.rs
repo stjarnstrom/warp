@@ -4828,7 +4828,6 @@ impl TuiTerminalSessionView {
             | SlashCommandKind::CreateEnvironment
             | SlashCommandKind::CreateDockerSandbox
             | SlashCommandKind::EditSkill
-            | SlashCommandKind::AddPrompt
             | SlashCommandKind::AddRule
             | SlashCommandKind::Edit
             | SlashCommandKind::RenameTab

@@ -27,9 +27,9 @@ use warpui::{
 
 use super::{ConnModel, preview};
 use crate::appearance::Appearance;
-use crate::drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH};
 use crate::pane_group::PaneGroup;
 use crate::terminal::resizable_data::{DEFAULT_RIGHT_PANEL_WIDTH, ModalType, ResizableData};
+use crate::workspace::view::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH};
 
 /// Truncation point for a prompt or a closing message. Long enough to
 /// recognise what you asked for, short enough that the chapters stay

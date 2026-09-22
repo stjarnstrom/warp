@@ -11,9 +11,7 @@ use super::{
     ShareableLinkError,
 };
 use crate::app_state::{LeafContents, NotebookPaneSnapshot};
-use crate::cloud_object::Space;
-use crate::drive::items::WarpDriveItemId;
-use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectSettings};
+use crate::drive::OpenWarpDriveObjectSettings;
 use crate::notebooks::link::{LinkEvent, NotebookLinks};
 use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notebooks::notebook::{NotebookEvent, NotebookView};
@@ -226,21 +224,7 @@ fn handle_notebook_event(
         NotebookEvent::EditWorkflow(id) => {
             ctx.emit(crate::pane_group::Event::OpenCloudWorkflowForEdit(*id))
         }
-        NotebookEvent::ViewInWarpDrive(id) => view_in_warp_drive(*id, ctx),
-        NotebookEvent::MoveToSpace {
-            cloud_object_type_and_id,
-            new_space,
-        } => move_to_space(*cloud_object_type_and_id, *new_space, ctx),
         NotebookEvent::Pane(pane_event) => group.handle_pane_event(pane_id, pane_event, ctx),
-        NotebookEvent::OpenDriveObjectShareDialog {
-            cloud_object_type_and_id,
-            invitee_email,
-            source,
-        } => ctx.emit(crate::pane_group::Event::OpenDriveObjectShareDialog {
-            source: *source,
-            cloud_object_type_and_id: *cloud_object_type_and_id,
-            invitee_email: invitee_email.clone(),
-        }),
         NotebookEvent::AttachPlanAsContext(ai_document_id) => {
             ctx.emit(crate::pane_group::Event::AttachPlanAsContext {
                 ai_document_id: *ai_document_id,
@@ -263,20 +247,5 @@ fn run_notebook_workflow(
         workflow_source,
         workflow_selection_source: WorkflowSelectionSource::Notebook,
         argument_override: None,
-    });
-}
-
-fn view_in_warp_drive(id: WarpDriveItemId, ctx: &mut ViewContext<PaneGroup>) {
-    ctx.emit(crate::pane_group::Event::ViewInWarpDrive(id))
-}
-
-fn move_to_space(
-    cloud_object_type_and_id: CloudObjectTypeAndId,
-    space: Space,
-    ctx: &mut ViewContext<PaneGroup>,
-) {
-    ctx.emit(crate::pane_group::Event::MoveToSpace {
-        cloud_object_type_and_id,
-        space,
     });
 }

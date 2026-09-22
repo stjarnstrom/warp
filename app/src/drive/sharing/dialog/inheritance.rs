@@ -8,10 +8,7 @@ use warpui::{AppContext, Element, SingletonEntity as _};
 use super::style;
 use crate::cloud_object::ServerObjectContainer;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::drive::CloudObjectTypeAndId;
 use crate::server::ids::SyncId;
-use crate::server::telemetry::SharingDialogSource;
-use crate::workspace::WorkspaceAction;
 
 /// UI state for inherited permissions.
 pub struct InheritanceState {
@@ -51,20 +48,9 @@ impl InheritanceState {
                 let prefix = style::detail_text("Inherited from ", appearance)
                     .build()
                     .finish();
-                let source_folder = self.source_folder;
                 let folder_link = appearance
                     .ui_builder()
-                    .link(
-                        folder_name.to_owned(),
-                        None,
-                        Some(Box::new(move |ctx| {
-                            ctx.dispatch_typed_action(WorkspaceAction::OpenObjectSharingSettings {
-                                object_id: CloudObjectTypeAndId::Folder(source_folder),
-                                source: SharingDialogSource::InheritedPermission,
-                            });
-                        })),
-                        self.link_handle.clone(),
-                    )
+                    .link(folder_name.to_owned(), None, None, self.link_handle.clone())
                     .soft_wrap(false)
                     .build()
                     .finish();

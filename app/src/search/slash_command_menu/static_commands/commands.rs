@@ -246,22 +246,6 @@ pub static INVOKE_SKILL: LazyLock<StaticCommand> = LazyLock::new(|| StaticComman
     argument: None,
 });
 
-pub static ADD_PROMPT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/add-prompt",
-    description: "Add new Agent prompt",
-    kind: SlashCommandKind::AddPrompt,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: if FeatureFlag::AgentView.is_enabled() {
-            "bundled/svg/prompt.svg"
-        } else {
-            "bundled/svg/agentmode.svg"
-        },
-    },
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-});
-
 pub const ADD_RULE: StaticCommand = StaticCommand {
     name: "/add-rule",
     description: "Add a new global rule for the agent",
@@ -931,7 +915,6 @@ fn all_commands(settings_mode: settings::SettingsMode) -> Vec<StaticCommand> {
 fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
     let mut commands = vec![
         ADD_MCP,
-        ADD_PROMPT.clone(),
         ADD_RULE,
         AUTO_APPROVE,
         COST,
