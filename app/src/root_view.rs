@@ -48,8 +48,8 @@ use crate::auth::auth_override_warning_modal::{
 };
 use crate::auth::auth_state::AuthState;
 use crate::auth::auth_view_modal::{AuthRedirectPayload, AuthView};
-use crate::auth::login_slide::{LoginSlideEvent, LoginSlideView};
 use crate::auth::needs_sso_link_view::NeedsSsoLinkView;
+use crate::auth::privacy_settings_slide::{PrivacySettingsSlideEvent, PrivacySettingsSlideView};
 #[cfg(target_family = "wasm")]
 use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::auth::{AuthStateProvider, LoginFailureReason};
@@ -1737,9 +1737,10 @@ enum AuthOnboardingState {
         onboarding_view: ViewHandle<AgentOnboardingView>,
         target: AuthOnboardingTarget,
     },
-    /// Post-onboarding login slide (full-screen, onboarding-style).
-    LoginSlide {
-        login_slide_view: ViewHandle<LoginSlideView>,
+    /// The privacy-settings slide, reached from the theme step's "Privacy
+    /// Settings" link (full-screen, onboarding-style).
+    PrivacySettingsSlide {
+        privacy_settings_slide_view: ViewHandle<PrivacySettingsSlideView>,
         onboarding_view: ViewHandle<AgentOnboardingView>,
         target: AuthOnboardingTarget,
     },
@@ -2204,10 +2205,14 @@ impl RootView {
         ctx.notify();
     }
 
-    fn handle_login_slide_event(&mut self, event: &LoginSlideEvent, ctx: &mut ViewContext<Self>) {
+    fn handle_privacy_settings_slide_event(
+        &mut self,
+        event: &PrivacySettingsSlideEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
         match event {
-            LoginSlideEvent::BackToOnboarding => {
-                let AuthOnboardingState::LoginSlide {
+            PrivacySettingsSlideEvent::BackToOnboarding => {
+                let AuthOnboardingState::PrivacySettingsSlide {
                     onboarding_view,
                     target,
                     ..
@@ -2322,8 +2327,8 @@ impl RootView {
 
                 // This event variant encodes that it was emitted from the
                 // terminal-intention theme slide, so match its image here.
-                let login_slide_view = ctx.add_typed_action_view(|ctx| {
-                    LoginSlideView::new(
+                let privacy_settings_slide_view = ctx.add_typed_action_view(|ctx| {
+                    PrivacySettingsSlideView::new(
                         ai_enabled,
                         &theme_name,
                         use_vertical_tabs,
@@ -2331,12 +2336,12 @@ impl RootView {
                         ctx,
                     )
                 });
-                ctx.subscribe_to_view(&login_slide_view, |me, _view, event, ctx| {
-                    me.handle_login_slide_event(event, ctx);
+                ctx.subscribe_to_view(&privacy_settings_slide_view, |me, _view, event, ctx| {
+                    me.handle_privacy_settings_slide_event(event, ctx);
                 });
 
-                self.auth_onboarding_state = AuthOnboardingState::LoginSlide {
-                    login_slide_view,
+                self.auth_onboarding_state = AuthOnboardingState::PrivacySettingsSlide {
+                    privacy_settings_slide_view,
                     onboarding_view,
                     target,
                 };
@@ -2905,7 +2910,9 @@ impl RootView {
                     self.auth_onboarding_state
                         .complete_auth_and_create_workspace(ctx);
                     self.start_pending_tutorial(ctx);
-                } else if let AuthOnboardingState::LoginSlide { .. } = &self.auth_onboarding_state {
+                } else if let AuthOnboardingState::PrivacySettingsSlide { .. } =
+                    &self.auth_onboarding_state
+                {
                     self.auth_onboarding_state
                         .complete_auth_and_create_workspace(ctx);
                     self.start_pending_tutorial(ctx);
@@ -2969,7 +2976,7 @@ impl RootView {
                     self.auth_onboarding_state
                         .complete_auth_and_create_workspace(ctx);
                     self.start_pending_tutorial(ctx);
-                } else if let AuthOnboardingState::LoginSlide { target, .. } =
+                } else if let AuthOnboardingState::PrivacySettingsSlide { target, .. } =
                     &self.auth_onboarding_state
                 {
                     let workspace = target.to_workspace(ctx);
@@ -3104,10 +3111,11 @@ impl RootView {
             } => {
                 ctx.focus(onboarding_view);
             }
-            AuthOnboardingState::LoginSlide {
-                login_slide_view, ..
+            AuthOnboardingState::PrivacySettingsSlide {
+                privacy_settings_slide_view,
+                ..
             } => {
-                ctx.focus(login_slide_view);
+                ctx.focus(privacy_settings_slide_view);
             }
             AuthOnboardingState::Terminal(workspace) => {
                 ctx.focus(workspace);
@@ -3249,7 +3257,7 @@ impl View for RootView {
             self.focus(ctx);
         } else if matches!(
             self.auth_onboarding_state,
-            AuthOnboardingState::LoginSlide { .. }
+            AuthOnboardingState::PrivacySettingsSlide { .. }
         ) {
             self.focus(ctx);
         }
@@ -3269,9 +3277,10 @@ impl View for RootView {
             AuthOnboardingState::Onboarding {
                 onboarding_view, ..
             } => ChildView::new(onboarding_view).finish(),
-            AuthOnboardingState::LoginSlide {
-                login_slide_view, ..
-            } => ChildView::new(login_slide_view).finish(),
+            AuthOnboardingState::PrivacySettingsSlide {
+                privacy_settings_slide_view,
+                ..
+            } => ChildView::new(privacy_settings_slide_view).finish(),
             AuthOnboardingState::Terminal(workspace) => ChildView::new(workspace).finish(),
         };
 
@@ -3401,7 +3410,7 @@ impl AuthOnboardingState {
                 let workspace = args.clone().create_workspace(ctx);
                 *self = AuthOnboardingState::Terminal(workspace);
             }
-            &mut AuthOnboardingState::LoginSlide { ref target, .. } => {
+            &mut AuthOnboardingState::PrivacySettingsSlide { ref target, .. } => {
                 let workspace = target.to_workspace(ctx);
                 *self = AuthOnboardingState::Terminal(workspace);
             }
@@ -3458,7 +3467,8 @@ impl AuthOnboardingState {
             AuthOnboardingState::NeedsSsoLink(target) => {
                 *self = AuthOnboardingState::WebImport(target.clone())
             }
-            AuthOnboardingState::Onboarding { .. } | AuthOnboardingState::LoginSlide { .. } => {
+            AuthOnboardingState::Onboarding { .. }
+            | AuthOnboardingState::PrivacySettingsSlide { .. } => {
                 // For onboarding/login slide, we don't have a workspace yet, so we can't convert to web import
                 // This case shouldn't normally occur
             }
@@ -3492,7 +3502,7 @@ impl AuthOnboardingState {
             }
             AuthOnboardingState::NeedsSsoLink { .. } => (),
             AuthOnboardingState::Onboarding { target, .. }
-            | AuthOnboardingState::LoginSlide { target, .. } => {
+            | AuthOnboardingState::PrivacySettingsSlide { target, .. } => {
                 *self = AuthOnboardingState::NeedsSsoLink(target.clone())
             }
             AuthOnboardingState::Terminal(terminal_view_handle) => {
@@ -3522,7 +3532,8 @@ impl AuthOnboardingState {
                 }
                 AuthOnboardingTarget::Terminal(_) => {}
             },
-            AuthOnboardingState::Onboarding { .. } | AuthOnboardingState::LoginSlide { .. } => {
+            AuthOnboardingState::Onboarding { .. }
+            | AuthOnboardingState::PrivacySettingsSlide { .. } => {
                 // No workspace to clean up for onboarding/login slide state
             }
             AuthOnboardingState::Terminal(workspace) => {
@@ -3561,7 +3572,7 @@ impl AuthOnboardingState {
                 args
             }
             AuthOnboardingState::Onboarding { target, .. }
-            | AuthOnboardingState::LoginSlide { target, .. }
+            | AuthOnboardingState::PrivacySettingsSlide { target, .. }
             | AuthOnboardingState::NeedsSsoLink(target) => {
                 let AuthOnboardingTarget::Workspace(args) = target else {
                     return false;

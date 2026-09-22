@@ -37,13 +37,13 @@ pub fn init(app: &mut AppContext) {
 
     app.register_fixed_bindings([FixedBinding::new(
         "escape",
-        LoginSlideAction::Back,
-        id!(LoginSlideView::ui_name()),
+        PrivacySettingsSlideAction::Back,
+        id!(PrivacySettingsSlideView::ui_name()),
     )]);
 }
 
 #[derive(Clone, Debug)]
-pub enum LoginSlideAction {
+pub enum PrivacySettingsSlideAction {
     Back,
     ToggleTelemetry,
     ToggleCrashReporting,
@@ -51,7 +51,7 @@ pub enum LoginSlideAction {
 }
 
 #[derive(Clone, Debug)]
-pub enum LoginSlideEvent {
+pub enum PrivacySettingsSlideEvent {
     BackToOnboarding,
 }
 
@@ -59,7 +59,7 @@ pub enum LoginSlideEvent {
 // View
 // ---------------------------------------------------------------------------
 
-pub struct LoginSlideView {
+pub struct PrivacySettingsSlideView {
     /// Whether this path wants AI (agent intent) vs. not (terminal intention).
     /// Used to gate the cloud-conversation-storage toggle and AI wording.
     ai_enabled: bool,
@@ -120,7 +120,7 @@ fn resolve_visual_path(
         .unwrap_or(&VISUAL_IMAGE_PATHS[0])
 }
 
-impl LoginSlideView {
+impl PrivacySettingsSlideView {
     pub fn new(
         ai_enabled: bool,
         theme_name: &str,
@@ -164,10 +164,11 @@ impl LoginSlideView {
                 .finish();
 
         let actions = PrivacySettingsActions {
-            toggle_telemetry: LoginSlideAction::ToggleTelemetry,
-            toggle_crash_reporting: LoginSlideAction::ToggleCrashReporting,
-            toggle_cloud_conversation_storage: LoginSlideAction::ToggleCloudConversationStorage,
-            hide_overlay: LoginSlideAction::Back,
+            toggle_telemetry: PrivacySettingsSlideAction::ToggleTelemetry,
+            toggle_crash_reporting: PrivacySettingsSlideAction::ToggleCrashReporting,
+            toggle_cloud_conversation_storage:
+                PrivacySettingsSlideAction::ToggleCloudConversationStorage,
+            hide_overlay: PrivacySettingsSlideAction::Back,
         };
 
         let toggles = render_privacy_settings_toggles(
@@ -189,7 +190,7 @@ impl LoginSlideView {
                 theme: &button::themes::Naked,
                 options: button::Options {
                     on_click: Some(Box::new(|ctx, _app, _pos| {
-                        ctx.dispatch_typed_action(LoginSlideAction::Back);
+                        ctx.dispatch_typed_action(PrivacySettingsSlideAction::Back);
                     })),
                     ..button::Options::default(appearance)
                 },
@@ -210,13 +211,13 @@ impl LoginSlideView {
     }
 }
 
-impl Entity for LoginSlideView {
-    type Event = LoginSlideEvent;
+impl Entity for PrivacySettingsSlideView {
+    type Event = PrivacySettingsSlideEvent;
 }
 
-impl View for LoginSlideView {
+impl View for PrivacySettingsSlideView {
     fn ui_name() -> &'static str {
-        "LoginSlideView"
+        "PrivacySettingsSlideView"
     }
 
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
@@ -268,20 +269,22 @@ impl View for LoginSlideView {
     }
 }
 
-impl TypedActionView for LoginSlideView {
-    type Action = LoginSlideAction;
+impl TypedActionView for PrivacySettingsSlideView {
+    type Action = PrivacySettingsSlideAction;
 
-    fn handle_action(&mut self, action: &LoginSlideAction, ctx: &mut ViewContext<Self>) {
+    fn handle_action(&mut self, action: &PrivacySettingsSlideAction, ctx: &mut ViewContext<Self>) {
         match action {
-            LoginSlideAction::Back => ctx.emit(LoginSlideEvent::BackToOnboarding),
-            LoginSlideAction::ToggleTelemetry => {
+            PrivacySettingsSlideAction::Back => {
+                ctx.emit(PrivacySettingsSlideEvent::BackToOnboarding)
+            }
+            PrivacySettingsSlideAction::ToggleTelemetry => {
                 let handle = PrivacySettings::handle(ctx);
                 ctx.update_model(&handle, |settings, ctx| {
                     settings.set_is_telemetry_enabled(!settings.is_telemetry_enabled, ctx);
                 });
                 ctx.notify();
             }
-            LoginSlideAction::ToggleCrashReporting => {
+            PrivacySettingsSlideAction::ToggleCrashReporting => {
                 let handle = PrivacySettings::handle(ctx);
                 ctx.update_model(&handle, |settings, ctx| {
                     settings
@@ -289,7 +292,7 @@ impl TypedActionView for LoginSlideView {
                 });
                 ctx.notify();
             }
-            LoginSlideAction::ToggleCloudConversationStorage => {
+            PrivacySettingsSlideAction::ToggleCloudConversationStorage => {
                 let handle = PrivacySettings::handle(ctx);
                 ctx.update_model(&handle, |settings, ctx| {
                     settings.set_is_cloud_conversation_storage_enabled(

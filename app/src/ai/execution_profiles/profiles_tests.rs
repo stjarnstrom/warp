@@ -320,7 +320,7 @@ fn gui_default_execute_commands_remains_always_ask() {
 /// default profile whenever `personal_drive` returned `None` (logged-out
 /// users). `apply_agent_settings` calls `set_*` on the default profile the
 /// moment onboarding completes, which can happen before the user logs in
-/// (e.g. `LoginSlideEvent::LoginLaterConfirmed`), so those edits must
+/// (e.g. finishing first run), so those edits must
 /// persist on the local `Unsynced` state rather than being dropped.
 #[test]
 fn edits_persist_on_unsynced_default_profile_when_logged_out() {

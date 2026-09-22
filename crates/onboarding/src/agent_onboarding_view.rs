@@ -52,9 +52,9 @@ pub enum AgentOnboardingEvent {
     OnboardingSkipped,
     /// Emitted when the user clicks the "Privacy Settings" link on the terminal
     /// intention theme slide. The variant name encodes that the event is only
-    /// emitted from the terminal-intention theme slide; consumers (e.g. a
-    /// `LoginSlideView` with `LoginSlideSource::PrivacySettingsFromTerminalIntentionTheme`)
-    /// rely on that to select the right visual / back-routing behavior.
+    /// emitted from the terminal-intention theme slide; the consumer (the app's
+    /// `PrivacySettingsSlideView`) relies on that to select the right visual
+    /// and back-routing behavior.
     PrivacySettingsFromTerminalThemeSlideRequested,
     /// Emitted when the app regains focus (e.g. user returns from the browser).
     /// The parent should refresh any stale data: available models, workspace/billing metadata, etc.

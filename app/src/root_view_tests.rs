@@ -20,7 +20,7 @@ use crate::GlobalResourceHandles;
 use crate::appearance::Appearance;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::AuthManager;
-use crate::auth::login_slide::LoginSlideView;
+use crate::auth::privacy_settings_slide::PrivacySettingsSlideView;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::PrivacySettings;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -180,7 +180,7 @@ fn test_sync_noop_when_already_onboarded_on_server() {
 }
 
 struct SsoLinkTestHarnessView {
-    login_slide_view: ViewHandle<LoginSlideView>,
+    privacy_settings_slide_view: ViewHandle<PrivacySettingsSlideView>,
     onboarding_view: ViewHandle<AgentOnboardingView>,
 }
 
@@ -203,7 +203,7 @@ impl TypedActionView for SsoLinkTestHarnessView {
 }
 
 /// Regression test: completing browser auth with `needs_sso_link = true` while
-/// a pre-terminal onboarding state was showing (`Onboarding`, `LoginSlide`, or
+/// a pre-terminal onboarding state was showing (`Onboarding`, `PrivacySettingsSlide`, or
 /// `PostAuthOnboarding`) used to silently no-op in `show_needs_sso_link_view`,
 /// leaving the UI stuck on the login slide ("Sign in on your browser to
 /// continue") instead of showing the SSO blocker. Each of those states must
@@ -222,8 +222,8 @@ fn test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states() {
         app.add_singleton_model(PrivacySettings::mock);
 
         let (_, harness) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-            let login_slide_view = ctx.add_typed_action_view(|ctx| {
-                LoginSlideView::new(
+            let privacy_settings_slide_view = ctx.add_typed_action_view(|ctx| {
+                PrivacySettingsSlideView::new(
                     true,
                     "Dark",
                     false,
@@ -243,15 +243,15 @@ fn test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states() {
                 )
             });
             SsoLinkTestHarnessView {
-                login_slide_view,
+                privacy_settings_slide_view,
                 onboarding_view,
             }
         });
 
-        let (login_slide_view, onboarding_view) = app.read(|ctx| {
+        let (privacy_settings_slide_view, onboarding_view) = app.read(|ctx| {
             let harness = harness.as_ref(ctx);
             (
-                harness.login_slide_view.clone(),
+                harness.privacy_settings_slide_view.clone(),
                 harness.onboarding_view.clone(),
             )
         });
@@ -290,13 +290,13 @@ fn test_show_needs_sso_link_view_blocks_pre_terminal_onboarding_states() {
 
         let (target, marker) = workspace_target(&mut app);
         assert_becomes_needs_sso_link(
-            AuthOnboardingState::LoginSlide {
-                login_slide_view: login_slide_view.clone(),
+            AuthOnboardingState::PrivacySettingsSlide {
+                privacy_settings_slide_view: privacy_settings_slide_view.clone(),
                 onboarding_view: onboarding_view.clone(),
                 target,
             },
             marker,
-            "LoginSlide",
+            "PrivacySettingsSlide",
         );
 
         let (target, marker) = workspace_target(&mut app);
@@ -349,7 +349,7 @@ fn root_view_new_skips_onboarding_for_shared_session_cold_start() {
 fn pending_target(state: &AuthOnboardingState) -> Option<&AuthOnboardingTarget> {
     match state {
         AuthOnboardingState::Onboarding { target, .. }
-        | AuthOnboardingState::LoginSlide { target, .. } => Some(target),
+        | AuthOnboardingState::PrivacySettingsSlide { target, .. } => Some(target),
         AuthOnboardingState::NeedsSsoLink(target) => Some(target),
         _ => None,
     }
