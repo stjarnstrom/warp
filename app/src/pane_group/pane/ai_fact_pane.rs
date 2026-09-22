@@ -17,7 +17,7 @@ impl AIFactPane {
     pub fn from_view(ai_fact_view: ViewHandle<AIFactView>, ctx: &mut AppContext) -> Self {
         let pane_configuration = ai_fact_view.as_ref(ctx).pane_configuration();
 
-        let view = ctx.add_typed_action_view(ai_fact_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(ai_fact_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_ai_fact_pane_ctx(ctx);
             PaneView::new(pane_id, ai_fact_view, (), pane_configuration.clone(), ctx)
         });

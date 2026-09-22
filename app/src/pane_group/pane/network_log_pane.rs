@@ -19,7 +19,7 @@ impl NetworkLogPane {
     pub fn from_view(network_log_view: ViewHandle<NetworkLogView>, ctx: &mut AppContext) -> Self {
         let pane_configuration = network_log_view.as_ref(ctx).pane_configuration();
 
-        let view = ctx.add_typed_action_view(network_log_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(network_log_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_network_log_pane_ctx(ctx);
             PaneView::new(
                 pane_id,

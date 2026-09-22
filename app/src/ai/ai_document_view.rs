@@ -30,7 +30,6 @@ use crate::ai::document::ai_document_model::{
 };
 use crate::ai::document::orchestration_config_block::OrchestrationConfigBlockView;
 use crate::appearance::Appearance;
-use crate::drive::sharing::ShareableObject;
 use crate::editor::InteractionState;
 use crate::menu::{Menu, MenuItem, MenuItemFields};
 use crate::notebooks::editor::model::NotebooksEditorModel;
@@ -599,13 +598,7 @@ impl AIDocumentView {
     }
 
     fn update_header_buttons(&mut self, ctx: &mut ViewContext<Self>) {
-        let server_id = AIDocumentModel::as_ref(ctx)
-            .get_current_document(&self.document_id)
-            .and_then(|doc| doc.sync_id)
-            .and_then(|sync_id| sync_id.into_server());
-
         self.pane_configuration.update(ctx, |pc, ctx| {
-            pc.set_shareable_object(server_id.map(ShareableObject::WarpDriveObject), ctx);
             pc.refresh_pane_header_overflow_menu_items(ctx);
         });
         ctx.notify();
@@ -769,7 +762,7 @@ impl AIDocumentView {
 
     fn render_plan_header(
         &self,
-        header_ctx: &view::HeaderRenderContext<'_>,
+        header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
@@ -794,9 +787,6 @@ impl AIDocumentView {
             .with_main_axis_alignment(MainAxisAlignment::End)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min);
-        if let Some(sharing) = header_ctx.sharing_controls(app, None, None) {
-            right_row.add_child(sharing);
-        }
         if let Some(header_buttons) = self.render_header_buttons(app) {
             right_row.add_child(header_buttons);
         }
@@ -1359,7 +1349,7 @@ impl BackingView for AIDocumentView {
 
     fn render_header_content(
         &self,
-        header_ctx: &view::HeaderRenderContext<'_>,
+        header_ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         view::HeaderContent::Custom {

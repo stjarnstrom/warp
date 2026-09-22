@@ -35,7 +35,7 @@ impl EnvironmentManagementPane {
         let pane_configuration = environments_page_view.as_ref(ctx).pane_configuration();
         let window_id = environments_page_view.window_id(ctx);
 
-        let view = ctx.add_typed_action_view(window_id, |ctx| {
+        let view = ctx.add_view(window_id, |ctx| {
             let pane_id = PaneId::from_environment_management_pane_ctx(ctx);
             PaneView::new(
                 pane_id,

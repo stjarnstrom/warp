@@ -6,23 +6,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 pub use cloud_object_models::*;
 pub use cloud_objects::cloud_object::*;
-use cloud_objects::drive::sharing::SharingAccessLevel;
 use cloud_objects::ids::{
     FolderId, GenericStringObjectId, HashedSqliteId, ObjectUid, ServerId, SyncId,
 };
 #[cfg(any(test, feature = "test-util"))]
 use mockall::automock;
 use warp_graphql::mcp_gallery_template::MCPGalleryTemplate;
-use warp_graphql::object_permissions::AccessLevel;
-
-/// Identifies a guest to remove from an object.
-#[derive(Clone, Debug)]
-pub enum GuestIdentifier {
-    /// Remove a user guest by their email address.
-    Email(String),
-    /// Remove a team guest by their team UID.
-    TeamUid(ServerId),
-}
 
 /// The type of action that occurred on an object, such as an execution, selection, so on
 /// and so forth.
@@ -173,18 +162,6 @@ impl ObjectUpdateMessage {
 }
 
 #[derive(Clone, Debug)]
-pub enum ObjectPermissionUpdateResult {
-    Success,
-    Failure,
-}
-
-#[derive(Clone, Debug)]
-pub struct ObjectPermissionsUpdateData {
-    pub permissions: ServerPermissions,
-    pub profiles: Vec<UserProfileWithUID>,
-}
-
-#[derive(Clone, Debug)]
 pub enum ObjectMetadataUpdateResult {
     Success { metadata: Box<ServerMetadata> },
     Failure,
@@ -329,37 +306,6 @@ pub trait ObjectClient: 'static + Send + Sync {
     ) -> Result<ObjectActionHistory>;
 
     async fn leave_object(&self, id: ServerId) -> Result<ObjectDeleteResult>;
-
-    async fn set_object_link_permissions(
-        &self,
-        object_id: ServerId,
-        access_level: SharingAccessLevel,
-    ) -> Result<ObjectPermissionUpdateResult>;
-
-    async fn remove_object_link_permissions(
-        &self,
-        object_id: ServerId,
-    ) -> Result<ObjectPermissionUpdateResult>;
-
-    async fn add_object_guests(
-        &self,
-        object_id: ServerId,
-        guest_emails: Vec<String>,
-        access_level: AccessLevel,
-    ) -> Result<ObjectPermissionsUpdateData>;
-
-    async fn update_object_guests(
-        &self,
-        object_id: ServerId,
-        guest_emails: Vec<String>,
-        access_level: AccessLevel,
-    ) -> Result<ServerPermissions>;
-
-    async fn remove_object_guest(
-        &self,
-        object_id: ServerId,
-        guest: GuestIdentifier,
-    ) -> Result<ServerPermissions>;
 
     /// Fetches the last-used timestamps for all cloud environments.
     ///

@@ -17,7 +17,7 @@ pub struct AIDocumentPane {
 impl AIDocumentPane {
     pub fn new(document_view: ViewHandle<AIDocumentView>, ctx: &mut AppContext) -> Self {
         let pane_configuration = document_view.as_ref(ctx).pane_configuration().to_owned();
-        let view = ctx.add_typed_action_view(document_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(document_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_ai_document_pane_ctx(ctx);
             PaneView::new(pane_id, document_view, (), pane_configuration.clone(), ctx)
         });

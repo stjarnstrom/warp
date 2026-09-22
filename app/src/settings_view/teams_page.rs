@@ -1442,7 +1442,7 @@ impl TeamsPageView {
                 self.approve_domains_block_editor_state.num_chips = editor.num_chips();
                 ctx.notify();
             }
-            WordBlockEditorViewEvent::Enter | WordBlockEditorViewEvent::Navigate(_) => (),
+            WordBlockEditorViewEvent::Enter | WordBlockEditorViewEvent::Navigate => (),
             WordBlockEditorViewEvent::Escape => ctx.focus_self(),
         }
     }
@@ -1463,7 +1463,7 @@ impl TeamsPageView {
                 self.email_invites_block_editor_state.num_chips = editor.num_chips();
                 ctx.notify();
             }
-            WordBlockEditorViewEvent::Enter | WordBlockEditorViewEvent::Navigate(_) => (),
+            WordBlockEditorViewEvent::Enter | WordBlockEditorViewEvent::Navigate => (),
             WordBlockEditorViewEvent::Escape => ctx.focus_self(),
         }
     }

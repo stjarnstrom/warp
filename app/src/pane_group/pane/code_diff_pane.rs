@@ -28,7 +28,7 @@ impl CodeDiffPane {
 
         let diff_view_clone = diff_view.clone();
 
-        let view = ctx.add_typed_action_view(window_id, |ctx| {
+        let view = ctx.add_view(window_id, |ctx| {
             let pane_id = PaneId::from_code_diff_pane_ctx(ctx);
             PaneView::new(pane_id, diff_view, (), pane_configuration.clone(), ctx)
         });

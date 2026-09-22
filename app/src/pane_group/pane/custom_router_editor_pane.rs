@@ -32,7 +32,7 @@ impl CustomRouterEditorPane {
     ) -> Self {
         let pane_configuration = editor_view.as_ref(ctx).pane_configuration();
 
-        let view = ctx.add_typed_action_view(editor_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(editor_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_custom_router_editor_pane_ctx(ctx);
             PaneView::new(pane_id, editor_view, (), pane_configuration.clone(), ctx)
         });

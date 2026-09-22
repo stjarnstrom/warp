@@ -25,7 +25,7 @@ pub struct WorkflowPane {
 impl WorkflowPane {
     pub fn new(view: ViewHandle<WorkflowView>, ctx: &mut AppContext) -> Self {
         let pane_configuration = view.as_ref(ctx).pane_configuration().to_owned();
-        let view = ctx.add_typed_action_view(view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_workflow_pane_ctx(ctx);
             PaneView::new(pane_id, view, (), pane_configuration.clone(), ctx)
         });

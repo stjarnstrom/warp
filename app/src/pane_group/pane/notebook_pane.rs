@@ -27,7 +27,7 @@ pub struct NotebookPane {
 impl NotebookPane {
     pub fn new(notebook_view: ViewHandle<NotebookView>, ctx: &mut AppContext) -> Self {
         let pane_configuration = notebook_view.as_ref(ctx).pane_configuration().to_owned();
-        let view = ctx.add_typed_action_view(notebook_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(notebook_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_notebook_pane_ctx(ctx);
             PaneView::new(pane_id, notebook_view, (), pane_configuration.clone(), ctx)
         });

@@ -4,22 +4,18 @@ use anyhow::{Context, Result, anyhow};
 use async_channel::Sender;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+pub use cloud_object_client::ObjectClient;
 // #[cfg(any(test, feature = "test-util"))]
 // pub use cloud_object_client::MockObjectClient;
 use cloud_object_client::{
     GetCloudObjectResponse, InitialLoadResponse, ObjectActionHistory, ObjectActionType,
-    ObjectDeleteResult, ObjectMetadataUpdateResult, ObjectPermissionUpdateResult,
-    ObjectPermissionsUpdateData, ObjectUpdateMessage,
+    ObjectDeleteResult, ObjectMetadataUpdateResult, ObjectUpdateMessage,
 };
-pub use cloud_object_client::{GuestIdentifier, ObjectClient};
 use cloud_object_models::JsonSerializer;
 use cynic::{MutationBuilder, QueryBuilder, SubscriptionBuilder};
 use warp_errors::report_error;
 use warp_graphql::error::UserFacingErrorInterface;
 use warp_graphql::generic_string_object::GenericStringObjectInput;
-use warp_graphql::mutations::add_object_guests::{
-    AddObjectGuests, AddObjectGuestsInput, AddObjectGuestsResult, AddObjectGuestsVariables,
-};
 use warp_graphql::mutations::bulk_create_objects::{
     BulkCreateGenericStringObjectsInput, BulkCreateObjects, BulkCreateObjectsInput,
     BulkCreateObjectsResult, BulkCreateObjectsVariables,
@@ -59,17 +55,6 @@ use warp_graphql::mutations::record_object_action::{
     RecordObjectAction, RecordObjectActionInput, RecordObjectActionResult,
     RecordObjectActionVariables,
 };
-use warp_graphql::mutations::remove_object_guest::{
-    RemoveObjectGuest, RemoveObjectGuestInput, RemoveObjectGuestResult, RemoveObjectGuestVariables,
-};
-use warp_graphql::mutations::remove_object_link_permissions::{
-    RemoveObjectLinkPermissions, RemoveObjectLinkPermissionsInput,
-    RemoveObjectLinkPermissionsResult, RemoveObjectLinkPermissionsVariables,
-};
-use warp_graphql::mutations::set_object_link_permissions::{
-    SetObjectLinkPermissions, SetObjectLinkPermissionsInput, SetObjectLinkPermissionsResult,
-    SetObjectLinkPermissionsVariables,
-};
 use warp_graphql::mutations::transfer_generic_string_object_owner::{
     TransferGenericStringObjectOwner, TransferGenericStringObjectOwnerInput,
     TransferGenericStringObjectOwnerResult, TransferGenericStringObjectOwnerVariables,
@@ -98,17 +83,12 @@ use warp_graphql::mutations::update_notebook::{
     NotebookUpdate, UpdateNotebook, UpdateNotebookInput, UpdateNotebookResult,
     UpdateNotebookVariables,
 };
-use warp_graphql::mutations::update_object_guests::{
-    UpdateObjectGuests, UpdateObjectGuestsInput, UpdateObjectGuestsResult,
-    UpdateObjectGuestsVariables,
-};
 use warp_graphql::mutations::update_workflow::{
     UpdateWorkflow, UpdateWorkflowInput, UpdateWorkflowResult, UpdateWorkflowVariables,
     WorkflowUpdate,
 };
 use warp_graphql::notebook::{UpdateNotebookEditAccessInput, UpdateNotebookEditAccessResult};
 use warp_graphql::object::CloudObjectWithDescendants;
-use warp_graphql::object_permissions::AccessLevel;
 use warp_graphql::queries::get_cloud_environments::{
     GetCloudEnvironmentsQuery, GetCloudEnvironmentsQueryVariables, GetCloudEnvironmentsResult,
 };
@@ -137,11 +117,10 @@ use crate::cloud_object::{
     CreateObjectRequest, CreatedCloudObject, GenericCloudObject, GenericServerObject,
     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, ObjectIdType,
     ObjectType, ObjectsToUpdate, Owner, Revision, RevisionAndLastEditor, ServerCloudObject,
-    ServerFolder, ServerMetadata, ServerNotebook, ServerObject, ServerPermissions, ServerWorkflow,
-    TryFromGql as _, UpdateCloudObjectResult,
+    ServerFolder, ServerMetadata, ServerNotebook, ServerObject, ServerWorkflow, TryFromGql as _,
+    UpdateCloudObjectResult,
 };
 use crate::drive::folders::FolderId;
-use crate::drive::sharing::SharingAccessLevel;
 use crate::env_vars::EnvVarCollection;
 use crate::notebooks::{NotebookId, SerializedNotebook};
 use crate::server::graphql::schema::{
@@ -1199,167 +1178,6 @@ impl ObjectClient for ServerApi {
             }),
             LeaveObjectResult::UserFacingError(e) => Err(anyhow!(get_user_facing_error_message(e))),
             LeaveObjectResult::Unknown => Err(anyhow!("Unknown variant leaving object")),
-        }
-    }
-
-    async fn set_object_link_permissions(
-        &self,
-        object_id: ServerId,
-        access_level: SharingAccessLevel,
-    ) -> Result<ObjectPermissionUpdateResult> {
-        let variables = SetObjectLinkPermissionsVariables {
-            input: SetObjectLinkPermissionsInput {
-                uid: cynic::Id::new(object_id),
-                access_level: access_level.into(),
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = SetObjectLinkPermissions::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-        match response.set_object_link_permissions {
-            SetObjectLinkPermissionsResult::SetObjectLinkPermissionsOutput(_) => {
-                Ok(ObjectPermissionUpdateResult::Success)
-            }
-            SetObjectLinkPermissionsResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            SetObjectLinkPermissionsResult::Unknown => Err(anyhow!(
-                "Failed to set object link permissions due to unknown variant"
-            )),
-        }
-    }
-
-    async fn remove_object_link_permissions(
-        &self,
-        object_id: ServerId,
-    ) -> Result<ObjectPermissionUpdateResult> {
-        let variables = RemoveObjectLinkPermissionsVariables {
-            input: RemoveObjectLinkPermissionsInput {
-                uid: cynic::Id::new(object_id),
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = RemoveObjectLinkPermissions::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-        match response.remove_object_link_permissions {
-            RemoveObjectLinkPermissionsResult::RemoveObjectLinkPermissionsOutput(_) => {
-                Ok(ObjectPermissionUpdateResult::Success)
-            }
-            RemoveObjectLinkPermissionsResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            RemoveObjectLinkPermissionsResult::Unknown => Err(anyhow!(
-                "Failed to remove object link permissions due to unknown variant"
-            )),
-        }
-    }
-
-    async fn add_object_guests(
-        &self,
-        object_id: ServerId,
-        guest_emails: Vec<String>,
-        access_level: AccessLevel,
-    ) -> Result<ObjectPermissionsUpdateData> {
-        let variables = AddObjectGuestsVariables {
-            input: AddObjectGuestsInput {
-                object_uid: cynic::Id::new(object_id),
-                access_level,
-                user_emails: guest_emails,
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = AddObjectGuests::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.add_object_guests {
-            AddObjectGuestsResult::AddObjectGuestsOutput(output) => {
-                let permissions = output.object_permissions.try_into()?;
-                let profiles = output
-                    .user_profiles
-                    .into_iter()
-                    .flatten()
-                    .map(Into::into)
-                    .collect();
-                Ok(ObjectPermissionsUpdateData {
-                    permissions,
-                    profiles,
-                })
-            }
-            AddObjectGuestsResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            AddObjectGuestsResult::Unknown => Err(anyhow!(
-                "Failed to add object guests due to unknown variant"
-            )),
-        }
-    }
-
-    async fn update_object_guests(
-        &self,
-        object_id: ServerId,
-        guest_emails: Vec<String>,
-        access_level: AccessLevel,
-    ) -> Result<ServerPermissions> {
-        let variables = UpdateObjectGuestsVariables {
-            input: UpdateObjectGuestsInput {
-                object_uid: cynic::Id::new(object_id),
-                access_level,
-                emails: Some(guest_emails),
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = UpdateObjectGuests::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.update_object_guests {
-            UpdateObjectGuestsResult::UpdateObjectGuestsOutput(output) => {
-                Ok(output.object_permissions.try_into()?)
-            }
-            UpdateObjectGuestsResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            UpdateObjectGuestsResult::Unknown => Err(anyhow!(
-                "Failed to update object guests due to unknown variant"
-            )),
-        }
-    }
-
-    async fn remove_object_guest(
-        &self,
-        object_id: ServerId,
-        guest: GuestIdentifier,
-    ) -> Result<ServerPermissions> {
-        let (email, team_uid) = match guest {
-            GuestIdentifier::Email(email) => (Some(email), None),
-            GuestIdentifier::TeamUid(uid) => (None, Some(cynic::Id::new(uid))),
-        };
-
-        let variables = RemoveObjectGuestVariables {
-            input: RemoveObjectGuestInput {
-                email,
-                object_uid: cynic::Id::new(object_id),
-                team_uid,
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = RemoveObjectGuest::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.remove_object_guest {
-            RemoveObjectGuestResult::RemoveObjectGuestOutput(output) => {
-                Ok(output.object_permissions.try_into()?)
-            }
-            RemoveObjectGuestResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            RemoveObjectGuestResult::Unknown => Err(anyhow!(
-                "Failed to remove object guest due to unknown variant"
-            )),
         }
     }
 

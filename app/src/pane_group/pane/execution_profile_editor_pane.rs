@@ -25,7 +25,7 @@ impl ExecutionProfileEditorPane {
             .as_ref(ctx)
             .pane_configuration();
 
-        let view = ctx.add_typed_action_view(execution_profile_editor_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(execution_profile_editor_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_execution_profile_editor_pane_ctx(ctx);
             PaneView::new(
                 pane_id,

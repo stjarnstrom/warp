@@ -2,7 +2,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, Local};
 use markdown_parser::FormattedTextFragment;
 use session_sharing_protocol::common::{ParticipantId, ParticipantList, Role, SessionId};
 use session_sharing_protocol::sharer::SessionSourceType;
@@ -61,7 +60,6 @@ pub struct Adapter {
     reconnecting_banner: ViewHandle<Banner<TerminalAction>>,
     is_reconnecting_banner_open: bool,
     session_id: SessionId,
-    started_at: DateTime<Local>,
     source_type: SessionSourceType,
 }
 
@@ -70,7 +68,6 @@ impl Adapter {
         kind: Kind,
         presence_manager: ModelHandle<PresenceManager>,
         session_id: SessionId,
-        started_at: DateTime<Local>,
         source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
@@ -92,7 +89,6 @@ impl Adapter {
             reconnecting_banner,
             is_reconnecting_banner_open: false,
             session_id,
-            started_at,
             source_type,
         }
     }
@@ -102,7 +98,6 @@ impl Adapter {
         firebase_uid: UserUid,
         participant_list: Box<ParticipantList>,
         session_id: SessionId,
-        started_at: DateTime<Local>,
         source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
@@ -110,18 +105,7 @@ impl Adapter {
             PresenceManager::new_for_viewer(viewer_id, firebase_uid, *participant_list, ctx)
         });
         let viewer = Kind::Viewer(Viewer::new(ctx));
-        Self::new(
-            viewer,
-            presence_manager,
-            session_id,
-            started_at,
-            source_type,
-            ctx,
-        )
-    }
-
-    pub fn started_at(&self) -> &DateTime<Local> {
-        &self.started_at
+        Self::new(viewer, presence_manager, session_id, source_type, ctx)
     }
 
     pub fn presence_manager(&self) -> &ModelHandle<PresenceManager> {

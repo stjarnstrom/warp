@@ -18,7 +18,7 @@ impl CodePane {
     pub fn from_view(file_view: ViewHandle<CodeView>, ctx: &mut AppContext) -> Self {
         let pane_configuration = file_view.as_ref(ctx).pane_configuration();
 
-        let view = ctx.add_typed_action_view(file_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(file_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_code_pane_ctx(ctx);
             PaneView::new(pane_id, file_view, (), pane_configuration.clone(), ctx)
         });

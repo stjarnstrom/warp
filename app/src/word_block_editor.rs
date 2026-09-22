@@ -1,8 +1,7 @@
 use pathfinder_color::ColorU;
-use warp_editor::editor::NavigationKey;
 use warpui::elements::{
     ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, MainAxisAlignment,
-    MainAxisSize, MouseStateHandle, ParentElement, Radius, Wrap, WrapFill,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius, Wrap,
 };
 use warpui::fonts::FamilyId;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
@@ -12,10 +11,7 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
-use crate::editor::{
-    EditorView, Event, InteractionState, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
-    TextOptions,
-};
+use crate::editor::{EditorView, Event, InteractionState, SingleLineEditorOptions, TextOptions};
 use crate::themes::theme::Fill;
 
 pub struct WordBlockEditorView {
@@ -27,17 +23,7 @@ pub struct WordBlockEditorView {
     /// wrap does not have a way of limiting max length of children elements along its
     /// alignment axis.
     chip_max_width: f32,
-    layout: WordBlockLayout,
     style_fn: Box<dyn Fn(&AppContext) -> WordBlockEditorStyles>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub enum WordBlockLayout {
-    /// Word chips are shown above the text editor.
-    #[default]
-    Vertical,
-    /// Word chips are shown alongside the text editor.
-    Horizontal { editor_min_width: f32 },
 }
 
 pub struct WordBlockEditorStyles {
@@ -102,7 +88,6 @@ impl WordBlockEditorView {
             list_of_words: Vec::new(),
             word_validator,
             chip_max_width,
-            layout: WordBlockLayout::default(),
             style_fn: Box::new(WordBlockEditorStyles::default_styles),
         }
     }
@@ -152,38 +137,6 @@ impl WordBlockEditorView {
         ctx.notify();
     }
 
-    pub fn with_layout(mut self, layout: WordBlockLayout) -> Self {
-        // No need for ctx.notify - because this takes `self`, it can only be called when adding
-        // the view.
-        self.layout = layout;
-        self
-    }
-
-    pub fn with_styles(
-        mut self,
-        ctx: &mut ViewContext<Self>,
-        styles: impl Fn(&AppContext) -> WordBlockEditorStyles + 'static,
-    ) -> Self {
-        let initial_styles = styles(ctx);
-        self.editor_view.update(ctx, |editor, ctx| {
-            editor.set_font_family(initial_styles.font_family, ctx);
-        });
-        self.style_fn = Box::new(styles);
-        self
-    }
-
-    /// Set the word input's [PropagateAndNoOpNavigationKeys] behavior. This allows navigation in
-    /// form-like views that include a [WordBlockEditorView].
-    pub fn set_propagate_navigation_keys(
-        &mut self,
-        propagate_navigation_keys: PropagateAndNoOpNavigationKeys,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.editor_view.update(ctx, |editor, _| {
-            editor.set_propagate_vertical_navigation_keys(propagate_navigation_keys);
-        })
-    }
-
     pub fn clear_list_of_words(&mut self, ctx: &mut ViewContext<Self>) {
         self.list_of_words = Vec::new();
         self.editor_view.update(ctx, |editor, ctx| {
@@ -198,13 +151,6 @@ impl WordBlockEditorView {
             mouse_state_handle: Default::default(),
         });
         ctx.emit(WordBlockEditorViewEvent::WordListValidityChanged);
-        ctx.notify();
-    }
-
-    pub fn set_editor_buffer_text(&mut self, word: &str, ctx: &mut ViewContext<Self>) {
-        self.editor_view.update(ctx, |editor, ctx| {
-            editor.set_buffer_text(word, ctx);
-        });
         ctx.notify();
     }
 
@@ -271,7 +217,7 @@ impl WordBlockEditorView {
             }
             Event::Escape => ctx.emit(WordBlockEditorViewEvent::Escape),
             Event::Enter => ctx.emit(WordBlockEditorViewEvent::Enter),
-            Event::Navigate(key) => ctx.emit(WordBlockEditorViewEvent::Navigate(*key)),
+            Event::Navigate(_) => ctx.emit(WordBlockEditorViewEvent::Navigate),
             _ => (),
         }
     }
@@ -300,7 +246,7 @@ pub enum WordBlockEditorViewEvent {
     WordListValidityChanged,
     Escape,
     Enter,
-    Navigate(NavigationKey),
+    Navigate,
 }
 
 impl Entity for WordBlockEditorView {
@@ -414,28 +360,14 @@ impl View for WordBlockEditorView {
                 .with_main_axis_alignment(MainAxisAlignment::Start)
                 .with_main_axis_size(MainAxisSize::Min)
                 .with_children(word_chips);
-            match self.layout {
-                WordBlockLayout::Vertical => {
-                    let wrapping_section_container = Container::new(wrapping_section.finish())
-                        .with_margin_bottom(4.)
-                        .with_margin_top(3.)
-                        .with_horizontal_margin(4.)
-                        .finish();
-                    Flex::column()
-                        .with_children([wrapping_section_container, editor])
-                        .finish()
-                }
-                WordBlockLayout::Horizontal { editor_min_width } => {
-                    let wrapping_section = wrapping_section
-                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                        .with_child(WrapFill::new(editor_min_width, editor).finish())
-                        .finish();
-                    Container::new(wrapping_section)
-                        .with_vertical_padding(6.)
-                        .with_horizontal_padding(4.)
-                        .finish()
-                }
-            }
+            let wrapping_section_container = Container::new(wrapping_section.finish())
+                .with_margin_bottom(4.)
+                .with_margin_top(3.)
+                .with_horizontal_margin(4.)
+                .finish();
+            Flex::column()
+                .with_children([wrapping_section_container, editor])
+                .finish()
         }
     }
 }

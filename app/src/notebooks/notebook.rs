@@ -52,7 +52,6 @@ use crate::cloud_object::model::view::{Editor, EditorState};
 use crate::cloud_object::{CloudObject, CloudObjectEventEntrypoint, ObjectType, Owner, Space};
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit;
 use crate::drive::export::ExportManager;
-use crate::drive::sharing::ShareableObject;
 use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectSettings};
 use crate::editor::{
     EditOrigin, EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
@@ -563,17 +562,6 @@ impl NotebookView {
             }
             ActiveNotebookDataEvent::CreatedOnServer => {
                 ctx.emit(NotebookEvent::Pane(PaneEvent::AppStateChanged));
-                if let Some(id) = self
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .id()
-                    .and_then(SyncId::into_server)
-                {
-                    self.pane_configuration.update(ctx, |pane_config, ctx| {
-                        pane_config
-                            .set_shareable_object(Some(ShareableObject::WarpDriveObject(id)), ctx);
-                    })
-                }
             }
             ActiveNotebookDataEvent::TrashStatusChanged | ActiveNotebookDataEvent::MovedToSpace => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
@@ -1514,16 +1502,6 @@ impl NotebookView {
         self.set_title(&notebook.model().title, ctx);
         self.set_content(&notebook, ctx);
 
-        if let Some(server_id) = notebook.id.into_server() {
-            self.pane_configuration
-                .update(ctx, |pane_configuration, ctx| {
-                    pane_configuration.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(server_id)),
-                        ctx,
-                    );
-                });
-        }
-
         self.active_notebook_data.update(ctx, |data, ctx| {
             data.open_existing(notebook.id, ctx);
         });
@@ -2266,7 +2244,7 @@ impl BackingView for NotebookView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         view::HeaderContent::simple(self.pane_configuration.as_ref(app).title())

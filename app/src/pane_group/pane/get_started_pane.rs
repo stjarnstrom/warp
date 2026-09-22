@@ -15,7 +15,7 @@ impl GetStartedPane {
     pub fn new<V: View>(ctx: &mut ViewContext<V>) -> Self {
         let get_started_view = ctx.add_typed_action_view(GetStartedView::new);
         let pane_configuration = get_started_view.as_ref(ctx).pane_configuration();
-        let pane_view = ctx.add_typed_action_view(|ctx| {
+        let pane_view = ctx.add_view(|ctx| {
             let pane_id = PaneId::from_get_started_pane_ctx(ctx);
             PaneView::new(
                 pane_id,

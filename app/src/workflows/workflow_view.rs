@@ -46,7 +46,7 @@ use crate::cloud_object::{
 };
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit;
-use crate::drive::sharing::{ContentEditability, ShareableObject, SharingAccessLevel};
+use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::enum_creation_dialog::{
     EnumCreationDialog, EnumCreationDialogEvent, WorkflowEnumData,
@@ -729,12 +729,6 @@ impl WorkflowView {
         if let ContainerConfiguration::Pane(pane_config) = &mut self.container_configuration {
             pane_config.update(ctx, |pane_config, ctx| {
                 pane_config.set_title(workflow_name, ctx);
-                if let Some(server_id) = workflow.id.into_server() {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(server_id)),
-                        ctx,
-                    );
-                }
             });
         }
 
@@ -3124,7 +3118,7 @@ impl BackingView for WorkflowView {
 
     fn render_header_content(
         &self,
-        _ctx: &view::HeaderRenderContext<'_>,
+        _ctx: &view::HeaderRenderContext,
         app: &AppContext,
     ) -> view::HeaderContent {
         let mut content =

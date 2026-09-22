@@ -97,7 +97,7 @@ impl BackingView for TestView {
 
     fn render_header_content(
         &self,
-        _ctx: &super::HeaderRenderContext<'_>,
+        _ctx: &super::HeaderRenderContext,
         _app: &AppContext,
     ) -> super::HeaderContent {
         super::HeaderContent::simple("Test")
@@ -141,7 +141,7 @@ fn test_overflow_menu_items() {
         initialize_app(&mut app);
 
         let (_, pane_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-            let test_view = ctx.add_typed_action_view(|_| TestView::new());
+            let test_view = ctx.add_view(|_| TestView::new());
             let pane_config = ctx.add_model(|_| PaneConfiguration::new("Test"));
 
             PaneView::new(PaneId::dummy_pane_id(), test_view, (), pane_config, ctx)

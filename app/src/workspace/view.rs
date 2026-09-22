@@ -23797,15 +23797,6 @@ impl TypedActionView for Workspace {
             CopySharedSessionLinkFromTab { tab_index } => {
                 self.copy_shared_session_link_from_tab(*tab_index, ctx)
             }
-            OpenSharedSessionQrCode { session_id } => {
-                use terminal::shared_session::manager::Manager;
-                let manager = Manager::as_ref(ctx);
-                if let Some(terminal_view) = manager.shared_view_by_session_id(session_id, ctx) {
-                    terminal_view.update(ctx, |view, ctx| {
-                        view.open_shared_session_qr_code(ctx);
-                    });
-                }
-            }
             AddWindow => {
                 ctx.dispatch_global_action("root_view:open_new", ());
             }

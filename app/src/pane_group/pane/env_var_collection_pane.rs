@@ -28,7 +28,7 @@ impl EnvVarCollectionPane {
             .as_ref(ctx)
             .pane_configuration()
             .to_owned();
-        let view = ctx.add_typed_action_view(env_var_collection_view.window_id(ctx), |ctx| {
+        let view = ctx.add_view(env_var_collection_view.window_id(ctx), |ctx| {
             let pane_id = PaneId::from_env_var_collection_pane_ctx(ctx);
             PaneView::new(
                 pane_id,
