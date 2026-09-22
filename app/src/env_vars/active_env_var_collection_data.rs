@@ -1,8 +1,6 @@
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use super::CloudEnvVarCollectionModel;
-use crate::cloud_object::breadcrumbs::ContainingObject;
-use crate::cloud_object::model::persistence::CloudModelEvent;
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{CloudObject, Owner, Revision, Space};
 use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
@@ -48,23 +46,8 @@ impl ActiveEnvVarCollectionData {
             me.handle_update_manager_event(event, ctx);
         });
 
-        let cloud_model = CloudModel::handle(ctx);
-
-        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
-        });
-
         Self {
             ..Default::default()
-        }
-    }
-
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        if let CloudModelEvent::ObjectMoved { type_and_id, .. } = event
-            && let Some(env_var_collection_id) = type_and_id.as_generic_string_object_id()
-            && self.is_active_env_var_collection(env_var_collection_id)
-        {
-            ctx.emit(ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged)
         }
     }
 
@@ -97,7 +80,6 @@ impl ActiveEnvVarCollectionData {
                             );
                         self.revision_ts
                             .clone_from(&env_var_collection.metadata.revision);
-                        ctx.emit(ActiveEnvVarCollectionDataEvent::CreatedOnServer);
                         ctx.notify();
                     }
                 }
@@ -170,7 +152,6 @@ impl ActiveEnvVarCollectionData {
             ),
         ));
 
-        ctx.emit(ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged);
         ctx.notify();
     }
 
@@ -180,7 +161,6 @@ impl ActiveEnvVarCollectionData {
         self.active_env_var_collection =
             ActiveEnvVarCollection::CommittedEnvVarCollection(env_var_collection_id);
 
-        ctx.emit(ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged);
         ctx.notify();
     }
 
@@ -246,21 +226,6 @@ impl ActiveEnvVarCollectionData {
         self.id() == Some(env_var_collection_id)
     }
 
-    pub fn breadcrumbs(&self, ctx: &AppContext) -> Option<Vec<ContainingObject>> {
-        let cloud_env_var_collection = match &self.active_env_var_collection {
-            ActiveEnvVarCollection::None => None,
-            ActiveEnvVarCollection::CommittedEnvVarCollection(id) => {
-                CloudModel::as_ref(ctx).get_env_var_collection(id)
-            }
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                Some(env_var_collection.as_ref())
-            }
-        };
-
-        cloud_env_var_collection
-            .map(|env_var_collection| env_var_collection.containing_objects_path(ctx))
-    }
-
     pub fn trash_status(&self, ctx: &AppContext) -> TrashStatus {
         match &self.active_env_var_collection {
             ActiveEnvVarCollection::None | ActiveEnvVarCollection::NewEnvVarCollection(_) => {
@@ -291,10 +256,6 @@ pub enum TrashStatus {
 }
 
 pub enum ActiveEnvVarCollectionDataEvent {
-    /// The EVC's breadcrumbs were updated.
-    BreadcrumbsChanged,
-    /// The EVC was synced to the server for the first time.
-    CreatedOnServer,
     /// The EVC was trashed or untrashed
     /// (used for refreshing the pane overflow items)
     TrashStatusChanged,

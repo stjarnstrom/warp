@@ -331,8 +331,6 @@ pub enum WorkspaceAction {
     ShowCommandSearch(CommandSearchOptions),
     TriggerExternalCtrlTFileSearch,
     CreatePersonalNotebook,
-    ImportToPersonalDrive,
-    ImportToTeamDrive,
     CreatePersonalWorkflow,
     CreateTeamWorkflow,
     CreatePersonalEnvVarCollection,
@@ -974,8 +972,6 @@ impl WorkspaceAction {
             | ToggleMouseReporting
             | ToggleScrollReporting
             | ToggleFocusReporting
-            | ImportToPersonalDrive
-            | ImportToTeamDrive
             | CreatePersonalNotebook
             | CreatePersonalWorkflow
             | CreateTeamWorkflow

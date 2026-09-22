@@ -38,7 +38,6 @@ use super::command_parser::WorkflowCommandDisplayData;
 use super::{CloudWorkflowModel, WorkflowSource, WorkflowType, WorkflowViewMode};
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::appearance::Appearance;
-use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{
@@ -81,7 +80,6 @@ use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::ui_components::breadcrumb::BreadcrumbState;
 use crate::ui_components::buttons::{accent_icon_button, icon_button};
 use crate::ui_components::dialog::{Dialog, dialog_styles};
 use crate::ui_components::icons::Icon;
@@ -287,7 +285,6 @@ pub struct WorkflowView {
     alias_bar: ViewHandle<AliasBar>,
     env_vars_selector: ViewHandle<EnvVarSelector>,
     env_vars_state: EnvironmentVariablesState,
-    breadcrumbs: Vec<BreadcrumbState<ContainingObject>>,
     errors: WorkflowEditorErrorState,
     ui_state_handles: UiStateHandles,
     show_unsaved_changes: Option<UnsavedChangeType>,
@@ -434,7 +431,6 @@ impl WorkflowView {
             alias_bar,
             env_vars_selector,
             env_vars_state: Default::default(),
-            breadcrumbs: Vec::new(),
             errors: WorkflowEditorErrorState::new(),
             ui_state_handles: Default::default(),
             show_unsaved_changes: None,
@@ -806,7 +802,6 @@ impl WorkflowView {
                 });
             }
         }
-        self.update_breadcrumb(ctx);
         self.update_editors_interactivity(ctx);
         self.refresh_pane_overflow_menu(ctx);
 
@@ -1763,20 +1758,6 @@ impl WorkflowView {
                 ctx,
             )
         });
-    }
-
-    fn update_breadcrumb(&mut self, ctx: &mut ViewContext<Self>) {
-        let workflow = self.get_cloud_workflow(ctx);
-
-        if let Some(the_workflow) = workflow {
-            self.breadcrumbs = the_workflow
-                .containing_objects_path(ctx)
-                .into_iter()
-                .map(BreadcrumbState::new)
-                .collect();
-        } else {
-            log::warn!("Workflow not found from cloudmodel, could not update breadcrumb");
-        }
     }
 
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {

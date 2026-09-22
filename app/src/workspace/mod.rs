@@ -1296,23 +1296,6 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-shift-)"),
     ]);
 
-    app.register_editable_bindings([
-        EditableBinding::new(
-            "workspace:import_to_personal_drive",
-            "Import To Personal Drive",
-            WorkspaceAction::ImportToPersonalDrive,
-        )
-        .with_context_predicate(id!("Workspace") & id!(flags::ENABLE_WARP_DRIVE)),
-        EditableBinding::new(
-            "workspace:import_to_team_drive",
-            "Import To Team Drive",
-            WorkspaceAction::ImportToTeamDrive,
-        )
-        .with_context_predicate(
-            id!("Workspace") & id!(flags::ENABLE_WARP_DRIVE) & id!("WarpDrive_BelongsToTeam"),
-        ),
-    ]);
-
     // Register a debug-only action for writing the user's access token to the system clipboard
     // to aid debugging and development.
     #[cfg(not(feature = "skip_login"))]
