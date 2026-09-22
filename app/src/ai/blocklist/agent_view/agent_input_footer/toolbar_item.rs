@@ -66,7 +66,6 @@ pub enum AgentToolbarItemKind {
     // Renamed from ImageAttach; alias preserves existing user toolbar configs.
     #[serde(alias = "ImageAttach")]
     FileAttach,
-    ShareSession,
 
     // CLI agent only – opens settings to the Coding Agents section.
     Settings,
@@ -81,11 +80,9 @@ pub enum AgentToolbarItemKind {
 impl AgentToolbarItemKind {
     pub fn available_in(&self) -> ToolbarAvailability {
         match self {
-            Self::ContextChip(_)
-            | Self::VoiceInput
-            | Self::FileAttach
-            | Self::ShareSession
-            | Self::FileExplorer => ToolbarAvailability::Both,
+            Self::ContextChip(_) | Self::VoiceInput | Self::FileAttach | Self::FileExplorer => {
+                ToolbarAvailability::Both
+            }
             Self::ModelSelector
             | Self::NLDToggle
             | Self::ContextWindowUsage
@@ -105,7 +102,7 @@ impl AgentToolbarItemKind {
         is_cloud_mode: bool,
     ) -> bool {
         match self {
-            Self::Settings | Self::ShareSession | Self::FileExplorer => !status.is_viewer(),
+            Self::Settings | Self::FileExplorer => !status.is_viewer(),
             Self::FileAttach => !status.is_viewer() || is_cloud_mode,
             Self::FastForwardToggle => !status.is_viewer() || status.is_executor(),
             // Handoff is host-initiated; viewers cannot hand off another user's conversation.
@@ -131,7 +128,6 @@ impl AgentToolbarItemKind {
             Self::UsageSummary => "Conversation Usage",
             Self::FileExplorer => "File Explorer",
             Self::RichInput => "Rich Input",
-            Self::ShareSession => "/remote-control",
             Self::Settings => "Settings",
             Self::FastForwardToggle => "Fast Forward",
             Self::HandoffToCloud => "Hand off to cloud",
@@ -149,7 +145,6 @@ impl AgentToolbarItemKind {
             Self::UsageSummary => Some(Icon::PieChart),
             Self::FileExplorer => Some(Icon::FileCopy),
             Self::RichInput => Some(Icon::TextInput),
-            Self::ShareSession => Some(Icon::Phone01),
             Self::Settings => Some(Icon::Settings),
             Self::FastForwardToggle => Some(Icon::FastForward),
             // The bundled `upload-cloud-01.svg` (cloud-with-upward-arrow) is the
@@ -172,7 +167,6 @@ impl AgentToolbarItemKind {
             | Self::UsageSummary
             | Self::FastForwardToggle
             | Self::HandoffToCloud
-            | Self::ShareSession
             | Self::FileExplorer
             | Self::RichInput
             | Self::Settings => false,

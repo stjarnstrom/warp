@@ -59,13 +59,12 @@ use crate::terminal::shared_session::role_change_modal::{
 };
 use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::shared_session::{
-    COPY_LINK_TEXT, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionSource,
-    SharedSessionStatus, join_link,
+    COPY_LINK_TEXT, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionStatus,
+    join_link,
 };
 use crate::terminal::view::{
-    ContextMenuAction, Event, InlineBannerItem, InlineBannerType, PendingUserQueryKind,
-    RichContentInsertionPosition, SharedSessionBanners, SizeUpdateBuilder, TerminalAction,
-    TerminalView,
+    Event, InlineBannerItem, InlineBannerType, PendingUserQueryKind, RichContentInsertionPosition,
+    SharedSessionBanners, SizeUpdateBuilder, TerminalAction, TerminalView,
 };
 use crate::view_components::{DismissibleToast, ToastFlavor};
 use crate::{TelemetryEvent, send_telemetry_from_ctx};
@@ -526,119 +525,12 @@ impl TerminalView {
         ctx.emit(Event::RoleRequestCancelled(role_request_id.clone()));
     }
 
-    pub fn open_share_session_modal(
-        &mut self,
-        open_source: SharedSessionActionSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !matches!(
-            open_source,
-            SharedSessionActionSource::BlocklistContextMenu { .. }
-        ) {
-            let show_accent_border = self
-                .focus_handle()
-                .map(|fh| fh.is_in_split_pane(ctx))
-                .unwrap_or(false);
-            self.set_show_pane_accent_border(show_accent_border, ctx);
-        };
-
-        ctx.emit(Event::OpenShareSessionModal { open_source });
-    }
-
-    pub fn open_share_session_denied_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::OpenShareSessionDeniedModal);
-    }
-
     /// Focuses the view by telling the parent view to focus this session.
     /// For example, in the common case, the parent pane group would consume
     /// this event and focus the pane that this session lives in.
     pub fn focus_shared_session(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.windows().show_window_and_focus_app(ctx.window_id());
         ctx.emit(Event::FocusSession);
-    }
-
-    /// The entrypoint to start a shared session: all attempts to start a shared session must
-    /// go through this API! This is important to guarantee that the right session is being shared.
-    /// The TerminalView is responsible for decorating the terminal to reflect its shared status and for
-    /// emitting the appropriate events for its terminal manager to setup the appropriate facilities for
-    /// sharing to work.
-    ///
-    /// Specifically, this is the data flow to start a shared session:
-    /// 1. User attempts to start a shared session (i.e. this API)
-    /// 2. We emit an event that the `shared_session::sharer::Network` model (configured by TerminalManager) picks up.
-    /// 3. The `Network` model attempts to establish a shared session connection
-    ///    with the server. Once established, it emits an event back.
-    /// 4. The TerminalManager handles this event by
-    ///    a. Updating the shared session status in the TerminalModel
-    ///    b. Registering the shared session with the [`shared_session::manager::Manager`]
-    ///    c. Calling into [`TerminalView::on_session_share_started`]
-    /// 5. Once the session is registered with [`shared_session::manager::Manager`], it
-    ///    will emit an event for relevant subscribers (e.g. the Workspace will need to
-    ///    re-render when a share starts for tab indicator, share button, etc.)
-    pub fn attempt_to_share_session(
-        &mut self,
-        scrollback_type: SharedSessionScrollbackType,
-        action_source: Option<SharedSessionActionSource>,
-        source: SharedSessionSource,
-        bypass_conversation_guard: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // We should only be attempting to share a session
-        // if it is bootstrapped.
-        //
-        // For unit tests, we don't actually bootstrap and it
-        // doesn't really matter.
-        #[cfg(not(test))]
-        if !self.model.lock().block_list().is_bootstrapped() {
-            log::warn!("Tried to share session before it was bootstrapped.");
-            return;
-        }
-
-        // Check if we're trying to share without scrollback while agent shared sessions is enabled
-        // and there are active conversations. This would break the viewer experience since they
-        // wouldn't receive the conversation history they need to continue conversations.
-        if !bypass_conversation_guard
-            && FeatureFlag::AgentSharedSessions.is_enabled()
-            && scrollback_type == SharedSessionScrollbackType::None
-        {
-            let has_conversations = BlocklistAIHistoryModel::as_ref(ctx)
-                .all_live_conversations_for_terminal_surface(ctx.handle().id())
-                .any(|conv| conv.exchange_count() > 0);
-
-            if has_conversations {
-                log::warn!(
-                    "Cannot share without scrollback when agent conversations exist. Agent shared sessions require conversation history to be shared."
-                );
-                return;
-            }
-        }
-
-        self.set_show_pane_accent_border(false, ctx);
-
-        self.pending_share_source = action_source;
-
-        self.model
-            .lock()
-            .set_shared_session_status(SharedSessionStatus::SharePending);
-        self.notify_shared_session_link_changed(ctx);
-        log::info!("Emitting request to start sharing current session");
-
-        ctx.emit(Event::StartSharingCurrentSession {
-            scrollback_type,
-            source,
-        });
-        if let Some(action_source) = action_source {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::StartedSharingCurrentSession {
-                    includes_scrollback: !matches!(
-                        scrollback_type,
-                        SharedSessionScrollbackType::None
-                    ),
-                    source: action_source,
-                },
-                ctx
-            );
-        }
     }
 
     pub(crate) fn notify_shared_session_link_changed(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1950,29 +1842,9 @@ impl TerminalView {
     pub fn session_sharing_context_menu_items(
         &self,
         model: &TerminalModel,
-        is_share_session_disabled: bool,
         has_session_link: bool,
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = Vec::new();
-
-        if !model.shared_session_status().is_sharer_or_viewer() {
-            items.push(
-                MenuItemFields::new("Share session...")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::OpenShareSessionModal,
-                    ))
-                    .with_disabled(is_share_session_disabled)
-                    .into_item(),
-            );
-        } else if model.shared_session_status().is_active_sharer() {
-            items.push(
-                MenuItemFields::new("Stop sharing")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::StopSharing,
-                    ))
-                    .into_item(),
-            );
-        }
 
         if model.shared_session_status().is_sharer_or_viewer() {
             items.push(

@@ -54,8 +54,6 @@ use crate::ai::agent_conversations_model::{
 };
 use crate::ai::ai_document_view::AIDocumentView;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::blocklist::BlocklistAIHistoryEvent;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
@@ -96,10 +94,6 @@ use crate::palette::PaletteMode;
 use crate::pane_group::focus_state::PaneGroupFocusEvent;
 use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::pane::get_started_pane::GetStartedPane;
-#[cfg(not(target_family = "wasm"))]
-use crate::pane_group::pane::terminal_pane::{
-    host_terminal_shared_session_source_type, inherit_share_for_local_child,
-};
 use crate::persistence::ModelEvent;
 use crate::quit_warning::UnsavedStateSummary;
 use crate::resource_center::{
@@ -134,10 +128,7 @@ use crate::terminal::shared_session::render_util::ParticipantAvatarParams;
 use crate::terminal::shared_session::role_change_modal::{
     RoleChangeCloseSource, RoleChangeModal, RoleChangeModalEvent,
 };
-use crate::terminal::shared_session::share_modal::{ShareSessionModal, ShareSessionModalEvent};
-use crate::terminal::shared_session::{
-    self, IsSharedSessionCreator, SharedSessionActionSource, SharedSessionSource,
-};
+use crate::terminal::shared_session::{self, IsSharedSessionCreator};
 use crate::terminal::view::inline_banner::{
     ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
 };
@@ -895,11 +886,6 @@ pub struct PaneGroup {
     share_block_modal: ViewHandle<ShareBlockModal>,
     dragged_border: Option<DraggedBorder>,
     user_default_shell_changed_banner: ViewHandle<Banner<PaneGroupAction>>,
-
-    /// If there is an open share session modal, the pane ID of its terminal. Only terminal panes
-    /// use the share session modal. `None` if no share session modal is open.
-    terminal_with_open_share_session_modal: Option<TerminalPaneId>,
-    share_session_modal: ViewHandle<ShareSessionModal>,
 
     /// If there is a shared session role change modal open, this is the `TerminalPaneId` of the relevant session. Modal is opened whenever a shared session participant attempts to change a
     /// role. For a viewer when they request a role. For a sharer when they receive a role request,
@@ -2623,112 +2609,6 @@ impl PaneGroup {
         most_recent_state
     }
 
-    fn open_share_session_modal(
-        &mut self,
-        terminal_pane_id: TerminalPaneId,
-        open_source: SharedSessionActionSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(terminal_view) = self.terminal_view_from_pane_id(terminal_pane_id, ctx) else {
-            log::warn!("Tried to open share session modal for non-existent terminal pane");
-            return;
-        };
-
-        self.share_session_modal.update(ctx, |modal, ctx| {
-            modal.open(
-                terminal_pane_id,
-                open_source,
-                terminal_view.as_ref(ctx).model.clone(),
-                terminal_view.id(),
-                ctx,
-            );
-        });
-        self.terminal_with_open_share_session_modal = Some(terminal_pane_id);
-        ctx.focus(&self.share_session_modal);
-        ctx.notify();
-    }
-
-    fn open_share_session_denied_modal(
-        &mut self,
-        terminal_pane_id: TerminalPaneId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.share_session_modal.update(ctx, |modal, ctx| {
-            modal.open_denied(terminal_pane_id, ctx);
-        });
-        self.terminal_with_open_share_session_modal = Some(terminal_pane_id);
-        ctx.focus(&self.share_session_modal);
-        ctx.notify();
-    }
-
-    /// Closes the share session modal if it is open. Does nothing otherwise. Does not change
-    /// which element is focused.
-    fn close_share_session_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        let Some(terminal_pane_id) = self.terminal_with_open_share_session_modal.take() else {
-            return;
-        };
-
-        if let Some(terminal_view) = self.terminal_view_from_pane_id(terminal_pane_id, ctx) {
-            terminal_view.update(ctx, |view, ctx| {
-                view.set_show_pane_accent_border(false, ctx)
-            });
-        }
-        ctx.notify();
-    }
-
-    fn handle_share_session_modal_event(
-        &mut self,
-        event: &ShareSessionModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ShareSessionModalEvent::Close => {
-                let Some(terminal_pane_id) = self.terminal_with_open_share_session_modal.take()
-                else {
-                    return;
-                };
-
-                if let Some(pane) = self.focused_pane_content(ctx) {
-                    pane.focus(ctx);
-                }
-
-                if let Some(terminal_view) = self.terminal_view_from_pane_id(terminal_pane_id, ctx)
-                {
-                    terminal_view.update(ctx, |view, ctx| {
-                        view.set_show_pane_accent_border(false, ctx)
-                    });
-                }
-                ctx.notify();
-            }
-            ShareSessionModalEvent::StartSharing {
-                terminal_pane_id,
-                scrollback_type,
-                source,
-            } => {
-                self.terminal_with_open_share_session_modal = None;
-                ctx.notify();
-
-                let Some(terminal_view) = self.terminal_view_from_pane_id(*terminal_pane_id, ctx)
-                else {
-                    return;
-                };
-
-                terminal_view.update(ctx, |view, ctx| {
-                    let share_source = SharedSessionSource::user(
-                        view.active_conversation_task_id(ctx).map(|t| t.to_string()),
-                    );
-                    view.attempt_to_share_session(
-                        *scrollback_type,
-                        Some(*source),
-                        share_source,
-                        false,
-                        ctx,
-                    );
-                });
-            }
-        }
-    }
-
     fn open_shared_session_viewer_request_modal(
         &mut self,
         terminal_pane_id: TerminalPaneId,
@@ -3122,11 +3002,6 @@ impl PaneGroup {
             },
         );
 
-        let share_session_modal = ctx.add_typed_action_view(ShareSessionModal::new);
-        ctx.subscribe_to_view(&share_session_modal, |me, _, event, ctx| {
-            me.handle_share_session_modal_event(event, ctx);
-        });
-
         let shared_session_role_change_modal = ctx.add_view(RoleChangeModal::new);
         ctx.subscribe_to_view(&shared_session_role_change_modal, |me, _, event, ctx| {
             me.handle_shared_session_role_change_modal_event(event, ctx);
@@ -3141,19 +3016,6 @@ impl PaneGroup {
         // started sharing — `inherit_share_for_local_child` only fires at
         // child-pane creation time.
         #[cfg(not(target_family = "wasm"))]
-        ctx.subscribe_to_model(
-            &BlocklistAIHistoryModel::handle(ctx),
-            |me, _, event, ctx| {
-                if let BlocklistAIHistoryEvent::LocalSharedSessionEstablished {
-                    conversation_id,
-                    ..
-                } = event
-                {
-                    me.transitively_share_existing_local_children(*conversation_id, ctx);
-                }
-            },
-        );
-
         let active_file_model = ctx.add_model(|_| ActiveFileModel::new());
 
         let mut pane_group = Self {
@@ -3169,8 +3031,6 @@ impl PaneGroup {
             share_block_modal: share_modal,
             dragged_border: None,
             user_default_shell_changed_banner,
-            terminal_with_open_share_session_modal: None,
-            share_session_modal,
             terminal_with_shared_session_role_change_modal_open: None,
             shared_session_role_change_modal,
             active_file_model,
@@ -4017,138 +3877,6 @@ impl PaneGroup {
         new_pane_id
     }
 
-    /// Dispatches a share on every direct child agent pane in this group
-    /// that isn't already sharing, mirroring
-    /// `terminal_pane::inherit_share_for_local_child` for children that
-    /// existed before the host started sharing.
-    #[cfg(not(target_family = "wasm"))]
-    fn transitively_share_existing_local_children(
-        &mut self,
-        host_conversation_id: AIConversationId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(host_pane_id) = self.pane_id_for_owned_conversation(host_conversation_id, ctx)
-        else {
-            return;
-        };
-        let Some(host_terminal_view) = self.terminal_view_from_pane_id(host_pane_id, ctx) else {
-            return;
-        };
-        let Some(host_source) = host_terminal_shared_session_source_type(&host_terminal_view, ctx)
-        else {
-            return;
-        };
-        if host_source.orchestrator_task_id().is_none() {
-            return;
-        }
-
-        let direct_child_ids: Vec<AIConversationId> = BlocklistAIHistoryModel::as_ref(ctx)
-            .child_conversation_ids_of(&host_conversation_id)
-            .to_vec();
-
-        let mut planned: Vec<(PaneId, AmbientAgentTaskId)> = Vec::new();
-        for child_conversation_id in direct_child_ids {
-            let Some(child_pane_id) = self
-                .child_agent_panes
-                .get(&child_conversation_id)
-                .copied()
-                .filter(|pane_id| self.has_pane_id(*pane_id))
-            else {
-                continue;
-            };
-            let Some(child_task_id) = BlocklistAIHistoryModel::as_ref(ctx)
-                .conversation(&child_conversation_id)
-                .and_then(|c| c.task_id())
-            else {
-                continue;
-            };
-            planned.push((child_pane_id, child_task_id));
-        }
-
-        for (child_pane_id, child_task_id) in planned {
-            let Some(child_terminal_view) = self.terminal_view_from_pane_id(child_pane_id, ctx)
-            else {
-                continue;
-            };
-            // Skip if the child is already sharing / pending / viewing.
-            let already_in_shared_state = child_terminal_view
-                .as_ref(ctx)
-                .model
-                .lock()
-                .shared_session_status()
-                .is_sharer_or_viewer();
-            if already_in_shared_state {
-                continue;
-            }
-
-            let creator = inherit_share_for_local_child(Some(&host_source), child_task_id);
-            let IsSharedSessionCreator::Yes { source } = creator else {
-                continue;
-            };
-
-            // Record in the host's transitive-share tracking set so the
-            // host's stop-share also stops this child.
-            self.transitively_shared_child_panes
-                .entry(host_pane_id)
-                .or_default()
-                .insert(child_pane_id);
-
-            child_terminal_view.update(ctx, |view, ctx| {
-                view.attempt_to_share_session(
-                    shared_session::SharedSessionScrollbackType::All,
-                    None,
-                    source,
-                    /* bypass_conversation_guard = */ false,
-                    ctx,
-                );
-            });
-        }
-    }
-
-    /// Stop the shared session on every child pane that was transitively
-    /// shared from `host_pane_id`. Only called from a non-wasm dispatch arm
-    /// (`Event::StopSharingCurrentSession`), so the definition mirrors that
-    /// cfg gate to keep wasm builds warning-clean.
-    #[cfg(not(target_family = "wasm"))]
-    fn stop_transitively_shared_child_shares(
-        &mut self,
-        host_pane_id: PaneId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(child_pane_ids) = self.transitively_shared_child_panes.remove(&host_pane_id)
-        else {
-            return;
-        };
-        for child_pane_id in child_pane_ids {
-            let Some(terminal_view) = self.terminal_view_from_pane_id(child_pane_id, ctx) else {
-                continue;
-            };
-            let is_sharing = terminal_view
-                .as_ref(ctx)
-                .model
-                .lock()
-                .shared_session_status()
-                .is_sharer();
-            if !is_sharing {
-                continue;
-            }
-            terminal_view.update(ctx, |view, ctx| {
-                view.stop_sharing_session(SharedSessionActionSource::NonUser, ctx);
-            });
-        }
-    }
-
-    /// Removes `pane_id` from the transitive-share tracking map.
-    fn forget_transitively_shared_pane(&mut self, pane_id: PaneId) {
-        // The pane may be a host (key) or a transitively-shared child (value).
-        self.transitively_shared_child_panes.remove(&pane_id);
-        self.transitively_shared_child_panes
-            .retain(|_host, children| {
-                children.remove(&pane_id);
-                !children.is_empty()
-            });
-    }
-
     /// Creates a cloud-mode pane that lives off-tree as a child agent pane.
     /// Unlike `create_ambient_agent_pane`, this leaves the new terminal view
     /// uninitialized so callers can create and select the child conversation
@@ -4897,10 +4625,6 @@ impl PaneGroup {
             if !self.panes.remove(pane_id) {
                 report_error!("Pane not found");
             }
-
-            // Mirror cleanup_closed_pane's transitive-share map cleanup so
-            // the non-undo close path doesn't leak stale entries.
-            self.forget_transitively_shared_pane(pane_id);
         }
 
         self.handle_pane_count_change(ctx);
@@ -5599,10 +5323,6 @@ impl PaneGroup {
             log::warn!("Attempted to cleanup pane {pane_id} but it was not found in the tree");
         }
         self.pane_contents.remove(&pane_id);
-        // Drop any transitive-share tracking entry for this pane so the
-        // map doesn't accumulate stale ids.
-        self.forget_transitively_shared_pane(pane_id);
-
         ctx.notify();
         ctx.emit(Event::TerminalViewStateChanged);
         ctx.emit(Event::AppStateChanged);
@@ -8007,16 +7727,6 @@ impl PaneGroup {
             })
     }
 
-    #[cfg(test)]
-    pub fn is_share_session_modal_open(&self) -> bool {
-        self.terminal_with_open_share_session_modal.is_some()
-    }
-
-    #[cfg(test)]
-    pub fn share_session_modal(&self) -> &ViewHandle<ShareSessionModal> {
-        &self.share_session_modal
-    }
-
     pub(crate) fn start_agent_mode_in_new_pane(
         &mut self,
         initial_query: Option<&str>,
@@ -8169,7 +7879,6 @@ impl PaneGroup {
             ctx,
         );
 
-        self.close_share_session_modal(ctx);
         self.close_shared_session_role_change_modal(RoleChangeCloseSource::ViewerRequest, ctx);
         self.terminal_with_open_share_block_modal = None;
         ctx.notify();
@@ -8295,7 +8004,6 @@ impl View for PaneGroup {
         // and `PaneView::child_view_ids`.
         vec![
             self.share_block_modal.id(),
-            self.share_session_modal.id(),
             self.shared_session_role_change_modal.id(),
             self.user_default_shell_changed_banner.id(),
         ]
@@ -8339,8 +8047,6 @@ impl View for PaneGroup {
         if self.terminal_with_open_share_block_modal.is_some() {
             stack
                 .add_child(Clipped::new(ChildView::new(&self.share_block_modal).finish()).finish());
-        } else if self.terminal_with_open_share_session_modal.is_some() {
-            stack.add_child(ChildView::new(&self.share_session_modal).finish());
         } else if self
             .terminal_with_shared_session_role_change_modal_open
             .is_some()

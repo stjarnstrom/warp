@@ -1,7 +1,7 @@
 use byte_unit::Byte;
 use instant::Duration;
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::{Role, Scrollback, ScrollbackBlock, SessionId};
+use session_sharing_protocol::common::{Role, Scrollback, SessionId};
 use session_sharing_protocol::sharer::SessionSourceType;
 use warpui::keymap::ContextPredicate;
 use warpui::{AppContext, WindowId, id};
@@ -24,7 +24,6 @@ pub mod replay_agent_conversations;
 pub mod role_change_modal;
 mod selections;
 pub mod settings;
-pub mod share_modal;
 pub(super) mod shared_handlers;
 pub mod viewer;
 
@@ -226,36 +225,6 @@ pub enum SharedSessionScrollbackType {
 }
 
 impl SharedSessionScrollbackType {
-    /// Returns the set of scrollback that adheres to the scrollback type.
-    /// Note that some blocks might not actually be included in the scrollback
-    /// even if they were specified as part of the scrollback type.
-    /// For example, if the [`Self::All]` variant is used, restored blocks
-    /// _won't_ be included in scrollback, and neither will hidden active blocks.
-    fn to_scrollback(self, model: &TerminalModel) -> Scrollback {
-        let first_block_index = self.first_block_index(model);
-        let blocks = model
-            .block_list()
-            .blocks()
-            .iter()
-            .skip(first_block_index.into())
-            .filter(|block| {
-                block.is_scrollback_block_for_shared_session(model.block_list().transcript_scope())
-            })
-            .filter_map(|block| {
-                let serialized_block: SerializedBlock = block.into();
-                let bytes = serde_json::to_vec(&serialized_block);
-                bytes.ok().map(|raw| ScrollbackBlock { raw })
-            })
-            .collect();
-
-        let is_alt_screen_active = model.is_alt_screen_active();
-
-        Scrollback {
-            blocks,
-            is_alt_screen_active,
-        }
-    }
-
     /// Returns the first block index that will be used for scrollback.
     pub fn first_block_index(self, model: &TerminalModel) -> BlockIndex {
         match self {

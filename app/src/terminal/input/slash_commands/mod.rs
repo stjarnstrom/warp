@@ -1029,22 +1029,6 @@ impl Input {
             SlashCommandKind::Rewind => {
                 self.open_rewind_menu(ctx);
             }
-            // `/usage` renders inline in the TUI; the GUI had nowhere left to send it.
-            SlashCommandKind::RemoteControl => {
-                if !FeatureFlag::HOARemoteControl.is_enabled() {
-                    return false;
-                }
-                if self
-                    .model
-                    .lock()
-                    .shared_session_status()
-                    .is_sharer_or_viewer()
-                {
-                    show_error_toast("Session is already being shared".to_owned(), ctx);
-                    return true;
-                }
-                ctx.emit(Event::StartRemoteControl);
-            }
             SlashCommandKind::Cost => {
                 let history = BlocklistAIHistoryModel::handle(ctx);
                 let conversation = history

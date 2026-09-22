@@ -441,7 +441,6 @@ pub enum WorkspaceAction {
     #[cfg(target_family = "wasm")]
     OpenLinkOnDesktop(url::Url),
     ReopenClosedSession,
-    OpenShareSessionModal(usize),
     StopSharingSessionFromTabMenu {
         terminal_view_id: EntityId,
     },
@@ -1071,7 +1070,6 @@ impl WorkspaceAction {
             | Reauth
             | LogOut
             | OpenLink(_)
-            | OpenShareSessionModal(_)
             | StopSharingSessionFromTabMenu { .. }
             | StopSharingAllSessionsInTab { .. }
             | CopySharedSessionLinkFromTab { .. }

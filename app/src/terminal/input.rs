@@ -1157,8 +1157,6 @@ pub enum Event {
     RegisterPluginListener(CLIAgent),
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
-    OpenShareSessionModal,
-    StartRemoteControl,
     OpenHandoffEnvironmentCreationModal,
     OpenCloudModeV2EnvironmentCreationModal,
 }
@@ -2960,10 +2958,6 @@ impl Input {
                 }
                 AgentInputFooterEvent::SelectFile => {
                     me.select_image(ctx);
-                }
-                AgentInputFooterEvent::StartRemoteControl
-                | AgentInputFooterEvent::StopRemoteControl => {
-                    // Handled by UseAgentToolbar's subscription, not here.
                 }
                 // These events are handled by UseAgentToolbar's subscription.
                 // The UseAgentToolbar shares this same AgentInputFooter instance,

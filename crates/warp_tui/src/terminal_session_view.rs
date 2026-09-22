@@ -4853,7 +4853,6 @@ impl TuiTerminalSessionView {
             | SlashCommandKind::ForkAndCompact
             | SlashCommandKind::ForkFrom
             | SlashCommandKind::ContinueLocally
-            | SlashCommandKind::RemoteControl
             | SlashCommandKind::Prompts
             | SlashCommandKind::Rewind => {
                 debug_assert!(

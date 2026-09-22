@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use serde_json::Value;
 use session_sharing_protocol::common::{Scrollback, ScrollbackBlock};
 use url::Url;
 use warp_core::command::ExitCode;
@@ -8,7 +7,7 @@ use warp_core::features::FeatureFlag;
 use warpui::r#async::executor::Background;
 use warpui::units::Lines;
 
-use super::{SharedSessionScrollbackType, decode_scrollback};
+use super::decode_scrollback;
 use crate::assert_lines_approx_eq;
 use crate::channel::ChannelState;
 use crate::terminal::TerminalModel;
@@ -108,123 +107,6 @@ fn shared_session_viewer_recovers_from_raw_precmd_with_completion_metadata_witho
     assert_eq!(
         model.block_list().active_block().pwd().map(String::as_str),
         Some("/viewer-recovered")
-    );
-}
-
-#[test]
-fn test_get_no_scrollback() {
-    let restored_blocks = &[SerializedBlock::new_for_test("a".into(), "b".into()).into()];
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = TerminalModel::mock(Some(restored_blocks), Some(channel_event_proxy));
-
-    model.simulate_block("block1", "block1");
-    model.simulate_block("block2", "block2");
-
-    let scrollback = SharedSessionScrollbackType::None.to_scrollback(&model);
-    // Should only contain the active block
-    assert_eq!(scrollback.blocks.len(), 1);
-}
-
-#[test]
-fn test_get_scrollback_starting_at_block() {
-    let restored_blocks = &[SerializedBlock::new_for_test("a".into(), "b".into()).into()];
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = TerminalModel::mock(Some(restored_blocks), Some(channel_event_proxy));
-
-    model.simulate_block("block1", "block1");
-    model.simulate_block("block2", "block2");
-
-    let starting_block = model
-        .block_list()
-        .last_non_hidden_block()
-        .expect("there is a non-hidden block");
-    let scrollback = SharedSessionScrollbackType::FromBlock {
-        block_index: starting_block.index(),
-    }
-    .to_scrollback(&model);
-
-    // Should contain 1 completed block + active block
-    assert_eq!(scrollback.blocks.len(), 2);
-}
-
-#[test]
-fn test_get_all_scrollback() {
-    let restored_blocks = &[SerializedBlock::new_for_test("a".into(), "b".into()).into()];
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = TerminalModel::mock(Some(restored_blocks), Some(channel_event_proxy));
-
-    // Restored blocks and bootstrap blocks don't count towards scrollback,
-    let scrollback = SharedSessionScrollbackType::All.to_scrollback(&model);
-    // Only active block
-    assert_eq!(scrollback.blocks.len(), 1);
-
-    model.simulate_block("block1", "block1");
-    let scrollback = SharedSessionScrollbackType::All.to_scrollback(&model);
-    assert_eq!(scrollback.blocks.len(), 2);
-
-    model.simulate_block("block2", "block2");
-    let scrollback = SharedSessionScrollbackType::All.to_scrollback(&model);
-
-    // Should contain 2 completed blocks + active block
-    assert_eq!(scrollback.blocks.len(), 3);
-}
-
-#[test]
-fn test_scrollback_round_trip() {
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = TerminalModel::mock(None, Some(channel_event_proxy));
-
-    model.simulate_block("hello", "world");
-
-    // Capture the expected stylized bytes from the completed block before serialization.
-    let completed_block = model.block_list().block_at(1.into()).unwrap();
-    let expected: SerializedBlock = completed_block.into();
-
-    let scrollback = SharedSessionScrollbackType::All.to_scrollback(&model);
-    let decoded = decode_scrollback(&scrollback);
-
-    // The completed block is first; the active (empty) block is second.
-    assert_eq!(decoded.len(), 2);
-    assert_eq!(decoded[0].stylized_command, expected.stylized_command);
-    assert_eq!(decoded[0].stylized_output, expected.stylized_output);
-}
-
-#[test]
-fn test_scrollback_serialization() {
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = TerminalModel::mock(None, Some(channel_event_proxy));
-
-    model.simulate_block("hello", "world");
-
-    let scrollback = SharedSessionScrollbackType::All.to_scrollback(&model);
-    let first_block = scrollback
-        .blocks
-        .first()
-        .expect("expected first scrollback block");
-    let json: Value = serde_json::from_slice(&first_block.raw).expect("valid scrollback json");
-
-    // Capture the expected bytes from the model so we can assert exact JSON array contents.
-    let completed_block = model.block_list().block_at(1.into()).unwrap();
-    let expected: SerializedBlock = completed_block.into();
-
-    let expected_command: Vec<Value> = expected
-        .stylized_command
-        .iter()
-        .map(|&b| Value::from(b))
-        .collect();
-    let expected_output: Vec<Value> = expected
-        .stylized_output
-        .iter()
-        .map(|&b| Value::from(b))
-        .collect();
-
-    assert_eq!(
-        json.get("stylized_command"),
-        Some(&Value::Array(expected_command)),
-    );
-    assert_eq!(
-        json.get("stylized_output"),
-        Some(&Value::Array(expected_output)),
     );
 }
 

@@ -4507,25 +4507,6 @@ impl Workspace {
         );
     }
 
-    fn open_share_session_modal(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        // Focus on the clicked tab
-        if index >= self.tab_count() {
-            return;
-        }
-        self.set_active_tab_index(index, ctx);
-
-        // Open the share session modal
-        if let Some(terminal_view) = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .focused_session_view(ctx)
-        {
-            terminal_view.update(ctx, |view, ctx| {
-                view.open_share_session_modal(SharedSessionActionSource::Tab, ctx);
-            });
-        }
-    }
-
     fn stop_sharing_all_panes_in_tab(
         &mut self,
         pane_group: &WeakViewHandle<PaneGroup>,
@@ -24833,9 +24814,6 @@ impl TypedActionView for Workspace {
                 // Instead, we use a global action to ensure we don't try to
                 // perform nested updates on the workspace.
                 ctx.dispatch_global_action("app:undo_close", ());
-            }
-            OpenShareSessionModal(index) => {
-                self.open_share_session_modal(*index, ctx);
             }
             StopSharingSessionFromTabMenu { terminal_view_id } => {
                 self.stop_sharing_session(terminal_view_id, SharedSessionActionSource::Tab, ctx)
