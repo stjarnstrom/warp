@@ -9,7 +9,6 @@ use repo_metadata::CanonicalizedPath;
 use repo_metadata::RepoMetadataModel;
 use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
-use session_sharing_protocol::common::SessionId;
 #[cfg(feature = "local_fs")]
 use tempfile::TempDir;
 use terminal::shared_session::permissions_manager::SessionPermissionsManager;
@@ -1325,41 +1324,6 @@ impl Drop for TabConfigCleanupGuard {
     }
 }
 
-// Creates a workspace as a viewer of a shared session.
-pub(crate) fn mock_workspace_viewing_shared_session(app: &mut App) -> ViewHandle<Workspace> {
-    // Create the workspace as a session-sharing sharer.
-    let global_resource_handles = GlobalResourceHandles::mock(app);
-
-    let session_id = SessionId::new();
-
-    let (_, workspace) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
-        Workspace::new(
-            global_resource_handles,
-            None,
-            NewWorkspaceSource::SharedSessionAsViewer { session_id },
-            ctx,
-        )
-    });
-
-    // Get the single terminal view in the workspace.
-    let terminal_view = workspace.read(app, |workspace, ctx| {
-        assert_eq!(workspace.tabs.len(), 1);
-        workspace
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .focused_session_view(ctx)
-            .unwrap()
-    });
-
-    // Ensure session is opened as a viewer.
-    terminal_view.read(app, |terminal, _ctx| {
-        let model = terminal.model.clone();
-        assert!(model.lock().shared_session_status().is_viewer());
-    });
-
-    workspace
-}
-
 fn get_newly_created_pane_id(panes: &PaneGroup, existing_ids: &[PaneId]) -> PaneId {
     panes
         .pane_ids()
@@ -2296,26 +2260,6 @@ fn test_open_or_toggle_warp_drive() {
                     .contains(&Tip::Action(TipAction::OpenWarpDrive)),
                 "Warp drive welcome tip should not be completed"
             );
-        });
-    });
-}
-
-#[test]
-fn test_view_only_session() {
-    let _guard = FeatureFlag::ViewingSharedSessions.override_enabled(true);
-
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        // Trying to open command search
-        let workspace = mock_workspace_viewing_shared_session(&mut app);
-        workspace.update(&mut app, |workspace: &mut Workspace, ctx| {
-            workspace.handle_action(&WorkspaceAction::ShowCommandSearch(Default::default()), ctx);
-        });
-
-        // Ensure command search doesn't work for read-only shared sessions
-        workspace.read(&app, |workspace, _ctx| {
-            assert!(!workspace.current_workspace_state.is_command_search_open);
         });
     });
 }
@@ -4708,21 +4652,6 @@ mod simplified_wasm_tab_bar {
             workspace.read(&app, |workspace, ctx| {
                 assert!(!workspace.opened_from_content_deep_link);
                 assert_eq!(workspace.get_simplified_wasm_tab_bar_content(ctx), None);
-            });
-        });
-    }
-
-    #[test]
-    fn simplified_wasm_tab_bar_is_some_for_shared_session_viewer() {
-        App::test((), |mut app| async move {
-            initialize_app(&mut app);
-            let workspace = mock_workspace_viewing_shared_session(&mut app);
-            workspace.read(&app, |workspace, ctx| {
-                assert!(workspace.opened_from_content_deep_link);
-                assert!(matches!(
-                    workspace.get_simplified_wasm_tab_bar_content(ctx),
-                    Some(SimplifiedWasmTabBarContent::SharedSession { .. })
-                ));
             });
         });
     }

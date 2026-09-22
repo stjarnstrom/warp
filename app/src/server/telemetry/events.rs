@@ -5216,7 +5216,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::StartedSharingCurrentSession | Self::StoppedSharingCurrentSession => {
                 EnablementState::Always
             }
-            Self::JoinedSharedSession => EnablementState::Flag(FeatureFlag::ViewingSharedSessions),
+            Self::JoinedSharedSession => EnablementState::Always,
             Self::OpenNotebook | Self::EditNotebook | Self::NotebookAction => {
                 EnablementState::Always
             }

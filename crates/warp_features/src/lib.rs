@@ -45,9 +45,6 @@ pub enum FeatureFlag {
     /// menu bar.
     ToggleBootstrapBlock,
 
-    /// Enables the joining / viewing of shared sessions (_not_ creation).
-    ViewingSharedSessions,
-
     /// Enabling context chips functionality for prompt
     ContextChips,
 

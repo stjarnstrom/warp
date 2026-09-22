@@ -24746,54 +24746,52 @@ impl TerminalView {
             );
         }
 
-        if FeatureFlag::ViewingSharedSessions.is_enabled() {
-            let is_shared_ambient_agent_session = model.is_shared_ambient_agent_session();
-            match &self.inline_banners_state.shared_session_banner_state {
-                SharedSessionBanners::ActiveShare {
-                    started_banner_id,
-                    started_at,
-                    is_remote_control,
-                } => {
-                    inline_banners.insert(
-                        *started_banner_id,
-                        render_inline_shared_session_started_banner(
-                            true,
-                            is_shared_ambient_agent_session,
-                            *is_remote_control,
-                            *started_at,
-                            appearance,
-                        ),
-                    );
-                }
-                SharedSessionBanners::LastShared {
-                    started_at,
-                    ended_at,
-                    started_banner_id,
-                    ended_banner_id,
-                    is_remote_control,
-                } => {
-                    inline_banners.insert(
-                        *started_banner_id,
-                        render_inline_shared_session_started_banner(
-                            false,
-                            is_shared_ambient_agent_session,
-                            *is_remote_control,
-                            *started_at,
-                            appearance,
-                        ),
-                    );
-                    inline_banners.insert(
-                        *ended_banner_id,
-                        render_inline_shared_session_ended_banner(
-                            is_shared_ambient_agent_session,
-                            *is_remote_control,
-                            *ended_at,
-                            appearance,
-                        ),
-                    );
-                }
-                SharedSessionBanners::None => {}
+        let is_shared_ambient_agent_session = model.is_shared_ambient_agent_session();
+        match &self.inline_banners_state.shared_session_banner_state {
+            SharedSessionBanners::ActiveShare {
+                started_banner_id,
+                started_at,
+                is_remote_control,
+            } => {
+                inline_banners.insert(
+                    *started_banner_id,
+                    render_inline_shared_session_started_banner(
+                        true,
+                        is_shared_ambient_agent_session,
+                        *is_remote_control,
+                        *started_at,
+                        appearance,
+                    ),
+                );
             }
+            SharedSessionBanners::LastShared {
+                started_at,
+                ended_at,
+                started_banner_id,
+                ended_banner_id,
+                is_remote_control,
+            } => {
+                inline_banners.insert(
+                    *started_banner_id,
+                    render_inline_shared_session_started_banner(
+                        false,
+                        is_shared_ambient_agent_session,
+                        *is_remote_control,
+                        *started_at,
+                        appearance,
+                    ),
+                );
+                inline_banners.insert(
+                    *ended_banner_id,
+                    render_inline_shared_session_ended_banner(
+                        is_shared_ambient_agent_session,
+                        *is_remote_control,
+                        *ended_at,
+                        appearance,
+                    ),
+                );
+            }
+            SharedSessionBanners::None => {}
         }
 
         if let Some(open_in_warp_banner) = &self.inline_banners_state.open_in_warp_banner {
@@ -24931,8 +24929,7 @@ impl TerminalView {
 
         // If this is a shared session viewer and the width required to display the entire
         // terminal is larger than the width of the pane, we should make it horizontally scrollable.
-        let should_be_horizontal_scrollable = FeatureFlag::ViewingSharedSessions.is_enabled()
-            && model.shared_session_status().is_active_viewer()
+        let should_be_horizontal_scrollable = model.shared_session_status().is_active_viewer()
             && required_terminal_width > pane_width;
 
         let theme = appearance.theme();
@@ -25251,8 +25248,7 @@ impl TerminalView {
         // If this is a shared session viewer and the width required to display the entire
         // terminal is larger than the width of the pane, we should make it horizontally scrollable.
         // If there aren't any visible blocks, we should not show a horizontally-scrollable view.
-        let should_be_horizontal_scrollable = FeatureFlag::ViewingSharedSessions.is_enabled()
-            && model.shared_session_status().is_active_viewer()
+        let should_be_horizontal_scrollable = model.shared_session_status().is_active_viewer()
             && model
                 .block_list()
                 .blocks()

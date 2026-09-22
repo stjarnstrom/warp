@@ -501,7 +501,6 @@ factory_mcp = []
 default = [
     "agent_mode",
     "osc_hyperlinks",
-    "viewing_shared_sessions",
     "render_continuous_block_selections_with_single_border",
     "shared_with_me",
     "session_sharing_acls",
@@ -859,7 +858,6 @@ integration_tests = [
     "warp_server_client/integration_tests",
 ]
 traces = []
-viewing_shared_sessions = []
 workflow_aliases = []
 rect_selection = []
 alacritty_settings_import = []
