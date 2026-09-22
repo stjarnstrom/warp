@@ -24,7 +24,6 @@ use crate::ai::ambient_agents::{
 use crate::ai::artifacts::{Artifact, ArtifactButtonsRow, ArtifactButtonsRowEvent};
 use crate::ai::blocklist::{BlocklistAIHistoryModel, format_credits};
 use crate::appearance::Appearance;
-use crate::server::ids::SyncId;
 use crate::server::server_api::ServerApiProvider;
 use crate::settings::ai::{AISettings, AISettingsChangedEvent};
 use crate::ui_components::blended_colors;
@@ -260,17 +259,6 @@ impl ConversationEndedTombstoneView {
         ctx.subscribe_to_view(
             &view.artifact_buttons_view,
             |_, _, event, ctx| match event {
-                ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-                    send_telemetry_from_ctx!(
-                        AgentManagementTelemetryEvent::TombstoneArtifactClicked {
-                            artifact_type: ArtifactType::Plan
-                        },
-                        ctx
-                    );
-                    ctx.dispatch_typed_action(&WorkspaceAction::OpenNotebook {
-                        id: SyncId::ServerId((*notebook_uid).into()),
-                    });
-                }
                 ArtifactButtonsRowEvent::CopyBranch { branch } => {
                     send_telemetry_from_ctx!(
                         AgentManagementTelemetryEvent::TombstoneArtifactClicked {

@@ -39,12 +39,6 @@ use warp_graphql::mutations::delete_object::{
 use warp_graphql::mutations::empty_trash::{
     EmptyTrash, EmptyTrashInput, EmptyTrashResult, EmptyTrashVariables,
 };
-use warp_graphql::mutations::give_up_notebook_edit_access::{
-    GiveUpNotebookEditAccess, GiveUpNotebookEditAccessVariables,
-};
-use warp_graphql::mutations::grab_notebook_edit_access::{
-    GrabNotebookEditAccess, GrabNotebookEditAccessVariables,
-};
 use warp_graphql::mutations::leave_object::{
     LeaveObject, LeaveObjectInput, LeaveObjectResult, LeaveObjectVariables,
 };
@@ -87,7 +81,6 @@ use warp_graphql::mutations::update_workflow::{
     UpdateWorkflow, UpdateWorkflowInput, UpdateWorkflowResult, UpdateWorkflowVariables,
     WorkflowUpdate,
 };
-use warp_graphql::notebook::{UpdateNotebookEditAccessInput, UpdateNotebookEditAccessResult};
 use warp_graphql::object::CloudObjectWithDescendants;
 use warp_graphql::queries::get_cloud_environments::{
     GetCloudEnvironmentsQuery, GetCloudEnvironmentsQueryVariables, GetCloudEnvironmentsResult,
@@ -117,7 +110,7 @@ use crate::cloud_object::{
     CreateObjectRequest, CreatedCloudObject, GenericCloudObject, GenericServerObject,
     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, ObjectIdType,
     ObjectType, ObjectsToUpdate, Owner, Revision, RevisionAndLastEditor, ServerCloudObject,
-    ServerFolder, ServerMetadata, ServerNotebook, ServerObject, ServerWorkflow, TryFromGql as _,
+    ServerFolder, ServerNotebook, ServerObject, ServerWorkflow, TryFromGql as _,
     UpdateCloudObjectResult,
 };
 use crate::drive::folders::FolderId;
@@ -576,59 +569,6 @@ impl ObjectClient for ServerApi {
         let operation = UpdateGenericStringObject::build(variables);
         let response = self.send_graphql_request(operation, None).await?;
         update_generic_string_object_result_to_update_result(response.update_generic_string_object)
-    }
-
-    async fn grab_notebook_edit_access(&self, notebook_id: NotebookId) -> Result<ServerMetadata> {
-        let variables = GrabNotebookEditAccessVariables {
-            input: UpdateNotebookEditAccessInput {
-                uid: cynic::Id::new(notebook_id),
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = GrabNotebookEditAccess::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.grab_notebook_edit_access {
-            UpdateNotebookEditAccessResult::UpdateNotebookEditAccessOutput(output) => {
-                // The grabNotebookEditAccess API errors if unable to grab the baton,
-                // so we're always in the success case here.
-                output.metadata.try_into()
-            }
-            UpdateNotebookEditAccessResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            UpdateNotebookEditAccessResult::Unknown => Err(anyhow!(
-                "Failed to grab notebook edit access due to unknown variant"
-            )),
-        }
-    }
-
-    async fn give_up_notebook_edit_access(
-        &self,
-        notebook_id: NotebookId,
-    ) -> Result<ServerMetadata> {
-        let variables = GiveUpNotebookEditAccessVariables {
-            input: UpdateNotebookEditAccessInput {
-                uid: cynic::Id::new(notebook_id),
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = GiveUpNotebookEditAccess::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.give_up_notebook_edit_access {
-            UpdateNotebookEditAccessResult::UpdateNotebookEditAccessOutput(output) => {
-                output.metadata.try_into()
-            }
-            UpdateNotebookEditAccessResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            UpdateNotebookEditAccessResult::Unknown => Err(anyhow!(
-                "Failed to give up notebook edit access due to unknown variant"
-            )),
-        }
     }
 
     /// Starts a websocket connections against the corresponding GraphQL subscription.

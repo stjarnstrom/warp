@@ -69,7 +69,6 @@ use crate::editor::{
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::notebooks::NotebookId;
 use crate::server::team_scope::RequestTeamScope;
 use crate::settings::ai::AISettings;
 use crate::ui_components::agent_icon::agent_conversation_entry_icon_variant;
@@ -1218,17 +1217,6 @@ impl AgentManagementView {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-                send_telemetry_from_ctx!(
-                    AgentManagementTelemetryEvent::ArtifactClicked {
-                        artifact_type: ArtifactType::Plan
-                    },
-                    ctx
-                );
-                ctx.emit(AgentManagementViewEvent::OpenPlanNotebook {
-                    notebook_uid: *notebook_uid,
-                });
-            }
             ArtifactButtonsRowEvent::CopyBranch { branch } => {
                 send_telemetry_from_ctx!(
                     AgentManagementTelemetryEvent::ArtifactClicked {
@@ -1414,11 +1402,6 @@ impl AgentManagementView {
             ConversationDetailsPanelEvent::Close => {
                 self.selected_item_id = None;
                 ctx.notify();
-            }
-            ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                ctx.emit(AgentManagementViewEvent::OpenPlanNotebook {
-                    notebook_uid: *notebook_uid,
-                });
             }
         }
     }
@@ -2259,7 +2242,6 @@ pub enum AgentManagementViewAction {
 
 pub enum AgentManagementViewEvent {
     OpenNewTabAndRunWorkflow(Box<WorkflowType>),
-    OpenPlanNotebook { notebook_uid: NotebookId },
 }
 
 impl TypedActionView for AgentManagementView {

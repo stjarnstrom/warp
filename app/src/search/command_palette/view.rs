@@ -92,7 +92,6 @@ pub enum Event {
     /// Invoke the env vars identified by `id`.
     InvokeEnvironmentVariables { id: SyncId },
     /// Open a notebook identified by `id`.
-    OpenNotebook { id: SyncId },
     /// View the relevant object in the Warp Drive sidebar.
     /// Open a file at the given path.
     OpenFile {
@@ -897,7 +896,6 @@ impl View {
             CommandPaletteItemAction::InvokeEnvironmentVariables { id } => {
                 ctx.emit(Event::InvokeEnvironmentVariables { id })
             }
-            CommandPaletteItemAction::OpenNotebook { id } => ctx.emit(Event::OpenNotebook { id }),
             CommandPaletteItemAction::NewSession { source } => {
                 self.dispatch_typed_action_on_view(source.action().deref(), ctx);
             }

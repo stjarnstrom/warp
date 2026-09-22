@@ -43,7 +43,6 @@ use crate::cloud_object::model::generic_string_model::{
     GenericStringModel, GenericStringObjectId, Serializer, StringModel,
 };
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
-use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
     CloudObjectSyncStatus, CreateCloudObjectResult, CreateObjectRequest, GenericCloudObject,
@@ -112,7 +111,6 @@ pub enum ObjectOperation {
     MoveToFolder,
     MoveToDrive,
     Trash,
-    TakeEditAccess,
     Untrash,
     Delete { initiated_by: InitiatedBy },
 }
@@ -1803,32 +1801,6 @@ impl UpdateManager {
         }
     }
 
-    /// Replace an object's data with the conflicting version from the server. If the object does
-    /// not have a conflict, this has no effect.
-    pub fn replace_object_with_conflict(&mut self, uid: &ObjectUid, ctx: &mut ModelContext<Self>) {
-        let cloud_model_handle = CloudModel::handle(ctx);
-
-        // Update the in-memory model first, and check for conflicts.
-        let had_conflicts = cloud_model_handle.update(ctx, |cloud_model, ctx| {
-            match cloud_model.get_mut_by_uid(uid) {
-                Some(object) if object.has_conflicting_changes() => {
-                    object.replace_object_with_conflict();
-                    ctx.emit(CloudModelEvent::ObjectUpdated {
-                        type_and_id: object.cloud_object_type_and_id(),
-                        source: UpdateSource::Server,
-                    });
-                    true
-                }
-                _ => false,
-            }
-        });
-
-        // Update SQLite, but only if the in-memory model was updated.
-        if had_conflicts {
-            self.save_in_memory_object_to_sqlite(cloud_model_handle.as_ref(ctx), uid);
-        }
-    }
-
     pub fn update_ai_fact(
         &mut self,
         ai_fact: AIFact,
@@ -1936,6 +1908,8 @@ impl UpdateManager {
         }
     }
 
+    /// Notebooks are the object the sync-queue tests drive updates through.
+    #[cfg(test)]
     pub fn update_notebook_title(
         &mut self,
         title: Arc<String>,
@@ -3468,147 +3442,6 @@ impl UpdateManager {
         // Overwrite the actions for those objects in sqlite
         let actions_to_sync: Vec<ObjectAction> = actions.values().flatten().cloned().collect();
         self.save_to_db([ModelEvent::SyncObjectActions { actions_to_sync }]);
-    }
-
-    /// Sets the notebooks current editor in memory. SQLite is not updated until we receive
-    /// server confirmation.
-    fn set_notebook_current_editor(
-        &self,
-        notebook_id: &SyncId,
-        editor_uid: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-            if let Some(notebook) = cloud_model.get_notebook_mut(notebook_id) {
-                notebook.metadata.set_current_editor(editor_uid);
-                ctx.notify();
-            }
-        });
-    }
-
-    pub fn grab_notebook_edit_access(
-        &mut self,
-        notebook_id: SyncId,
-        optimistically_grant_access: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // If the object isn't known to the server yet, we should not proceed
-        let SyncId::ServerId(server_id) = notebook_id else {
-            return;
-        };
-
-        let auth_state = AuthStateProvider::as_ref(ctx).get();
-        let user_uid = auth_state.user_id().unwrap_or_default();
-        if optimistically_grant_access {
-            self.set_notebook_current_editor(&notebook_id, Some(user_uid.as_string()), ctx);
-        }
-        let cloud_object_client = self.object_client.clone();
-        // Make the request.
-        let future = ctx.spawn_with_retry_on_error(
-            move || {
-                let cloud_object_client = cloud_object_client.clone();
-                async move { cloud_object_client.grab_notebook_edit_access(server_id.into()).await }
-            },
-            *ONLINE_ONLY_OPERATION_RETRY_STRATEGY,
-            move |me, res, ctx| match res {
-                RequestState::RequestSucceeded(metadata) => {
-                    // First, update the local view of metadata.
-                    me.store_metadata_update(server_id, metadata, ctx, |_| {});
-
-                    // If we successfully took access from another user, update the in memory editor
-                    // and emit an event so we know to switch into edit mode.
-                    if !optimistically_grant_access {
-                        me.set_notebook_current_editor(
-                            &notebook_id,
-                            Some(user_uid.as_string()),
-                            ctx,
-                        );
-                        ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-                            result: ObjectOperationResult {
-                                success_type: OperationSuccessType::Success,
-                                operation: ObjectOperation::TakeEditAccess,
-                                client_id: None,
-                                server_id: Some(server_id),
-                                num_objects: None,
-                            },
-                        });
-                    }
-                }
-                RequestState::RequestFailedRetryPending(e) => {
-                    log::warn!("Failed to grab edit access: {e}. Retrying");
-                }
-                RequestState::RequestFailed(e) => {
-                    // If we are trying to take access, notify the user that the operation failed. If nobody else was
-                    // editing, then we optimistically allow the user to proceed and do nothing here.
-                    if !optimistically_grant_access {
-                        log::warn!("Failed to grab edit access on server: {e}. Not retrying. Edit access not granted on client.");
-                        ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-                            result: ObjectOperationResult {
-                                success_type: OperationSuccessType::Failure,
-                                operation: ObjectOperation::TakeEditAccess,
-                                client_id: None,
-                                server_id: Some(server_id),
-                                num_objects: None,
-                            },
-                        });
-                    } else {
-                        log::warn!("Failed to grab edit access on server: {e}. Not retrying. Edit access still granted on client.");
-                    }
-                    ctx.notify();
-                }
-            },
-        );
-        self.spawned_futures.push(future.future_id());
-    }
-
-    /// Optimistically gives up edit access for a notebook and sends a request to the server
-    /// to update the notebooks current editor. We current do not have a retry protocol
-    /// for this request and intentionall do nothing on error. For more info see:
-    /// https://docs.google.com/document/d/1KgDFLApPg1uDVP-vOwhZzL1kRIviS8mMECIZg2VCKLY/edit
-    pub fn give_up_notebook_edit_access(
-        &mut self,
-        notebook_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        // If the object isn't known to the server yet, we should not proceed
-        let SyncId::ServerId(server_id) = notebook_id else {
-            return;
-        };
-
-        let current_editor = CloudViewModel::as_ref(ctx)
-            .object_current_editor(&notebook_id.uid(), ctx)
-            .unwrap_or(Editor::no_editor());
-
-        // Only give up access if the current user has edit access
-        if matches!(current_editor.state, EditorState::CurrentUser) {
-            self.set_notebook_current_editor(&notebook_id, None, ctx);
-            let object_client = self.object_client.clone();
-            // Make the request.
-            let future = ctx.spawn_with_retry_on_error(
-                move || {
-                    let object_client = object_client.clone();
-                    async move {
-                        object_client
-                            .give_up_notebook_edit_access(server_id.into())
-                            .await
-                    }
-                },
-                *ONLINE_ONLY_OPERATION_RETRY_STRATEGY,
-                move |me, res, ctx| match res {
-                    RequestState::RequestSucceeded(new_metadata) => {
-                        // If the request was successful, ensure we have the most up to date metadata
-                        me.store_metadata_update(server_id, new_metadata, ctx, |_| {});
-                    }
-                    RequestState::RequestFailedRetryPending(e) => {
-                        log::warn!("Failed to give up edit access: {e}. Retrying");
-                    }
-                    RequestState::RequestFailed(e) => {
-                        log::warn!("Failed to give up edit access: {e}. Not retrying");
-                    }
-                },
-            );
-            self.spawned_futures.push(future.future_id());
-        }
     }
 
     /// Optimistically marks the object as trashed, updates the metadata sync status to pending, and returns both

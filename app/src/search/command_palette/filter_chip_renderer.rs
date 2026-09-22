@@ -124,18 +124,6 @@ impl FilterChipRenderer for QueryFilter {
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),
             QueryFilter::Workflows => warp_drive_icon_color(appearance, DriveObjectType::Workflow),
-            QueryFilter::Notebooks => warp_drive_icon_color(
-                appearance,
-                DriveObjectType::Notebook {
-                    is_ai_document: false,
-                },
-            ),
-            QueryFilter::Plans => warp_drive_icon_color(
-                appearance,
-                DriveObjectType::Notebook {
-                    is_ai_document: true,
-                },
-            ),
             QueryFilter::EnvironmentVariables => {
                 warp_drive_icon_color(appearance, DriveObjectType::EnvVarCollection)
             }

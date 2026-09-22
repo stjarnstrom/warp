@@ -61,7 +61,6 @@ integration_tests! {
     test_restore_snapshot_with_deleted_cwd,
     test_session_restoration_with_multiple_shells,
     test_restore_snapshot_with_background_output,
-    test_restore_snapshot_with_notebooks,
     test_restore_snapshot_with_workflows,
     test_restore_snapshot_with_test_json_object,
     test_restore_snapshot_with_common_shareable_metadata_ids,
@@ -243,11 +242,7 @@ integration_tests! {
     test_closed_panes_cleared_on_rearrangement,
     test_tab_closes_when_last_visible_pane_closed,
 
-    test_notebook_pane_tracking,
-    test_close_notebook_tab,
     test_open_in_warp_banner,
-    test_close_notebook_window,
-    test_backspace_inside_raw_mermaid_block_edits_text_without_removing_block,
 
     test_open_workflow_in_pane,
     test_create_personal_workflow_pane_from_command_palette,

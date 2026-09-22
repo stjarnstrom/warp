@@ -336,17 +336,6 @@ impl ObjectClient for FakeObjectClient {
         unimplemented!("FakeObjectClient::update_folder")
     }
 
-    async fn grab_notebook_edit_access(&self, _notebook_id: NotebookId) -> Result<ServerMetadata> {
-        unimplemented!("FakeObjectClient::grab_notebook_edit_access")
-    }
-
-    async fn give_up_notebook_edit_access(
-        &self,
-        _notebook_id: NotebookId,
-    ) -> Result<ServerMetadata> {
-        unimplemented!("FakeObjectClient::give_up_notebook_edit_access")
-    }
-
     async fn get_warp_drive_updates(
         &self,
         _message_sender: Sender<ObjectUpdateMessage>,

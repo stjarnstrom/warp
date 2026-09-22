@@ -103,10 +103,8 @@ pub enum CustomAction {
     CloseCurrentSession,
     CloseWindow,
     NewPersonalWorkflow,
-    NewPersonalNotebook,
     NewPersonalEnvVars,
     NewTeamWorkflow,
-    NewTeamNotebook,
     NewTeamEnvVars,
     SearchDrive,
     OpenTeamSettings,
@@ -451,10 +449,8 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs
         | CustomAction::NewPersonalWorkflow
-        | CustomAction::NewPersonalNotebook
         | CustomAction::NewPersonalEnvVars
         | CustomAction::NewTeamWorkflow
-        | CustomAction::NewTeamNotebook
         | CustomAction::NewTeamEnvVars
         | CustomAction::SearchDrive
         | CustomAction::OpenTeamSettings

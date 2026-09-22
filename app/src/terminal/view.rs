@@ -4279,7 +4279,6 @@ impl TerminalView {
                     me.is_conversation_details_panel_open = false;
                     ctx.notify();
                 }
-                ConversationDetailsPanelEvent::OpenPlanNotebook { .. } => {}
             },
         );
 

@@ -330,7 +330,6 @@ pub enum WorkspaceAction {
     ToggleKeybindingsPage,
     ShowCommandSearch(CommandSearchOptions),
     TriggerExternalCtrlTFileSearch,
-    CreatePersonalNotebook,
     CreatePersonalWorkflow,
     CreateTeamWorkflow,
     CreatePersonalEnvVarCollection,
@@ -516,9 +515,6 @@ pub enum WorkspaceAction {
     OpenFileInNewTab {
         full_path: PathBuf,
         line_and_column: Option<LineAndColumnArg>,
-    },
-    OpenNotebook {
-        id: SyncId,
     },
     RunWorkflow {
         workflow: Arc<WorkflowType>,
@@ -907,7 +903,6 @@ impl WorkspaceAction {
             | NewTabInAgentMode { .. }
             | NewPaneInAgentMode { .. }
             | FixInAgentMode { .. }
-            | OpenNotebook { .. }
             | RunWorkflow { .. }
             | OpenFileInNewTab { .. }
             | RestoreOrNavigateToConversation { .. }
@@ -972,7 +967,6 @@ impl WorkspaceAction {
             | ToggleMouseReporting
             | ToggleScrollReporting
             | ToggleFocusReporting
-            | CreatePersonalNotebook
             | CreatePersonalWorkflow
             | CreateTeamWorkflow
             | CreatePersonalEnvVarCollection

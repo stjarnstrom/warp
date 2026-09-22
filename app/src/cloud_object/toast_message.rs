@@ -86,9 +86,6 @@ impl CloudObjectToastMessage {
             ) => {
                 Some("Rule could not be saved because changes were made while you were editing.".to_string())
             }
-            (_, ObjectOperation::TakeEditAccess, OperationSuccessType::Failure) => {
-                Some(format!("Failed to start editing {object_name_lowercase}"))
-            }
             _ => None,
         }
     }

@@ -239,18 +239,6 @@ pub trait ObjectClient: 'static + Send + Sync {
         revision: Option<Revision>,
     ) -> Result<UpdateCloudObjectResult<Box<dyn ServerObject>>>;
 
-    /// Sets the current editor of the notebook to be the logged in user
-    async fn grab_notebook_edit_access(
-        &self,
-        notebook_id: cloud_object_models::NotebookId,
-    ) -> Result<ServerMetadata>;
-
-    /// Sets the current editor of the notebook to be null
-    async fn give_up_notebook_edit_access(
-        &self,
-        notebook_id: cloud_object_models::NotebookId,
-    ) -> Result<ServerMetadata>;
-
     /// Gets updates for all Warp Drive actions.
     async fn get_warp_drive_updates(
         &self,

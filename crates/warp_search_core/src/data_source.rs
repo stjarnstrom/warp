@@ -32,14 +32,6 @@ lazy_static! {
         primary_text: "prompts:",
         aliases: vec!["p:"]
     };
-    static ref NOTEBOOKS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "notebooks:",
-        aliases: vec!["n:"]
-    };
-    static ref PLANS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "plans:",
-        aliases: vec![]
-    };
     static ref NATURAL_LANGUAGE_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "#",
         aliases: vec![]
@@ -155,12 +147,6 @@ pub enum QueryFilter {
     /// Only include agent mode workflows (prompts) from WorkflowsDataSource.
     AgentModeWorkflows,
 
-    /// Only include results from NotebooksDataSource.
-    Notebooks,
-
-    /// Only include results from PlansDataSource.
-    Plans,
-
     /// Only include the Natural Language (AI) command search result.
     NaturalLanguage,
 
@@ -237,8 +223,6 @@ impl QueryFilter {
             QueryFilter::History => "Search history",
             QueryFilter::Workflows => "Search workflows",
             QueryFilter::AgentModeWorkflows => "Search prompts",
-            QueryFilter::Notebooks => "Search notebooks",
-            QueryFilter::Plans => "Search plans",
             QueryFilter::NaturalLanguage => "e.g. replace string in file",
             QueryFilter::Actions => "Search actions",
             QueryFilter::Sessions => "Search sessions",
@@ -271,8 +255,6 @@ impl QueryFilter {
             QueryFilter::History => &HISTORY_FILTER_ATOM,
             QueryFilter::Workflows => &WORKFLOWS_FILTER_ATOM,
             QueryFilter::AgentModeWorkflows => &AGENT_MODE_WORKFLOWS_FILTER_ATOM,
-            QueryFilter::Notebooks => &NOTEBOOKS_FILTER_ATOM,
-            QueryFilter::Plans => &PLANS_FILTER_ATOM,
             QueryFilter::NaturalLanguage => &NATURAL_LANGUAGE_FILTER_ATOM,
             QueryFilter::Actions => &ACTIONS_FILTER_ATOM,
             QueryFilter::Sessions => &SESSIONS_FILTER_ATOM,
@@ -303,8 +285,6 @@ impl QueryFilter {
             QueryFilter::History => "history",
             QueryFilter::Workflows => "workflows",
             QueryFilter::AgentModeWorkflows => "prompts",
-            QueryFilter::Notebooks => "notebooks",
-            QueryFilter::Plans => "plans",
             QueryFilter::NaturalLanguage => "AI command suggestions",
             QueryFilter::Actions => "actions",
             QueryFilter::Sessions => "sessions",
@@ -334,8 +314,6 @@ impl QueryFilter {
         match self {
             QueryFilter::History => Some("bundled/svg/history.svg"),
             QueryFilter::Workflows => Some("bundled/svg/workflow.svg"),
-            QueryFilter::Notebooks => Some("bundled/svg/notebook.svg"),
-            QueryFilter::Plans => Some("bundled/svg/compass-3.svg"),
             QueryFilter::NaturalLanguage => {
                 if !FeatureFlag::AgentMode.is_enabled() {
                     Some(Icon::AiAssistant.into())
