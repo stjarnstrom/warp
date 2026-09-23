@@ -198,16 +198,12 @@ impl ThemePickerSlide {
             self.render_sync_with_os_section(appearance),
         ];
 
-        // Add the Privacy Settings / Terms of Service disclaimer block below the
-        // theme options when the user has selected the terminal intention and
-        // won't hit the login slide afterwards. The terminal-intent flow skips
-        // the login slide (which surfaces the same links) unless Warp Drive is
-        // enabled — in that case the login slide will still run after the theme
-        // step and show the disclaimer, so duplicating it here is unnecessary.
+        // Add the Privacy Settings / Terms of Service disclaimer block below the theme options when
+        // the user has selected the terminal intention, since the terminal-intent flow skips the
+        // login slide that surfaces the same links.
         let state = self.onboarding_state.as_ref(app);
         let is_terminal = matches!(state.intention(), OnboardingIntention::Terminal);
-        let warp_drive_enabled = state.ui_customization().show_warp_drive;
-        if !FeatureFlag::AccountFirstOnboarding.is_enabled() && is_terminal && !warp_drive_enabled {
+        if !FeatureFlag::AccountFirstOnboarding.is_enabled() && is_terminal {
             content.push(self.render_disclaimer_section(appearance));
         }
 

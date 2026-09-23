@@ -9,7 +9,7 @@ use warp_core::ui::builder;
 use warpui::elements::{ConstrainedBox, Container, Text};
 use warpui::{AppContext, Element, SingletonEntity};
 
-use super::workflows::{WorkflowIdentity, WorkflowSearchItem};
+use super::workflows::WorkflowSearchItem;
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::ai_assistant::{AI_ASSISTANT_LOGO_COLOR, GenerateCommandsFromNaturalLanguageError};
 use crate::appearance::Appearance;
@@ -205,12 +205,10 @@ impl AsyncDataSource for WarpAIDataSource {
                         .into_iter()
                         .map(|ai_command| {
                             WorkflowSearchItem {
-                                identity: WorkflowIdentity::Local(Box::new(
-                                    WorkflowType::AIGenerated {
-                                        workflow: ai_command.into(),
-                                        origin: AIWorkflowOrigin::CommandSearch,
-                                    },
-                                )),
+                                workflow: Box::new(WorkflowType::AIGenerated {
+                                    workflow: ai_command.into(),
+                                    origin: AIWorkflowOrigin::CommandSearch,
+                                }),
                                 source: WorkflowSource::WarpAI,
                                 fuzzy_matched_workflow: FuzzyMatchWorkflowResult::no_match(),
                             }

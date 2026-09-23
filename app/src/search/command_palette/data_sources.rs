@@ -7,7 +7,6 @@ use warpui::keymap::BindingId;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity, WindowId};
 
 use super::{conversations, warp_drive};
-use crate::drive::settings::WarpDriveSettings;
 use crate::search::QueryFilter;
 use crate::search::action::CommandBindingDataSource;
 use crate::search::binding_source::BindingSource;
@@ -93,18 +92,6 @@ impl DataSourceStore {
                 self.sessions_data_source.clone(),
                 HashSet::from([QueryFilter::Sessions]),
             );
-
-            if WarpDriveSettings::is_warp_drive_enabled(ctx) {
-                let mut warp_drive_filters =
-                    HashSet::from([QueryFilter::Drive, QueryFilter::Workflows]);
-
-                warp_drive_filters.insert(QueryFilter::EnvironmentVariables);
-
-                if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
-                    warp_drive_filters.insert(QueryFilter::AgentModeWorkflows);
-                }
-                mixer.add_sync_source(self.warp_drive_data_source.clone(), warp_drive_filters);
-            }
 
             mixer.add_sync_source(
                 self.actions_data_source.clone(),

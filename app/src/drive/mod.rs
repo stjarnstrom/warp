@@ -2,25 +2,18 @@ pub mod cloud_object_styling;
 pub mod drive_helpers;
 pub mod export;
 pub mod folders;
-pub mod settings;
 pub mod sharing;
 pub mod workflows;
 
-use std::cmp::Ordering;
 use std::fmt;
 
 pub use cloud_objects::drive::CloudObjectTypeAndId;
-use serde::{Deserialize, Serialize};
 use warp_core::user_preferences::GetUserPreferences as _;
 use warpui::AppContext;
 
-use crate::cloud_object::model::view::{CloudViewModel, UpdateTimestamp};
-use crate::cloud_object::{CloudObject, ObjectType};
+use crate::cloud_object::ObjectType;
 use crate::server::ids::ServerId;
 use crate::ui_components::icons::Icon;
-use crate::workflows::CloudWorkflow;
-
-type SortByComparator<'a> = dyn FnMut(&&dyn CloudObject, &&dyn CloudObject) -> Ordering + 'a;
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct OpenWarpDriveObjectSettings {
@@ -91,9 +84,11 @@ impl fmt::Display for DriveObjectType {
     }
 }
 
+const HAS_AUTO_OPENED_WELCOME_FOLDER: &str = "HasAutoOpenedWelcomeFolder";
+
 pub fn should_auto_open_welcome_folder(app: &mut AppContext) -> bool {
     app.private_user_preferences()
-        .read_value(settings::HAS_AUTO_OPENED_WELCOME_FOLDER)
+        .read_value(HAS_AUTO_OPENED_WELCOME_FOLDER)
         .unwrap_or_default()
         .and_then(|s| serde_json::from_str(&s).ok())
         .map(|has_opened: bool| !has_opened)
@@ -103,103 +98,5 @@ pub fn should_auto_open_welcome_folder(app: &mut AppContext) -> bool {
 pub fn write_has_auto_opened_welcome_folder_to_user_defaults(app: &mut AppContext) {
     let _ = app
         .private_user_preferences()
-        .write_value(settings::HAS_AUTO_OPENED_WELCOME_FOLDER, true.to_string());
-}
-
-/// Enum used for sorting elements in the Warp Drive Index (and potentially other places).
-/// In the future it can be used to add other options (like, by name or by author), and exposed to
-/// users in the index.
-#[derive(
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    Clone,
-    Copy,
-    Debug,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-    settings_value::SettingsValue,
-)]
-#[schemars(
-    description = "Sort order for Warp Drive items.",
-    rename_all = "snake_case"
-)]
-pub enum DriveSortOrder {
-    /// Sort by newest revision first in main index, most recently trashed in trash index
-    #[default]
-    ByTimestamp,
-    /// A => Z
-    AlphabeticalDescending,
-    /// Z => A
-    AlphabeticalAscending,
-    /// Sort by object type, with folders first
-    ByObjectType,
-}
-
-impl DriveSortOrder {
-    /// Returns the comparator that can be used for sorting items returned by
-    /// CloudModel::cloud_objects_in_space, for example (so more specifically, on the iterator of
-    /// type Iterator<Item = &'_ dyn CloudObject>)
-    pub fn sort_by<'a>(
-        &self,
-        cloud_model: &'a CloudViewModel,
-        update_timestamp: UpdateTimestamp,
-        app: &'a AppContext,
-    ) -> Box<SortByComparator<'a>> {
-        match self {
-            // Sorts newly-created objects to be at the top of the list
-            Self::ByTimestamp => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    cloud_model
-                        .object_sorting_timestamp(*a, update_timestamp, app)
-                        .cmp(&cloud_model.object_sorting_timestamp(*b, update_timestamp, app))
-                        .reverse()
-                },
-            ),
-            Self::AlphabeticalDescending => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    a.display_name()
-                        .to_lowercase()
-                        .cmp(&b.display_name().to_lowercase())
-                },
-            ),
-            Self::AlphabeticalAscending => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    b.display_name()
-                        .to_lowercase()
-                        .cmp(&a.display_name().to_lowercase())
-                },
-            ),
-            Self::ByObjectType => Box::new(
-                move |a: &&dyn CloudObject, b: &&dyn CloudObject| -> Ordering {
-                    let order = |obj: &&dyn CloudObject| match obj.object_type() {
-                        ObjectType::Folder => 0,
-                        ObjectType::GenericStringObject(_) => 1,
-                        ObjectType::Notebook => 2,
-                        ObjectType::Workflow => {
-                            let Some(workflow) = obj.as_any().downcast_ref::<CloudWorkflow>()
-                            else {
-                                return 3;
-                            };
-
-                            if workflow.model().data.is_agent_mode_workflow() {
-                                4
-                            } else {
-                                3
-                            }
-                        }
-                    };
-
-                    // First compare by object type ordering, then by display name alphabetically if equal
-                    order(a).cmp(&order(b)).then_with(|| {
-                        a.display_name()
-                            .to_lowercase()
-                            .cmp(&b.display_name().to_lowercase())
-                    })
-                },
-            ),
-        }
-    }
+        .write_value(HAS_AUTO_OPENED_WELCOME_FOLDER, true.to_string());
 }

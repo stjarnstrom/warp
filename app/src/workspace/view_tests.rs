@@ -105,7 +105,7 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(TeamUpdateManager::mock);
     app.add_singleton_model(UpdateManager::mock);
     app.add_singleton_model(MCPGalleryManager::new);
-    app.add_singleton_model(CloudViewModel::mock);
+    app.add_singleton_model(|_| CloudViewModel);
     app.add_singleton_model(Listener::mock);
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(AppearanceManager::new);
@@ -530,11 +530,9 @@ fn test_theme_chooser_does_not_suppress_tab_bar_traffic_light_padding() {
     });
 }
 
-/// Regression for account-first onboarding users who select Warp Drive and
-/// conversation history, skip signup, and create an account later. The stored
-/// preferences should remain true while unavailable, then take effect
-/// automatically as account and AI availability change—without an off/on
-/// toggle.
+/// Regression for account-first onboarding users who select conversation history, skip signup,
+/// and create an account later. The stored preference should remain true while unavailable, then
+/// take effect automatically as account and AI availability change—without an off/on toggle.
 #[test]
 fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
     let _skip_anon_guard = FeatureFlag::SkipFirebaseAnonymousUser.override_enabled(true);
@@ -547,12 +545,6 @@ fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
         // Preserve the user's onboarding intent while starting logged out with
         // AI disabled (the account-skipped account-first completion state).
         app.update(|ctx| {
-            WarpDriveSettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings
-                    .enable_warp_drive
-                    .set_value(true, ctx)
-                    .expect("remember Warp Drive preference");
-            });
             AISettings::handle(ctx).update(ctx, |settings, ctx| {
                 settings
                     .show_conversation_history
@@ -590,11 +582,8 @@ fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
             });
         });
         app.read(|ctx| {
-            // Availability must not erase the raw onboarding preferences.
-            assert!(*WarpDriveSettings::as_ref(ctx).enable_warp_drive);
+            // Availability must not erase the raw onboarding preference.
             assert!(*AISettings::as_ref(ctx).show_conversation_history);
-            assert!(!WarpDriveSettings::is_warp_drive_available(ctx));
-            assert!(!WarpDriveSettings::is_warp_drive_enabled(ctx));
             assert!(!AISettings::as_ref(ctx).is_conversation_history_available(ctx));
             assert!(!AISettings::as_ref(ctx).is_conversation_history_enabled(ctx));
         });
@@ -623,7 +612,6 @@ fn test_tools_panel_preferences_activate_after_signup_and_ai_enablement() {
                 "conversation entry remains visible while waiting for AI"
             );
             assert!(!workspace.auth_state.is_anonymous_or_logged_out());
-            assert!(WarpDriveSettings::is_warp_drive_enabled(ctx));
             assert!(!AISettings::as_ref(ctx).is_conversation_history_enabled(ctx));
             workspace.left_panel_view.update(ctx, |left_panel, ctx| {
                 left_panel.handle_action_with_force_open(

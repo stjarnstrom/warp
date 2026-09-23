@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use warpui::{AppContext, SingletonEntity};
 
-use super::{WorkflowIdentity, WorkflowSearchItem};
+use super::WorkflowSearchItem;
 use crate::completer::SessionContext;
 use crate::search::command_search::searcher::CommandSearchItemAction;
 use crate::search::command_search::settings::CommandSearchSettings;
@@ -100,9 +100,7 @@ impl SyncDataSource for WorkflowsDataSource {
                         FuzzyMatchWorkflowResult::try_match(query_str, &workflow, "").map(
                             |match_result| {
                                 WorkflowSearchItem {
-                                    identity: WorkflowIdentity::Local(Box::new(
-                                        WorkflowType::Local(workflow),
-                                    )),
+                                    workflow: Box::new(WorkflowType::Local(workflow)),
                                     source,
                                     fuzzy_matched_workflow: match_result,
                                 }
