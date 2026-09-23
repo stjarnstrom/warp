@@ -13,8 +13,6 @@ use crate::workflows::WorkflowId;
 pub enum NotebookTelemetryAction {
     /// The user manually took edit control.
     GrabEditingBaton,
-    /// An object was embedded into the notebook.
-    InsertEmbeddedObject(EmbeddedObjectInfo),
     /// A block within the notebook was copied to the clipboard.
     /// Currently, this only applies to command-like blocks.
     CopyBlock {
@@ -24,8 +22,6 @@ pub enum NotebookTelemetryAction {
     },
     /// The user opened the block insertion menu.
     OpenBlockInsertionMenu { source: BlockInsertionSource },
-    /// The user opened the search menu for embedded objects.
-    OpenEmbeddedObjectSearch,
     /// The user opened the find bar.
     OpenFindBar,
     /// The user opened the right-click context menu.
@@ -45,15 +41,6 @@ pub enum ActionEntrypoint {
     Button,
     /// A menu item.
     Menu,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(tag = "object_type")]
-pub enum EmbeddedObjectInfo {
-    Workflow {
-        workflow_id: Option<WorkflowId>,
-        team_uid: Option<ServerId>,
-    },
 }
 
 /// Information about a block in the notebook.

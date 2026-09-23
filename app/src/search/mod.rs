@@ -8,7 +8,6 @@ pub mod command_search;
 mod env_var_collections;
 pub mod files;
 mod filter_chip_renderer;
-pub mod notebook_embedding;
 mod palette_styles;
 mod search_bar;
 pub mod search_results_menu;
