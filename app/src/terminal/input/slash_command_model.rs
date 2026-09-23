@@ -51,7 +51,7 @@ pub struct DetectedSkillCommand {
 pub enum ParsedSlashCommandInput {
     /// The input is not slash command composition.
     None,
-    /// A slash command, saved prompt, or skill is being searched for.
+    /// A slash command or skill is being searched for.
     Composing {
         /// The suffix in the input after '/'.
         filter: String,

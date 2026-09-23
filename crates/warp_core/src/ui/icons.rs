@@ -296,8 +296,7 @@ pub enum Icon {
     /// the **call site's responsibility** — this variant carries the shape
     /// only. Most surfaces tint it with the surrounding theme color (light
     /// theme: dark glyph; dark theme: light glyph). Kept distinct from
-    /// `Warp` so agent surfaces and non-agent Warp UI (e.g.
-    /// `QueryFilter::Drive`) can evolve independently.
+    /// `Warp` so agent surfaces and non-agent Warp UI can evolve independently.
     Agent,
     Conversation,
     Prompt,

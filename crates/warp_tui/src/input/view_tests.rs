@@ -16,7 +16,7 @@ use warp::settings::AISettingsChangedEvent;
 #[cfg(feature = "voice_input")]
 use warp::tui_export::VoiceInput;
 use warp::tui_export::{
-    AcceptSlashCommandOrSavedPrompt, BlocklistAIHistoryModel, BlocklistAIInputModel,
+    AcceptSlashCommandOrSkill, BlocklistAIHistoryModel, BlocklistAIInputModel,
     ConversationSelectionEvent, InputConfig, InputModePolicy, InputType, LLMId, PolicyConfigUpdate,
     SlashCommandId, SlashCommandMixer, TuiMcpAction, TuiMcpServerId, TuiUpArrowHistoryItemKind,
     add_tui_history_test_models, blocklist_ai_history_model_with_queries,
@@ -1954,7 +1954,7 @@ fn build_view_with_inline_menu_gate(
         .map(|(index, id)| TuiSlashCommandRow {
             title: format!("Command {index}"),
             description: None,
-            action: AcceptSlashCommandOrSavedPrompt::SlashCommand { id: *id },
+            action: AcceptSlashCommandOrSkill::SlashCommand { id: *id },
         })
         .collect();
     let menu_model = ctx.add_model(|_| {
@@ -2043,9 +2043,8 @@ fn selected_slash_command_id(
     ctx: &AppContext,
 ) -> Option<SlashCommandId> {
     match menu_model.as_ref(ctx).selected_action()? {
-        AcceptSlashCommandOrSavedPrompt::SlashCommand { id } => Some(id),
-        AcceptSlashCommandOrSavedPrompt::SavedPrompt { .. }
-        | AcceptSlashCommandOrSavedPrompt::Skill { .. } => None,
+        AcceptSlashCommandOrSkill::SlashCommand { id } => Some(id),
+        AcceptSlashCommandOrSkill::Skill { .. } => None,
     }
 }
 
@@ -2083,7 +2082,7 @@ fn inline_menu_accept_dismisses_before_emitting_unchanged_payload() {
             let menu_for_subscription = menu_model.clone();
             ctx.subscribe_to_view(&view, move |_, event, ctx| {
                 if let TuiInputViewEvent::AcceptedSlashCommand(
-                    AcceptSlashCommandOrSavedPrompt::SlashCommand { id },
+                    AcceptSlashCommandOrSkill::SlashCommand { id },
                 ) = event
                 {
                     accepted_for_subscription
@@ -2114,7 +2113,7 @@ fn inline_menu_submit_is_blocked_until_prompt_is_ready() {
             let accepted_for_subscription = accepted.clone();
             ctx.subscribe_to_view(&view, move |_, event, _| {
                 if let TuiInputViewEvent::AcceptedSlashCommand(
-                    AcceptSlashCommandOrSavedPrompt::SlashCommand { id },
+                    AcceptSlashCommandOrSkill::SlashCommand { id },
                 ) = event
                 {
                     accepted_for_subscription.borrow_mut().push(*id);

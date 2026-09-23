@@ -1151,8 +1151,6 @@ pub enum QueuedPromptSendNowTrigger {
 pub enum SlashCommandAcceptedDetails {
     /// A built-in static command with its specific name (e.g., "/init", "/diff-review")
     StaticCommand { command_name: String },
-    /// A user-created saved prompt/workflow
-    SavedPrompt,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

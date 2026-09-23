@@ -101,14 +101,12 @@ impl FilterChipRenderer for QueryFilter {
             | QueryFilter::Actions
             | QueryFilter::Sessions
             | QueryFilter::Tabs
-            | QueryFilter::Drive
             | QueryFilter::LaunchConfigurations
             | QueryFilter::PromptHistory
             | QueryFilter::Files
             | QueryFilter::Commands
             | QueryFilter::Blocks
             | QueryFilter::Code
-            | QueryFilter::Rules
             | QueryFilter::Repos
             | QueryFilter::DiffSets
             | QueryFilter::StaticSlashCommands
@@ -124,12 +122,6 @@ impl FilterChipRenderer for QueryFilter {
                 .main_text_color(appearance.theme().surface_2())
                 .into_solid(),
             QueryFilter::Workflows => warp_drive_icon_color(appearance, DriveObjectType::Workflow),
-            QueryFilter::EnvironmentVariables => {
-                warp_drive_icon_color(appearance, DriveObjectType::EnvVarCollection)
-            }
-            QueryFilter::AgentModeWorkflows => {
-                warp_drive_icon_color(appearance, DriveObjectType::AgentModeWorkflow)
-            }
         }
     }
 }

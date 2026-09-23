@@ -31,7 +31,7 @@ use crate::terminal::input::slash_command_model::{
     DetectedCommand, DetectedSkillCommand, ParsedSlashCommandInput,
     slash_command_composition_filter,
 };
-use crate::terminal::input::slash_commands::AcceptSlashCommandOrSavedPrompt;
+use crate::terminal::input::slash_commands::AcceptSlashCommandOrSkill;
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::{ActiveSession, ActiveSessionEvent};
 use crate::workspaces::user_workspaces::{
@@ -48,7 +48,7 @@ const SCORE_MULTIPLIER: OrderedFloat<f64> = OrderedFloat(1000.0);
 /// Slash commands that are available in CLI agent rich input mode.
 /// Add command names here to make them accessible when composing prompts
 /// for a running CLI agent (Claude Code, Codex, etc.).
-const CLI_AGENT_INPUT_ALLOWED_COMMANDS: &[&str] = &["/prompts", "/skills"];
+const CLI_AGENT_INPUT_ALLOWED_COMMANDS: &[&str] = &["/skills"];
 
 fn split_command_and_argument(buffer: &str) -> (&str, Option<&str>) {
     buffer
@@ -582,7 +582,6 @@ pub trait SlashCommandDataSource {
             &*commands::CREATE_ENVIRONMENT,
             &*commands::EDIT,
             &commands::CONVERSATIONS,
-            &commands::PROMPTS,
             &*commands::PLAN,
             &commands::AGENT,
         ];
@@ -642,7 +641,7 @@ fn prefix_match_bonus(query: &str, name: &str) -> f64 {
 
 #[derive(Debug, Clone)]
 pub struct InlineItem {
-    pub action: AcceptSlashCommandOrSavedPrompt,
+    pub action: AcceptSlashCommandOrSkill,
     pub icon_path: Option<&'static str>,
     pub name: String,
     pub description: Option<String>,
@@ -661,31 +660,11 @@ impl InlineItem {
     ) -> Self {
         let appearance = Appearance::as_ref(app);
         Self {
-            action: AcceptSlashCommandOrSavedPrompt::SlashCommand { id: *command_id },
+            action: AcceptSlashCommandOrSkill::SlashCommand { id: *command_id },
             icon_path: command.supported_surfaces.gui_icon_path(),
             name: command.name.to_owned(),
             description: Some(command.description.to_owned()),
             font_family: appearance.monospace_font_family(),
-            name_match_result: None,
-            description_match_result: None,
-            score: OrderedFloat(f64::MIN),
-            compact_layout: false,
-        }
-    }
-
-    pub(crate) fn from_saved_prompt(
-        saved_prompt: &crate::workflows::CloudWorkflow,
-        app: &AppContext,
-    ) -> Self {
-        let appearance = Appearance::as_ref(app);
-        Self {
-            action: AcceptSlashCommandOrSavedPrompt::SavedPrompt {
-                id: saved_prompt.id,
-            },
-            icon_path: Some("bundled/svg/prompt.svg"),
-            name: saved_prompt.model().data.name().to_owned(),
-            description: None,
-            font_family: appearance.ui_font_family(),
             name_match_result: None,
             description_match_result: None,
             score: OrderedFloat(f64::MIN),
@@ -711,7 +690,7 @@ impl InlineItem {
         };
 
         Self {
-            action: AcceptSlashCommandOrSavedPrompt::Skill {
+            action: AcceptSlashCommandOrSkill::Skill {
                 reference: skill.reference.clone(),
                 name: skill.name.clone(),
             },

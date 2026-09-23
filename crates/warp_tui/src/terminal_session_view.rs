@@ -20,8 +20,8 @@ use warp::settings::{
 use warp::tui_export::slash_commands;
 use warp::tui_export::{
     AIAgentActionId, AIAgentContext, AIAgentExchangeId, AIAgentPtyWriteMode, AIConversation,
-    AIConversationAutoexecuteMode, AIConversationId, AcceptSlashCommandOrSavedPrompt,
-    ActiveSession, ActiveSessionEvent, AfterBlockCompletedEvent, AgentConversationEntryId,
+    AIConversationAutoexecuteMode, AIConversationId, AcceptSlashCommandOrSkill, ActiveSession,
+    ActiveSessionEvent, AfterBlockCompletedEvent, AgentConversationEntryId,
     AgentConversationListEntryState, AgentConversationsModel, AgentInteractionMetadata,
     AgentViewEntryOrigin, Appearance, BlockId, BlockType, BlocklistAIActionEvent,
     BlocklistAIActionModel, BlocklistAIContextModel, BlocklistAIController,
@@ -47,8 +47,7 @@ use warp::tui_export::{
     block_context_from_terminal_model, build_slash_command_mixer, detect_possible_git_repo,
     export_conversation_markdown, loaded_subtree_rollup, log_out_tui,
     maybe_build_ai_query_upsert_event, prepare_conversation_block_restoration,
-    record_autodetection_toggle_from_slash_command, record_saved_prompt_accepted,
-    record_static_slash_command_accepted, saved_prompt_text_for_id,
+    record_autodetection_toggle_from_slash_command, record_static_slash_command_accepted,
     slash_command_selection_behavior, throttle,
 };
 use warp_core::channel::{Channel, ChannelState};
@@ -4218,11 +4217,11 @@ impl TuiTerminalSessionView {
 
     fn handle_accepted_slash_command(
         &mut self,
-        action: &AcceptSlashCommandOrSavedPrompt,
+        action: &AcceptSlashCommandOrSkill,
         ctx: &mut ViewContext<Self>,
     ) {
         match action {
-            AcceptSlashCommandOrSavedPrompt::SlashCommand { id } => {
+            AcceptSlashCommandOrSkill::SlashCommand { id } => {
                 let Some(command) = COMMAND_REGISTRY.get_command(id) else {
                     log::debug!("TUI slash command selection is not supported yet: {id:?}");
                     ctx.notify();
@@ -4230,17 +4229,7 @@ impl TuiTerminalSessionView {
                 };
                 self.select_tui_slash_command(command, ctx);
             }
-            AcceptSlashCommandOrSavedPrompt::SavedPrompt { id } => {
-                let Some(prompt) = saved_prompt_text_for_id(id, ctx) else {
-                    log::warn!("Tried to insert saved prompt for id {id:?} but it does not exist");
-                    return;
-                };
-                self.input_view.update(ctx, |input, ctx| {
-                    input.set_text(&prompt, ctx);
-                });
-                record_saved_prompt_accepted(true, ctx);
-            }
-            AcceptSlashCommandOrSavedPrompt::Skill { name, .. } => {
+            AcceptSlashCommandOrSkill::Skill { name, .. } => {
                 self.input_view.update(ctx, |input, ctx| {
                     input.set_text(&format!("/{name} "), ctx);
                 });
@@ -4852,7 +4841,6 @@ impl TuiTerminalSessionView {
             | SlashCommandKind::ForkAndCompact
             | SlashCommandKind::ForkFrom
             | SlashCommandKind::ContinueLocally
-            | SlashCommandKind::Prompts
             | SlashCommandKind::Rewind => {
                 debug_assert!(
                     false,

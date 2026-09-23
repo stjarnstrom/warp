@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use string_offset::CharOffset;
 use warp::tui_export::{
-    AcceptSlashCommandOrSavedPrompt, AgentConversationEntryId, LLMId, ServerId, TuiMcpAction,
+    AcceptSlashCommandOrSkill, AgentConversationEntryId, LLMId, ServerId, TuiMcpAction,
     TuiUpArrowHistoryItemKind,
 };
 use warp_search_core::inline_menu::{InlineMenuResultsUpdate, InlineMenuSelection};
@@ -401,7 +401,7 @@ impl<Row> TuiInlineMenuListState<Row> {
 /// Domain action produced by accepting the selected item in an active menu.
 #[derive(Debug, Clone)]
 pub(crate) enum TuiInlineMenuAccepted {
-    SlashCommand(AcceptSlashCommandOrSavedPrompt),
+    SlashCommand(AcceptSlashCommandOrSkill),
     Conversation(AgentConversationEntryId),
     Model(LLMId),
     Team(ServerId),
@@ -958,7 +958,7 @@ impl TuiInlineMenuHandle for ModelHandle<TuiSkillMenuModel> {
     fn accept(&self, ctx: &mut AppContext) -> Option<TuiInlineMenuAccepted> {
         self.update(ctx, |model, ctx| model.accept_selected(ctx))
             .map(|skill| {
-                TuiInlineMenuAccepted::SlashCommand(AcceptSlashCommandOrSavedPrompt::Skill {
+                TuiInlineMenuAccepted::SlashCommand(AcceptSlashCommandOrSkill::Skill {
                     reference: skill.skill_reference,
                     name: skill.skill_name,
                 })

@@ -30,8 +30,8 @@ use warp::settings::AppEditorSettings;
 #[cfg(feature = "voice_input")]
 use warp::tui_export::UserWorkspaces;
 use warp::tui_export::{
-    AcceptSlashCommandOrSavedPrompt, BlocklistAIInputModel, InputType,
-    InputTypeAutoDetectionSource, LLMId, TuiMcpAction, TuiUpArrowHistoryItemKind,
+    AcceptSlashCommandOrSkill, BlocklistAIInputModel, InputType, InputTypeAutoDetectionSource,
+    LLMId, TuiMcpAction, TuiUpArrowHistoryItemKind,
 };
 use warp_editor::model::CoreEditorModel;
 use warpui::SingletonEntity as _;
@@ -162,7 +162,7 @@ pub enum TuiInputViewEvent {
     /// input consumes Backspace to exit shell mode instead.
     BackspaceAtEmptyInput,
     /// The user selected a slash command menu item.
-    AcceptedSlashCommand(AcceptSlashCommandOrSavedPrompt),
+    AcceptedSlashCommand(AcceptSlashCommandOrSkill),
     /// The user selected a conversation menu item.
     AcceptedConversation(warp::tui_export::AgentConversationEntryId),
     /// The user selected a model menu item.

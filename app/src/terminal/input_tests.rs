@@ -4949,6 +4949,7 @@ fn test_open_slash_command_requires_path() {
 
 #[test]
 fn test_changelog_slash_command_clears_buffer_on_success() {
+    let _changelog = FeatureFlag::Changelog.override_enabled(true);
     App::test((), |mut app| async move {
         initialize_app(&mut app);
 

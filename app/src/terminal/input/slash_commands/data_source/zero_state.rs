@@ -3,13 +3,12 @@ use warp_core::features::FeatureFlag;
 use warpui::{Entity, ModelHandle, SingletonEntity};
 
 use crate::ai::skills::SkillManager;
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::search::SyncDataSource;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::DataSourceRunErrorWrapper;
 use crate::settings::AISettings;
 use crate::terminal::input::slash_commands::{
-    AcceptSlashCommandOrSavedPrompt, GuiSlashCommandDataSource, InlineItem, SlashCommandDataSource,
+    AcceptSlashCommandOrSkill, GuiSlashCommandDataSource, InlineItem, SlashCommandDataSource,
     TuiSlashCommandDataSource,
 };
 
@@ -30,7 +29,7 @@ impl Entity for GuiZeroStateDataSource {
 }
 
 impl SyncDataSource for GuiZeroStateDataSource {
-    type Action = AcceptSlashCommandOrSavedPrompt;
+    type Action = AcceptSlashCommandOrSkill;
 
     fn run_query(
         &self,
@@ -70,23 +69,6 @@ impl SyncDataSource for GuiZeroStateDataSource {
             }
         }
 
-        if is_cloud_mode_v2 && AISettings::as_ref(app).is_any_ai_enabled(app) {
-            let saved_prompts: Vec<_> = CloudModel::as_ref(app)
-                .get_all_active_workflows()
-                .filter(|cw| cw.model().data.is_agent_mode_workflow())
-                .sorted_by(|a, b| {
-                    b.model()
-                        .data
-                        .name()
-                        .to_lowercase()
-                        .cmp(&a.model().data.name().to_lowercase())
-                })
-                .collect();
-            for saved_prompt in saved_prompts {
-                results.push(InlineItem::from_saved_prompt(saved_prompt, app));
-            }
-        }
-
         Ok(results
             .into_iter()
             .map(|item| item.with_compact_layout(is_cloud_mode_v2).into())
@@ -111,7 +93,7 @@ impl Entity for TuiZeroStateDataSource {
 }
 
 impl SyncDataSource for TuiZeroStateDataSource {
-    type Action = AcceptSlashCommandOrSavedPrompt;
+    type Action = AcceptSlashCommandOrSkill;
 
     fn run_query(
         &self,

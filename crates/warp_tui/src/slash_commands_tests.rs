@@ -3,9 +3,8 @@ use warp::appearance::Appearance;
 use warp::editor::CodeEditorModel;
 use warp::settings::{AISettings, TuiTheme, TuiThemeSettings};
 use warp::tui_export::{
-    AcceptSlashCommandOrSavedPrompt, DetectedCommand, DetectedSkillCommand,
-    ParsedSlashCommandInput, SlashCommandId, SlashCommandMixer,
-    register_tui_session_view_test_singletons, slash_commands,
+    AcceptSlashCommandOrSkill, DetectedCommand, DetectedSkillCommand, ParsedSlashCommandInput,
+    SlashCommandId, SlashCommandMixer, register_tui_session_view_test_singletons, slash_commands,
 };
 use warp_core::settings::Setting as _;
 use warp_search_core::inline_menu::InlineMenuSelection;
@@ -54,7 +53,7 @@ fn slash_command_menu_renders_voice_row() {
                     vec![TuiSlashCommandRow {
                         title: slash_commands::VOICE.name.to_owned(),
                         description: Some(slash_commands::VOICE.description.to_owned()),
-                        action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                        action: AcceptSlashCommandOrSkill::SlashCommand {
                             id: SlashCommandId::new(),
                         },
                     }],
@@ -99,7 +98,7 @@ fn slash_command_menu_renders_view_logs_row() {
                     vec![TuiSlashCommandRow {
                         title: "/view-logs".to_owned(),
                         description: Some("Bundle your TUI logs into a zip archive".to_owned()),
-                        action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                        action: AcceptSlashCommandOrSkill::SlashCommand {
                             id: SlashCommandId::new(),
                         },
                     }],
@@ -143,7 +142,7 @@ fn slash_command_menu_renders_auto_approve_row() {
                     vec![TuiSlashCommandRow {
                         title: slash_commands::AUTO_APPROVE.name.to_owned(),
                         description: Some(slash_commands::AUTO_APPROVE.description.to_owned()),
-                        action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                        action: AcceptSlashCommandOrSkill::SlashCommand {
                             id: SlashCommandId::new(),
                         },
                     }],
@@ -200,7 +199,7 @@ fn slash_command_menu_renders_natural_language_detection_row() {
                                 .description
                                 .to_owned(),
                         ),
-                        action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                        action: AcceptSlashCommandOrSkill::SlashCommand {
                             id: SlashCommandId::new(),
                         },
                     }],
@@ -258,7 +257,7 @@ fn slash_command_menu_renders_theme_row() {
                     vec![TuiSlashCommandRow {
                         title: slash_commands::THEME.name.to_owned(),
                         description: Some(slash_commands::THEME.description.to_owned()),
-                        action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                        action: AcceptSlashCommandOrSkill::SlashCommand {
                             id: SlashCommandId::new(),
                         },
                     }],
@@ -530,7 +529,7 @@ fn assert_explicit_menu_blocks_slash_commands(explicit_mode: TuiInputSuggestions
                 vec![TuiSlashCommandRow {
                     title: "Test command".to_owned(),
                     description: None,
-                    action: AcceptSlashCommandOrSavedPrompt::SlashCommand {
+                    action: AcceptSlashCommandOrSkill::SlashCommand {
                         id: SlashCommandId::new(),
                     },
                 }],
@@ -596,7 +595,7 @@ fn accepting_a_result_does_not_disable_input_driven_lifecycle() {
                 vec![TuiSlashCommandRow {
                     title: "Test command".to_owned(),
                     description: None,
-                    action: AcceptSlashCommandOrSavedPrompt::SlashCommand { id: command_id },
+                    action: AcceptSlashCommandOrSkill::SlashCommand { id: command_id },
                 }],
                 0,
             )
@@ -605,7 +604,7 @@ fn accepting_a_result_does_not_disable_input_driven_lifecycle() {
         model.update(&mut app, |model, ctx| {
             assert_eq!(
                 model.accept_selected(ctx),
-                Some(AcceptSlashCommandOrSavedPrompt::SlashCommand { id: command_id })
+                Some(AcceptSlashCommandOrSkill::SlashCommand { id: command_id })
             );
             assert!(model.lifecycle.input_changed(false, true));
         });

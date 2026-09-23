@@ -759,18 +759,6 @@ pub const CONVERSATIONS: StaticCommand = StaticCommand {
     argument: None,
 };
 
-pub static PROMPTS: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/prompts",
-    description: "Search saved prompts",
-    kind: SlashCommandKind::Prompts,
-    supported_surfaces: SlashCommandSurfaces::GuiOnly {
-        icon_path: "bundled/svg/prompt.svg",
-    },
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: None,
-});
-
 pub const REWIND: StaticCommand = StaticCommand {
     name: "/rewind",
     description: "Rewind to a previous point in the conversation",
@@ -957,10 +945,6 @@ fn all_commands_for_all_surfaces() -> Vec<StaticCommand> {
 
     if FeatureFlag::Changelog.is_enabled() {
         commands.push(CHANGELOG);
-    }
-
-    if FeatureFlag::AgentView.is_enabled() {
-        commands.push(PROMPTS.clone());
     }
 
     commands.push(OPEN_CODE_REVIEW);

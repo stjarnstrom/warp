@@ -42,14 +42,12 @@ use crate::ai::blocklist::{
     QueuedQueryId, QueuedQueryModel, QueuedQueryOrigin, SlashCommandRequest,
 };
 use crate::ai::conversation_rename::rename_conversation;
-use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 #[cfg(not(target_family = "wasm"))]
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::search::slash_command_menu::static_commands::commands::COMMAND_REGISTRY;
 use crate::search::slash_command_menu::static_commands::{Availability, SlashCommandKind};
 use crate::search::slash_command_menu::{SlashCommandId, StaticCommand};
-use crate::server::ids::SyncId;
 use crate::server::telemetry::{AgentModeAutoDetectionSettingOrigin, SlashCommandAcceptedDetails};
 use crate::settings::AISettings;
 use crate::tab::SelectedTabColor;
@@ -68,17 +66,12 @@ use crate::terminal::model::session::Session;
 use crate::terminal::view::{AIQueryRouting, TerminalAction, resolve_ai_query_routing};
 use crate::ui_components::color_dot;
 use crate::view_components::DismissibleToast;
-use crate::workflows::command_parser::compute_workflow_display_data;
-use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::{ForkedConversationDestination, ToastStack, WorkspaceAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AcceptSlashCommandOrSavedPrompt {
+pub enum AcceptSlashCommandOrSkill {
     SlashCommand {
         id: SlashCommandId,
-    },
-    SavedPrompt {
-        id: SyncId,
     },
     /// A skill selected from browse or search. Contains name (for display/insertion) and path/bundled_skill_id (for execution).
     Skill {
@@ -86,7 +79,7 @@ pub enum AcceptSlashCommandOrSavedPrompt {
         name: String,
     },
 }
-impl InlineMenuAction for AcceptSlashCommandOrSavedPrompt {
+impl InlineMenuAction for AcceptSlashCommandOrSkill {
     const MENU_TYPE: InlineMenuType = InlineMenuType::SlashCommands;
 }
 
@@ -159,24 +152,6 @@ pub fn record_autodetection_toggle_from_slash_command(
         },
         ctx
     );
-}
-
-/// Records a saved prompt accepted from either the GUI or TUI slash menu.
-pub fn record_saved_prompt_accepted(is_in_agent_view: bool, ctx: &mut AppContext) {
-    send_telemetry_from_ctx!(
-        TelemetryEvent::SlashCommandAccepted {
-            command_details: SlashCommandAcceptedDetails::SavedPrompt,
-            is_in_agent_view,
-        },
-        ctx
-    );
-}
-
-pub fn saved_prompt_text_for_id(id: &SyncId, ctx: &AppContext) -> Option<String> {
-    let workflow = CloudModel::as_ref(ctx).get_workflow(id)?;
-    workflow.model().data.is_agent_mode_workflow().then(|| {
-        compute_workflow_display_data(&workflow.model().data).command_with_replaced_arguments
-    })
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -404,23 +379,6 @@ impl Input {
                     model.set_mode(InputSuggestionsMode::Closed, ctx);
                 });
                 ctx.notify();
-            }
-            SlashCommandsEvent::SelectedSavedPrompt { id } => {
-                let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(id).cloned() else {
-                    log::warn!("Tried to execute workflow for id {id:?} but it does not exist");
-                    return;
-                };
-                let is_in_agent_view = FeatureFlag::AgentView.is_enabled()
-                    && self.agent_view_controller.as_ref(ctx).is_fullscreen();
-                record_saved_prompt_accepted(is_in_agent_view, ctx);
-
-                self.show_workflows_info_box_on_workflow_selection(
-                    WorkflowType::Cloud(Box::new(workflow)),
-                    WorkflowSource::WarpAI,
-                    WorkflowSelectionSource::SlashMenu,
-                    None,
-                    ctx,
-                );
             }
             SlashCommandsEvent::SelectedStaticCommand {
                 id,
@@ -1011,17 +969,6 @@ impl Input {
                 }
 
                 self.open_profile_selector(ctx);
-            }
-            SlashCommandKind::Prompts => {
-                if self.is_cloud_mode_input_v2_composing(ctx) {
-                    self.apply_v2_slash_section_filter(CloudModeV2Section::Prompts, ctx);
-                    return true;
-                }
-                if FeatureFlag::AgentView.is_enabled() {
-                    self.open_prompts_menu(ctx);
-                } else {
-                    return false;
-                }
             }
             SlashCommandKind::Rewind => {
                 self.open_rewind_menu(ctx);

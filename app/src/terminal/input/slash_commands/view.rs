@@ -4,12 +4,11 @@ use warpui::{AppContext, Element, Entity, ModelHandle, View, ViewContext, ViewHa
 
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::search::slash_command_menu::SlashCommandId;
-use crate::server::ids::SyncId;
 use crate::terminal::input::buffer_model::InputBufferModel;
 use crate::terminal::input::inline_menu::{InlineMenuEvent, InlineMenuPositioner, InlineMenuView};
 use crate::terminal::input::slash_command_model::{SlashCommandEntryState, SlashCommandModel};
 use crate::terminal::input::slash_commands::{
-    AcceptSlashCommandOrSavedPrompt, GuiSlashCommandDataSource, GuiZeroStateDataSource,
+    AcceptSlashCommandOrSkill, GuiSlashCommandDataSource, GuiZeroStateDataSource,
     SlashCommandMixer, UpdatedActiveCommands, build_slash_command_mixer, slash_command_query,
 };
 use crate::terminal::input::suggestions_mode_model::{
@@ -36,9 +35,6 @@ impl CloseReason {
 #[derive(Debug, Clone)]
 pub enum SlashCommandsEvent {
     Close(CloseReason),
-    SelectedSavedPrompt {
-        id: SyncId,
-    },
     /// `cmd_or_ctrl_enter` is true if accepted via Cmd/Ctrl+Enter (vs Enter/click).
     SelectedStaticCommand {
         id: SlashCommandId,
@@ -60,7 +56,7 @@ pub enum SlashCommandsEvent {
 /// - Maps `InlineMenuEvent<SelectItem>` to `SlashCommandsEvent`
 /// - Subscribes to `SlashCommandModel` for query updates
 pub struct InlineSlashCommandView {
-    menu_view: ViewHandle<InlineMenuView<AcceptSlashCommandOrSavedPrompt>>,
+    menu_view: ViewHandle<InlineMenuView<AcceptSlashCommandOrSkill>>,
     suggestions_mode_model: ModelHandle<InputSuggestionsModeModel>,
     mixer: ModelHandle<SlashCommandMixer>,
     input_buffer_model: ModelHandle<InputBufferModel>,
@@ -124,8 +120,8 @@ impl InlineSlashCommandView {
         ctx.subscribe_to_model(slash_command_model, |me, model, _, ctx| {
             // If the inline menu isn't open, don't keep re-running search as the user types.
             //
-            // This prevents expensive searching (e.g. saved prompts) when the menu has been
-            // closed (such as after selecting a command and typing an argument).
+            // This prevents needless searching when the menu has been closed (such as after
+            // selecting a command and typing an argument).
             if !me.suggestions_mode_model.as_ref(ctx).is_slash_commands() {
                 return;
             }
@@ -185,21 +181,18 @@ impl InlineSlashCommandView {
 
     fn handle_selection(
         &mut self,
-        item: &AcceptSlashCommandOrSavedPrompt,
+        item: &AcceptSlashCommandOrSkill,
         cmd_or_ctrl_enter: bool,
         ctx: &mut ViewContext<Self>,
     ) {
         match item {
-            AcceptSlashCommandOrSavedPrompt::SlashCommand { id } => {
+            AcceptSlashCommandOrSkill::SlashCommand { id } => {
                 ctx.emit(SlashCommandsEvent::SelectedStaticCommand {
                     id: *id,
                     cmd_or_ctrl_enter,
                 });
             }
-            AcceptSlashCommandOrSavedPrompt::SavedPrompt { id } => {
-                ctx.emit(SlashCommandsEvent::SelectedSavedPrompt { id: *id });
-            }
-            AcceptSlashCommandOrSavedPrompt::Skill { name, reference } => {
+            AcceptSlashCommandOrSkill::Skill { name, reference } => {
                 ctx.emit(SlashCommandsEvent::SelectedSkill {
                     reference: reference.clone(),
                     name: name.clone(),

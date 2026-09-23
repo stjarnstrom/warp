@@ -12,9 +12,9 @@ use warp::search::data_source::QueryResult;
 use warp::search::mixer::SearchMixerEvent;
 use warp::settings::{AISettings, AppEditorSettings, TuiTheme, TuiThemeSettings};
 use warp::tui_export::{
-    AcceptSlashCommandOrSavedPrompt, Appearance, ConversationSelectionHandle,
-    ParsedSlashCommandInput, SlashCommandDataSource as _, SlashCommandMixer, SlashMenuSource,
-    TelemetryEvent, TuiSlashCommandDataSource, UpdatedActiveCommands,
+    AcceptSlashCommandOrSkill, Appearance, ConversationSelectionHandle, ParsedSlashCommandInput,
+    SlashCommandDataSource as _, SlashCommandMixer, SlashMenuSource, TelemetryEvent,
+    TuiSlashCommandDataSource, UpdatedActiveCommands,
     should_close_slash_command_menu_for_exact_match, slash_command_query, slash_commands,
 };
 use warp_editor::model::CoreEditorModel;
@@ -35,7 +35,7 @@ const MAX_VISIBLE_ROWS: usize = result_row_capacity(MAX_INLINE_MENU_ROWS, false,
 pub(crate) struct TuiSlashCommandRow {
     pub(crate) title: String,
     pub(crate) description: Option<String>,
-    pub(crate) action: AcceptSlashCommandOrSavedPrompt,
+    pub(crate) action: AcceptSlashCommandOrSkill,
 }
 fn highlighted_prefix_len_for_parsed_input(
     parsed_input: &ParsedSlashCommandInput,
@@ -193,7 +193,7 @@ impl TuiSlashCommandModel {
         self.argument_hint_text
     }
 
-    pub(crate) fn selected_action(&self) -> Option<AcceptSlashCommandOrSavedPrompt> {
+    pub(crate) fn selected_action(&self) -> Option<AcceptSlashCommandOrSkill> {
         let TuiSlashCommandState::Open { list, .. } = &self.state else {
             return None;
         };
@@ -265,7 +265,7 @@ impl TuiSlashCommandModel {
     pub(crate) fn accept_selected(
         &mut self,
         ctx: &mut ModelContext<Self>,
-    ) -> Option<AcceptSlashCommandOrSavedPrompt> {
+    ) -> Option<AcceptSlashCommandOrSkill> {
         let action = self.selected_action();
         self.close(ctx);
         action
@@ -549,9 +549,7 @@ fn menu_query_for_parsed_input(
     }
 }
 
-fn row_from_result(
-    result: &QueryResult<AcceptSlashCommandOrSavedPrompt>,
-) -> Option<TuiSlashCommandRow> {
+fn row_from_result(result: &QueryResult<AcceptSlashCommandOrSkill>) -> Option<TuiSlashCommandRow> {
     if result.is_static_separator() || result.is_disabled() {
         return None;
     }

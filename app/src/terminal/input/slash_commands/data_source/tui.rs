@@ -20,7 +20,7 @@ use crate::search::slash_command_menu::static_commands::commands::{COMMAND_REGIS
 #[cfg(feature = "voice_input")]
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::terminal::TerminalModel;
-use crate::terminal::input::slash_commands::AcceptSlashCommandOrSavedPrompt;
+use crate::terminal::input::slash_commands::AcceptSlashCommandOrSkill;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::view::resolve_ai_query_routing;
 use crate::workspaces::user_workspaces::TeamContextResolver;
@@ -134,7 +134,7 @@ impl TuiSlashCommandDataSource {
 }
 
 impl SyncDataSource for TuiSlashCommandDataSource {
-    type Action = AcceptSlashCommandOrSavedPrompt;
+    type Action = AcceptSlashCommandOrSkill;
 
     fn run_query(
         &self,
