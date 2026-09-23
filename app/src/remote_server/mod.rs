@@ -14,15 +14,11 @@ use crate::server::server_api::ServerApiProvider;
 #[cfg(not(target_family = "wasm"))]
 pub mod auth_context;
 #[cfg(not(target_family = "wasm"))]
-pub mod codebase_index_model;
-#[cfg(not(target_family = "wasm"))]
 mod codebase_index_status;
 pub mod diff_state_proto;
 #[cfg(not(target_family = "wasm"))]
 pub mod diff_state_tracker;
 pub mod git_status_proto;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) mod handoff_snapshot;
 #[cfg(not(target_family = "wasm"))]
 mod ripgrep_search;
 #[cfg(not(target_family = "wasm"))]
@@ -33,19 +29,6 @@ pub mod server_model;
 pub mod ssh_transport;
 #[cfg(unix)]
 pub mod unix;
-
-#[cfg(not(target_family = "wasm"))]
-fn current_codebase_index_limits(
-    ctx: &warpui::AppContext,
-) -> remote_server::proto::CodebaseIndexLimits {
-    let _ = ctx;
-    remote_server::proto::CodebaseIndexLimits {
-        max_indices_allowed: Some(crate::ai::persisted_workspace::MAX_CODEBASE_INDICES as u64),
-        max_files_per_repo: crate::ai::persisted_workspace::MAX_FILES_PER_REPO as u64,
-        embedding_generation_batch_size:
-            crate::ai::persisted_workspace::EMBEDDING_GENERATION_BATCH_SIZE as u64,
-    }
-}
 
 /// Run the `remote-server-proxy` subcommand.
 #[cfg(unix)]
@@ -73,10 +56,6 @@ pub fn run_daemon(_identity_key: String) -> anyhow::Result<()> {
 /// to the remote-server manager.
 #[cfg(not(target_family = "wasm"))]
 pub fn wire_auth_token_rotation(ctx: &mut warpui::AppContext) {
-    let codebase_index_limits = current_codebase_index_limits(ctx);
-    RemoteServerManager::handle(ctx).update(ctx, |manager, _| {
-        manager.update_codebase_index_limits(Some(codebase_index_limits));
-    });
     let server_api = ServerApiProvider::handle(ctx);
     let manager = RemoteServerManager::handle(ctx);
     ctx.subscribe_to_model(&server_api, move |_, event, ctx| {
@@ -94,12 +73,8 @@ pub fn wire_auth_token_rotation(ctx: &mut warpui::AppContext) {
     ctx.subscribe_to_model(&privacy_settings, move |_, event, ctx| {
         if let &PrivacySettingsChangedEvent::UpdateIsCrashReportingEnabled { new_value, .. } = event
         {
-            let codebase_index_limits = current_codebase_index_limits(ctx);
-            manager.update(ctx, |manager, _| {
-                manager.update_codebase_index_limits(Some(codebase_index_limits));
-            });
             for client in manager.as_ref(ctx).all_connected_clients() {
-                client.update_preferences(new_value, Some(codebase_index_limits));
+                client.update_preferences(new_value, None);
             }
         }
     });

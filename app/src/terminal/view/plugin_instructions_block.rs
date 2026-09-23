@@ -1,5 +1,3 @@
-use std::iter;
-
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use pathfinder_geometry::vector::vec2f;
 use warpui::clipboard::ClipboardContent;
@@ -13,9 +11,7 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-use crate::ai::blocklist::code_block::{
-    CodeBlockOptions, CodeSnippetButtonHandles, render_code_block_plain,
-};
+use super::code_block::{CodeSnippetButtonHandles, render_code_block_plain};
 use crate::appearance::Appearance;
 use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::plugin_manager::PluginInstructions;
@@ -138,29 +134,16 @@ impl PluginInstructionsBlock {
         if !command.is_empty() {
             let code_block = render_code_block_plain(
                 command,
-                Box::new(iter::empty()),
-                CodeBlockOptions {
-                    on_open: None,
-                    on_execute: if executable {
-                        Some(Box::new(move |code, ctx| {
-                            ctx.dispatch_typed_action(WorkspaceAction::RunCommand(code));
-                        }))
-                    } else {
-                        None
-                    },
-                    on_copy: Some(Box::new(move |_code, ctx| {
-                        ctx.dispatch_typed_action(PluginInstructionsBlockAction::CopyCommand(
-                            index,
-                        ));
-                    })),
-                    on_insert: None,
-                    footer_element: None,
-                    mouse_handles: Some(handles),
-                    file_path: None,
-                },
-                true,
+                Box::new(move |_code, ctx| {
+                    ctx.dispatch_typed_action(PluginInstructionsBlockAction::CopyCommand(index));
+                }),
+                executable.then(|| -> super::code_block::HandleCode {
+                    Box::new(move |code, ctx| {
+                        ctx.dispatch_typed_action(WorkspaceAction::RunCommand(code));
+                    })
+                }),
+                handles,
                 app,
-                None,
             );
             column.add_child(Container::new(code_block).with_padding_left(40.).finish());
         }

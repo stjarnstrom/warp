@@ -89,9 +89,7 @@ impl TerminalView {
             .map(|metadata| GitLineChanges::from_diff_stats(&metadata.stats_against_head));
 
         from_model
-            .or_else(|| {
-                git_line_changes_from_chips(&self.current_prompt.as_ref(ctx).agent_view_chips(ctx))
-            })
+            .or_else(|| git_line_changes_from_chips(&self.current_prompt.as_ref(ctx).chips(ctx)))
             .filter(|line_changes| {
                 line_changes.files_changed > 0
                     || line_changes.lines_added > 0

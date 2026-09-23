@@ -1,7 +1,4 @@
 //! Metadata response builders for local-control introspection actions.
-#[cfg(test)]
-#[path = "metadata_tests.rs"]
-mod tests;
 use ::local_control::protocol::{
     ActionNameParams, ActiveTargetChain, PaneTarget, SessionTarget, SurfaceListResult,
     SurfaceSummary, TabTarget, TargetSelector, WindowTarget,
@@ -19,7 +16,7 @@ use crate::features::FeatureFlag;
 use crate::local_control::LocalControlBridge;
 use crate::local_control::resolver::{reject_target_families, require_active_window_id_for_action};
 use crate::pane_group::{PaneGroup, PaneId};
-use crate::settings::{AISettings, CodeSettings};
+use crate::settings::CodeSettings;
 use crate::workspace::Workspace;
 use crate::workspace::tab_settings::TabSettings;
 
@@ -308,10 +305,7 @@ pub(crate) fn surface_unavailable_reason(
         | SurfaceDestination::ThemePicker
         | SurfaceDestination::Keybindings
         | SurfaceDestination::ResourceCenter => None,
-        SurfaceDestination::AiAssistant if !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) => {
-            Some("AI features are disabled")
-        }
-        SurfaceDestination::AiAssistant => None,
+        SurfaceDestination::AiAssistant => Some("AI features are unavailable"),
         SurfaceDestination::CodeReview | SurfaceDestination::RightPanel
             if !cfg!(feature = "local_fs") =>
         {
@@ -333,19 +327,10 @@ pub(crate) fn surface_unavailable_reason(
             Some("global search is unavailable or disabled")
         }
         SurfaceDestination::GlobalSearch => None,
-        SurfaceDestination::ConversationList
-            if !FeatureFlag::AgentViewConversationListView.is_enabled()
-                || !AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
-                || !*AISettings::as_ref(ctx).show_conversation_history.value() =>
-        {
-            Some("agent conversation history is unavailable or disabled")
-        }
-        SurfaceDestination::ConversationList => None,
+        SurfaceDestination::ConversationList => Some("agent conversation history is unavailable"),
         SurfaceDestination::LeftPanel
             if surface_unavailable_reason(SurfaceDestination::ProjectExplorer, ctx).is_some()
-                && surface_unavailable_reason(SurfaceDestination::GlobalSearch, ctx).is_some()
-                && surface_unavailable_reason(SurfaceDestination::ConversationList, ctx)
-                    .is_some() =>
+                && surface_unavailable_reason(SurfaceDestination::GlobalSearch, ctx).is_some() =>
         {
             Some("the left panel has no available views")
         }
@@ -357,13 +342,7 @@ pub(crate) fn surface_unavailable_reason(
             Some("vertical tabs are unavailable or disabled")
         }
         SurfaceDestination::VerticalTabs => None,
-        SurfaceDestination::AgentManagement
-            if !FeatureFlag::AgentManagementView.is_enabled()
-                || !AISettings::as_ref(ctx).is_any_ai_enabled(ctx) =>
-        {
-            Some("agent management is unavailable or disabled")
-        }
-        SurfaceDestination::AgentManagement => None,
+        SurfaceDestination::AgentManagement => Some("agent management is unavailable"),
     }
 }
 

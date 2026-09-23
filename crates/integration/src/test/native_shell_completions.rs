@@ -19,13 +19,11 @@ use warp::integration_testing::terminal::{
     wait_until_bootstrapped_single_pane_for_tab,
 };
 use warp::integration_testing::view_getters::{
-    single_input_suggestions_view_for_tab, single_input_view_for_tab, single_terminal_view_for_tab,
+    single_input_suggestions_view_for_tab, single_input_view_for_tab,
 };
 use warp::settings::{NativeShellCompletionsEnabled, WarpCompletionsEnabled};
-use warp::terminal::model::block::TranscriptScope;
 use warp::terminal::shell::ShellType;
 use warpui_core::async_assert;
-use warpui_core::units::Lines;
 
 use super::new_builder;
 use crate::Builder;
@@ -208,96 +206,6 @@ fn write_spec_command_marker_override_rc_files(dir: impl AsRef<Path>) {
         ),
         [ShellRcType::PowerShell],
     );
-}
-
-/// Asserts no user-visible block holds the generator command. Its own block is hidden (zero
-/// height), so a non-zero-height block carrying it is the ghost block this guards against. The name
-/// is normalized to match both `warp_run_generator_command*` and `Warp-Run-GeneratorCommand*`.
-fn assert_no_visible_generator_block()
--> impl Fn(&mut warpui_core::App, warpui_core::WindowId) -> warpui_core::integration::AssertionOutcome
-{
-    move |app, window_id| {
-        let terminal_view = single_terminal_view_for_tab(app, window_id, 0);
-        terminal_view.read(app, |view, _ctx| {
-            let visible_generator_blocks: Vec<String> = view
-                .model
-                .lock()
-                .block_list()
-                .blocks()
-                .iter()
-                .filter(|block| block.height(&TranscriptScope::Terminal) != Lines::zero())
-                .map(|block| block.command_with_secrets_unobfuscated(false))
-                .filter(|command| {
-                    command
-                        .to_ascii_lowercase()
-                        .replace(['_', '-'], "")
-                        .contains("warprungeneratorcommand")
-                })
-                .collect();
-            async_assert!(
-                visible_generator_blocks.is_empty(),
-                "the generator command must not appear as a visible block; visible generator \
-                 blocks = {visible_generator_blocks:?}"
-            )
-        })
-    }
-}
-
-/// The shell's own matches reach the menu, filtered to the typed prefix, without disturbing the
-/// input line or leaving a stray block.
-pub fn test_native_shell_completions_menu() -> Builder {
-    enable_native_shell_completions_feature();
-    new_builder()
-        .set_should_run_test(shell_supports_native_completions)
-        .with_user_defaults(native_only_completion_defaults())
-        .with_setup(|utils| write_specless_completion_rc_files(utils.test_dir(), false))
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(clear_blocklist_to_remove_bootstrapped_blocks())
-        .with_step(
-            new_step_with_default_assertions("Type 'warptool a' and press tab")
-                .with_typed_characters(&["warptool a"])
-                .with_keystrokes(&["tab"])
-                .set_timeout(Duration::from_secs(30))
-                .add_named_assertion(
-                    "native completions menu opens",
-                    tab_completions_menu_is_open(0, true),
-                )
-                .add_named_assertion(
-                    "menu shows the shell's matching completions and omits the non-match",
-                    |app, window_id| {
-                        let suggestions = single_input_suggestions_view_for_tab(app, window_id, 0);
-                        suggestions.read(app, |view, _ctx| {
-                            let has = |needle: &str| {
-                                view.items().iter().any(|item| item.text() == needle)
-                            };
-                            let texts: Vec<_> =
-                                view.items().iter().map(|item| item.text()).collect();
-                            async_assert!(
-                                has("apple") && has("avocado") && !has("banana"),
-                                "expected the shell to supply 'apple' and 'avocado' and to filter \
-                                 out the non-matching 'banana', got {texts:?}"
-                            )
-                        })
-                    },
-                )
-                .add_named_assertion(
-                    "the input line is left exactly as typed",
-                    |app, window_id| {
-                        let input = single_input_view_for_tab(app, window_id, 0);
-                        input.read(app, |view, ctx| {
-                            let buffer = view.buffer_text(ctx);
-                            async_assert!(
-                                buffer == "warptool a",
-                                "expected the input to be left as 'warptool a', got {buffer:?}"
-                            )
-                        })
-                    },
-                )
-                .add_named_assertion(
-                    "the generator command leaves no visible block",
-                    assert_no_visible_generator_block(),
-                ),
-        )
 }
 
 /// Confirms the generator round trip leaves the pty and session clean.

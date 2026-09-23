@@ -17,7 +17,7 @@ macro_rules! send_telemetry_sync_from_ctx {
             let privacy_settings_snapshot =
                 <$crate::settings::PrivacySettings as warpui::SingletonEntity>::handle($ctx)
                     .as_ref($ctx)
-                    .get_snapshot($ctx);
+                    .get_snapshot();
             let _ = $ctx.spawn(
                 async move {
                     if let Err(error) = server_api
@@ -51,7 +51,7 @@ macro_rules! send_telemetry_sync_from_app_ctx {
             let privacy_settings_snapshot =
                 <$crate::settings::PrivacySettings as warpui::SingletonEntity>::handle($app_ctx)
                     .as_ref($app_ctx)
-                    .get_snapshot($app_ctx);
+                    .get_snapshot();
             $app_ctx
                 .background_executor()
                 .spawn(async move {

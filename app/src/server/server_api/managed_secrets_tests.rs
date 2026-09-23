@@ -12,7 +12,7 @@ use warp_server_client::base_client::TEAM_UID_HEADER;
 use super::super::ServerApi;
 use crate::server::ids::ServerId;
 use crate::server::team_scope::RequestTeamScope;
-use crate::workspaces::user_workspaces::TeamContextForOperation;
+use crate::workspaces::user_workspaces::team_workspace_settings::TeamContextForOperation;
 
 fn request_scope_for_team(team_uid: ServerId) -> RequestTeamScope {
     RequestTeamScope::from_scope(&TeamContextForOperation::new_for_test(team_uid))

@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use warpui::{AppContext, Entity, SingletonEntity};
 
-use crate::ai::persisted_workspace::PersistedWorkspace;
+use crate::persisted_workspace::PersistedWorkspace;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{AsyncDataSource, BoxFuture, DataSourceRunErrorWrapper};
 use crate::terminal::input::repos::AcceptRepo;

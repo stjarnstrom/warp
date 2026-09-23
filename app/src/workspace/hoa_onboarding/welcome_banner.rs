@@ -36,11 +36,6 @@ const FEATURE_ITEMS: &[FeatureItem] = &[
         description: "Tab-level schema to set your directory, startup commands, theme, and worktree with one click",
     },
     FeatureItem {
-        icon: Icon::Inbox,
-        title: "Agent inbox",
-        description: "Notifications when any agent needs your attention, also accessible in a central inbox",
-    },
-    FeatureItem {
         icon: Icon::MessageCheckSquare,
         title: "Native code review",
         description: "Send inline comments from Warp's code review directly to Claude Code, Codex, or OpenCode",

@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use warp_core::features::FeatureFlag;
-use warp_core::settings::{ChangeEventReason, Setting};
-use warp_core::user_preferences::GetUserPreferences;
+use warp_core::settings::ChangeEventReason;
 use warp_errors::report_error;
 use warpui::{
     AppContext, Entity, ModelContext, SingletonEntity, Tracked, ViewContext, WeakViewHandle,
@@ -20,8 +19,6 @@ use super::workspace::{
     AdminEnablementSetting, EnterpriseSecretRegex, UgcCollectionEnablementSetting, Workspace,
     WorkspaceUid,
 };
-use crate::ai::credit_availability::AICreditAvailability;
-use crate::ai::llms::{AvailableLLMs, MODELS_BY_FEATURE_CACHE_KEY, ModelsByFeature};
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{CloudObjectEventEntrypoint, ObjectType, Owner, Space};
@@ -31,27 +28,15 @@ use crate::server::server_api::team::TeamClient;
 use crate::server::server_api::workspace::WorkspaceClient;
 #[cfg(test)]
 use crate::server::server_api::{team::MockTeamClient, workspace::MockWorkspaceClient};
-use crate::settings::{
-    AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
-};
-#[cfg(test)]
-use crate::workspaces::workspace::{
-    AIAutonomyPolicy, AiAutonomySettings, BillingMetadata, CustomerType, SplitListSetting,
-    WorkspaceMember, WorkspaceSettings,
-};
+use crate::settings::PrivacySettings;
 use crate::workspaces::workspace::{
     AiOverages, PurchaseAddOnCreditsPolicy, UsageBasedPricingSettings,
 };
+#[cfg(test)]
+use crate::workspaces::workspace::{BillingMetadata, WorkspaceMember, WorkspaceSettings};
 pub(crate) mod billing_workspace_settings;
 pub(crate) mod team_workspace_settings;
-pub(crate) use team_workspace_settings::TeamContextForOperationResolver;
-#[cfg(test)]
-pub(crate) use team_workspace_settings::TeamlessScopeForTest;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use team_workspace_settings::{GeminiEnterpriseBackgroundHost, TeamScopeForCli};
-pub use team_workspace_settings::{
-    ResolvedTeamScope, TeamContext, TeamContextForOperation, TeamContextResolver, TeamScope,
-};
+pub use team_workspace_settings::TeamScope;
 
 #[derive(Debug)]
 pub enum UserWorkspacesEvent {
@@ -97,7 +82,6 @@ pub enum UserWorkspacesEvent {
     WindowTeamChanged {
         window_id: WindowId,
     },
-    CodebaseContextEnablementChanged,
     /// Fired when a service agreement's sunsetted_to_build_ts field is updated.
     SunsettedToBuildDataUpdated,
 }
@@ -117,10 +101,6 @@ pub struct UserWorkspaces {
     /// filtered out of `workspaces` — this is the only place their purchase
     /// policy survives.
     user_purchase_policy: Option<PurchaseAddOnCreditsPolicy>,
-    /// The model catalog to fall back to when no current workspace exists: before login, or
-    /// for a logged-in user whose only workspace is the server's placeholder, which is
-    /// filtered out of `workspaces`.
-    workspaceless_models_by_feature: Option<ModelsByFeature>,
     team_client: Arc<dyn TeamClient>,
     workspace_client: Arc<dyn WorkspaceClient>,
 }
@@ -134,9 +114,6 @@ pub struct WorkspacesMetadataResponse {
     pub joinable_teams: Vec<DiscoverableTeam>,
     /// The list of experiments applicable to the user.
     pub experiments: Option<Vec<ServerExperiment>>,
-    /// The server-authoritative AI credit availability decision, piggybacked
-    /// on the metadata query so every refresh keeps the shared state fresh.
-    pub ai_credit_availability: Option<AICreditAvailability>,
     /// The user-level add-on credits purchase policy; the teamless-purchase
     /// fallback (see [`UserWorkspaces::purchase_policy`]).
     pub user_purchase_policy: Option<PurchaseAddOnCreditsPolicy>,
@@ -180,7 +157,6 @@ impl UserWorkspaces {
             window_team_uids: Default::default(),
             joinable_teams: Default::default(),
             user_purchase_policy: None,
-            workspaceless_models_by_feature: None,
             team_client,
             workspace_client,
         }
@@ -201,56 +177,16 @@ impl UserWorkspaces {
         workspace_client: Arc<dyn WorkspaceClient>,
         cached_workspaces: Vec<Workspace>,
         current_workspace_uid: Option<WorkspaceUid>,
-        ctx: &mut ModelContext<Self>,
     ) -> Self {
-        ctx.subscribe_to_model(
-            &CodeSettings::handle(ctx),
-            |_, _, code_settings_event, ctx| match code_settings_event {
-                CodeSettingsChangedEvent::CodebaseContextEnabled { .. }
-                | CodeSettingsChangedEvent::AutoIndexingEnabled { .. } => {
-                    ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
-                }
-                _ => {}
-            },
-        );
-
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, ai_settings_event, ctx| {
-            if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = ai_settings_event {
-                ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
-            }
-        });
-
-        let mut me = Self {
+        Self {
             current_workspace_uid: current_workspace_uid.into(),
             workspaces: cached_workspaces.into(),
             window_team_uids: Default::default(),
             joinable_teams: Default::default(),
             user_purchase_policy: None,
-            workspaceless_models_by_feature: None,
             team_client,
             workspace_client,
-        };
-
-        // One-release migration: moving feature_model_choices off of `LLMPreferences` to `Workspace`.
-        // This means that on the first time the user opens a version of warp without a
-        // Workspace.feature_model_choice saved in their sqlite db, we can fall back to reading feature
-        // model choices from the old LLMPreferences cache.
-        // TODO: delete once it's safe to assume every client has fetched at least once since
-        // this migration shipped.
-        if me
-            .current_workspace()
-            .is_some_and(|workspace| workspace.feature_model_choice == ModelsByFeature::default())
-            && let Some(legacy_catalog) = migrate_legacy_feature_model_choices_cache(ctx)
-            && let Some(workspace) = me.current_workspace_mut()
-        {
-            workspace.feature_model_choice = legacy_catalog;
         }
-
-        me
-    }
-
-    pub(crate) fn set_workspaceless_models_by_feature(&mut self, models: ModelsByFeature) {
-        self.workspaceless_models_by_feature = Some(models);
     }
 
     pub fn team_from_uid(&self, team_uid: ServerId) -> Option<&Team> {
@@ -751,7 +687,6 @@ impl UserWorkspaces {
         });
 
         ctx.emit(UserWorkspacesEvent::TeamsChanged);
-        ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
         ctx.notify();
     }
 
@@ -1322,69 +1257,6 @@ impl UserWorkspaces {
             .map(|workspace| workspace.settings.is_discoverable)
             .unwrap_or(false)
     }
-
-    /// Returns whether codebase context is enabled across all of the user's teams.
-    pub fn is_codebase_context_enabled(&self, app: &AppContext) -> bool {
-        let ai_globally_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-        match self.teams_allow_codebase_context() {
-            AdminEnablementSetting::Enable => ai_globally_enabled,
-            AdminEnablementSetting::Disable => false,
-            AdminEnablementSetting::RespectUserSetting => {
-                ai_globally_enabled && *CodeSettings::as_ref(app).codebase_context_enabled.value()
-            }
-        }
-    }
-
-    pub fn teams_allow_codebase_context(&self) -> AdminEnablementSetting {
-        let mut team_settings = self
-            .workspaces
-            .iter()
-            .flat_map(|workspace| workspace.teams.iter())
-            .map(|team| &team.settings.codebase_context.value)
-            .peekable();
-
-        if team_settings.peek().is_none() {
-            return self
-                .current_workspace()
-                .map(|workspace| workspace.settings.codebase_context_settings.setting.clone())
-                .unwrap_or_default();
-        }
-
-        // TODO(isaiah): Enforce codebase-indexing policy per team and window.
-        let mut respects_user_setting = false;
-        for setting in team_settings {
-            match setting {
-                AdminEnablementSetting::Enable => {}
-                AdminEnablementSetting::Disable => return AdminEnablementSetting::Disable,
-                AdminEnablementSetting::RespectUserSetting => respects_user_setting = true,
-            }
-        }
-
-        if respects_user_setting {
-            AdminEnablementSetting::RespectUserSetting
-        } else {
-            AdminEnablementSetting::Enable
-        }
-    }
-
-    pub fn team_disabling_codebase_context(&self) -> Option<&Team> {
-        self.workspaces
-            .iter()
-            .flat_map(|workspace| workspace.teams.iter())
-            .find(|team| team.settings.codebase_context.value == AdminEnablementSetting::Disable)
-    }
-}
-
-#[cfg(test)]
-fn split_test_list(values: Option<Vec<String>>) -> SplitListSetting<String> {
-    match values {
-        Some(values) => SplitListSetting {
-            team_entries: values.clone(),
-            values,
-            ..Default::default()
-        },
-        None => Default::default(),
-    }
 }
 
 #[cfg(test)]
@@ -1412,7 +1284,6 @@ impl UserWorkspaces {
                 pending_email_invites: vec![],
                 invite_link_domain_restrictions: vec![],
                 stripe_customer_id: None,
-                feature_model_choice: Default::default(),
                 is_eligible_for_discovery: false,
                 has_billing_history: false,
                 visibility: TeamVisibility::Open,
@@ -1435,7 +1306,6 @@ impl UserWorkspaces {
             billing_cycle_usage: None,
             has_billing_history: false,
             settings: workspace_settings,
-            feature_model_choice: Default::default(),
             invite_link_domain_restrictions: vec![],
             pending_email_invites: vec![],
             is_eligible_for_discovery: false,
@@ -1463,96 +1333,6 @@ impl UserWorkspaces {
         } else {
             panic!("No workspace found. Did you call setup_test_workspace()?");
         }
-    }
-
-    /// Sets the sandboxed-agent command denylist on [`Self::setup_test_workspace`]'s team, the
-    /// team [`Self::sandboxed_agent_execute_commands_denylist_for_scope`] reads for a scope on
-    /// it.
-    pub fn update_team_sandboxed_agent_denylist<F>(&mut self, f: F, ctx: &mut ModelContext<Self>)
-    where
-        F: FnOnce(&mut SplitListSetting<String>),
-    {
-        self.update_current_workspace(
-            |workspace| {
-                f(&mut workspace
-                    .teams
-                    .first_mut()
-                    .expect("test workspace should have a team")
-                    .settings
-                    .sandboxed_agent
-                    .execute_commands_denylist);
-            },
-            ctx,
-        );
-    }
-
-    pub fn update_ai_autonomy_settings<F>(&mut self, f: F, ctx: &mut ModelContext<Self>)
-    where
-        F: FnOnce(&mut AiAutonomySettings),
-    {
-        self.update_current_workspace(
-            |workspace| {
-                f(&mut workspace.settings.ai_autonomy_settings);
-                let settings = &workspace.settings.ai_autonomy_settings;
-                let team_settings = &mut workspace
-                    .teams
-                    .first_mut()
-                    .expect("test workspace should have a team")
-                    .settings
-                    .ai_autonomy;
-                team_settings.apply_code_diffs.value = settings.apply_code_diffs_setting;
-                team_settings.read_files.value = settings.read_files_setting;
-                team_settings.execute_commands.value = settings.execute_commands_setting;
-                team_settings.write_to_pty.value = settings.write_to_pty_setting;
-                team_settings.computer_use.value = settings.computer_use_setting;
-                team_settings.read_files_allowlist =
-                    split_test_list(settings.read_files_allowlist.as_ref().map(|items| {
-                        items
-                            .iter()
-                            .map(|path| path.display().to_string())
-                            .collect()
-                    }));
-                team_settings.execute_commands_allowlist = split_test_list(
-                    settings
-                        .execute_commands_allowlist
-                        .as_ref()
-                        .map(|items| items.iter().map(ToString::to_string).collect()),
-                );
-                team_settings.execute_commands_denylist = split_test_list(
-                    settings
-                        .execute_commands_denylist
-                        .as_ref()
-                        .map(|items| items.iter().map(ToString::to_string).collect()),
-                );
-            },
-            ctx,
-        );
-    }
-}
-
-/// Reads the legacy, pre-team-keyed model catalog cache (`MODELS_BY_FEATURE_CACHE_KEY`), for
-/// the one-release migration in [`UserWorkspaces::new`]. Understands both real shapes an older
-/// client could have written: the (more recent) single `ModelsByFeature`, and (older still) a
-/// bare `AvailableLLMs`, which becomes the `agent_mode` field.
-fn migrate_legacy_feature_model_choices_cache(app: &mut AppContext) -> Option<ModelsByFeature> {
-    let value = app
-        .private_user_preferences()
-        .read_value(MODELS_BY_FEATURE_CACHE_KEY)
-        .ok()
-        .flatten()?;
-
-    match serde_json::from_str::<ModelsByFeature>(&value) {
-        Ok(models) => Some(models),
-        Err(e1) => match serde_json::from_str::<AvailableLLMs>(&value) {
-            Ok(agent_mode) => Some(ModelsByFeature {
-                agent_mode,
-                ..Default::default()
-            }),
-            Err(e2) => {
-                log::warn!("Failed to deserialize legacy cached LLMs: {e1}\n{e2}");
-                None
-            }
-        },
     }
 }
 

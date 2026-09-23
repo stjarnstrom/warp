@@ -12,9 +12,8 @@ use warpui::SingletonEntity;
 use warpui::elements::ChildView;
 use warpui::{Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
 
-use crate::ai::blocklist::agent_view::AgentViewController;
 #[cfg(feature = "local_fs")]
-use crate::ai::persisted_workspace::PersistedWorkspace;
+use crate::persisted_workspace::PersistedWorkspace;
 use crate::search::data_source::{Query, QueryFilter};
 use crate::search::mixer::{AddAsyncSourceOptions, SearchMixer};
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
@@ -49,7 +48,6 @@ pub struct InlineReposMenuView {
 impl InlineReposMenuView {
     pub fn new(
         input_suggestions_model: ModelHandle<InputSuggestionsModeModel>,
-        agent_view_controller: ModelHandle<AgentViewController>,
         input_buffer_model: &ModelHandle<InputBufferModel>,
         positioner: &ModelHandle<InlineMenuPositioner>,
         ctx: &mut ViewContext<Self>,
@@ -85,7 +83,6 @@ impl InlineReposMenuView {
                 mixer.clone(),
                 positioner.clone(),
                 &input_suggestions_model,
-                agent_view_controller,
                 ctx,
             )
         });

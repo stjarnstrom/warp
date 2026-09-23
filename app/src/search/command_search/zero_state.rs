@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Container, CornerRadius, Flex, Hoverable, MouseStateHandle, ParentElement, Radius, Text, Wrap,
@@ -11,7 +10,6 @@ use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View
 
 use crate::appearance::Appearance;
 use crate::search::{FilterChipRenderer, QueryFilter};
-use crate::settings::{AISettings, AISettingsChangedEvent};
 
 lazy_static! {
     /// Map of sample queries to the [`QueryFilter`]s they employ.
@@ -44,13 +42,7 @@ pub struct CommandSearchZeroStateView {
 }
 
 impl CommandSearchZeroStateView {
-    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, _, event, ctx| {
-            if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = event {
-                ctx.notify();
-            }
-        });
-
+    pub fn new() -> Self {
         Self {
             filter_chip_to_mouse_state_handle: QueryFilter::all()
                 .map(|filter| (filter, MouseStateHandle::default()))
@@ -196,7 +188,7 @@ impl View for CommandSearchZeroStateView {
         .with_margin_bottom(styles::COMMAND_SEARCH_TEXT_MARGIN_BOTTOM)
         .finish();
 
-        let valid_filters = valid_query_filters(app);
+        let valid_filters = valid_query_filters();
 
         let column = Flex::column()
             .with_child(command_search_text)
@@ -272,16 +264,8 @@ impl TypedActionView for CommandSearchZeroStateView {
     }
 }
 
-fn valid_query_filters(app: &AppContext) -> Vec<QueryFilter> {
-    let mut filters = vec![QueryFilter::History];
-
-    if FeatureFlag::AgentMode.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
-        filters.push(QueryFilter::PromptHistory);
-    }
-
-    filters.push(QueryFilter::Workflows);
-
-    filters
+fn valid_query_filters() -> Vec<QueryFilter> {
+    vec![QueryFilter::History, QueryFilter::Workflows]
 }
 
 mod styles {

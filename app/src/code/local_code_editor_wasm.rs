@@ -14,7 +14,6 @@ use warpui::{
 };
 
 use super::ImmediateSaveError;
-pub use super::diff_viewer::DisplayMode;
 use super::editor::view::CodeEditorView;
 use crate::code::buffer_location::LocalOrRemotePath as BufferFileLocation;
 use crate::code::editor::EditorReviewComment;
@@ -72,7 +71,6 @@ impl LocalCodeEditorView {
         editor: ViewHandle<CodeEditorView>,
         _diff_type: Option<DiffType>,
         _enable_diff_nav_by_default: bool,
-        _display_mode: Option<DisplayMode>,
         _ctx: &mut ViewContext<Self>,
     ) -> Self {
         Self { editor }

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use string_offset::CharOffset;
-use warp_core::features::FeatureFlag;
 use warp_core::settings::Setting;
 use warp_errors::report_error;
 use warpui::color::ColorU;
@@ -24,13 +23,11 @@ use warpui::{
     ViewHandle,
 };
 
-use super::AIWorkflowOrigin;
 use super::command_parser::{
     WorkflowArgumentIndex, WorkflowDisplayData, compute_workflow_display_data,
 };
 use super::env_var_selector::{EnvVarSelector, EnvVarSelectorEvent};
 use super::workflow::Argument;
-use crate::ai::blocklist::ai_brand_color;
 use crate::appearance::Appearance;
 use crate::cloud_object::CloudObjectMetadataExt;
 use crate::cloud_object::model::actions::{ObjectActionType, ObjectActions};
@@ -835,31 +832,14 @@ impl WorkflowsMoreInfoView {
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         match &self.workflow {
-            WorkflowType::AIGenerated {
-                workflow,
-                origin: source,
-            } => {
-                let icon = if FeatureFlag::AgentMode.is_enabled() {
-                    match source {
-                        AIWorkflowOrigin::AgentMode => {
-                            Icon::new(icons::Icon::Prompt.into(), appearance.theme().accent())
-                                .finish()
-                        }
-                        _ => Icon::new(
-                            icons::Icon::Prompt.into(),
-                            ai_brand_color(appearance.theme()),
-                        )
-                        .finish(),
-                    }
-                } else {
-                    Icon::new(
-                        icons::Icon::AiAssistant.into(),
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().background()),
-                    )
-                    .finish()
-                };
+            WorkflowType::AIGenerated { workflow, .. } => {
+                let icon = Icon::new(
+                    icons::Icon::AiAssistant.into(),
+                    appearance
+                        .theme()
+                        .main_text_color(appearance.theme().background()),
+                )
+                .finish();
 
                 let ai_icon = Container::new(
                     ConstrainedBox::new(icon)

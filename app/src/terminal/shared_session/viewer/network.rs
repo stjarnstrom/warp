@@ -13,13 +13,12 @@ use futures_util::{SinkExt, StreamExt};
 use instant::Instant;
 use parking_lot::FairMutex;
 use session_sharing_protocol::common::{
-    ActivePrompt, ActivePromptUpdate, AddGuestsResponse, AgentAttachment, AgentPromptFailureReason,
-    AgentPromptRequest, AgentPromptRequestId, CommandExecutionFailureReason, ControlAction,
-    ControlActionFailureReason, FeatureSupport, InputOperationId, InputOperationSeqNo, InputUpdate,
+    ActivePrompt, ActivePromptUpdate, AddGuestsResponse, CommandExecutionFailureReason,
+    FeatureSupport, InputOperationId, InputOperationSeqNo, InputUpdate,
     LinkAccessLevelUpdateResponse, ParticipantId, ParticipantList, ParticipantPresenceUpdate,
     RemoveGuestResponse, Role, RoleRequestId, RoleRequestResponse, Selection, SelectionUpdate,
-    ServerConversationToken, SessionId, TeamAccessLevelUpdateResponse, TeamAclData,
-    TelemetryContext, UniversalDeveloperInputContext, UniversalDeveloperInputContextUpdate,
+    SessionId, TeamAccessLevelUpdateResponse, TeamAclData, TelemetryContext,
+    UniversalDeveloperInputContext, UniversalDeveloperInputContextUpdate,
     UpdatePendingUserRoleResponse, UserID, WindowSize, WriteToPtyFailureReason,
     WriteToPtyRequestId, WriteToPtySeqNo,
 };
@@ -27,7 +26,6 @@ use session_sharing_protocol::viewer::{
     DownstreamMessage, InitPayload, RoleUpdatedReason, SessionEndedReason, UpstreamMessage,
     ViewerRemovedReason,
 };
-use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_server_client::iap::IapManager;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
@@ -45,9 +43,7 @@ use crate::server::telemetry::telemetry_context;
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::shared_session::shared_handlers::RemoteUpdateGuard;
-use crate::terminal::shared_session::viewer::event_loop::{
-    EventLoop, SharedSessionInitialLoadMode,
-};
+use crate::terminal::shared_session::viewer::event_loop::EventLoop;
 use crate::terminal::shared_session::{
     EventNumber, SELECTION_THROTTLE_PERIOD, SharedSessionSource, connect_endpoint,
 };
@@ -116,7 +112,6 @@ pub struct Network {
 
     channel_event_proxy: ChannelEventListener,
     terminal_model: Arc<FairMutex<TerminalModel>>,
-    initial_load_mode: SharedSessionInitialLoadMode,
     remote_update_guard: RemoteUpdateGuard,
 
     stage: Stage,
@@ -157,7 +152,6 @@ impl Network {
         terminal_view: WeakViewHandle<TerminalView>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         write_to_pty_events_rx: Receiver<Vec<u8>>,
-        initial_load_mode: SharedSessionInitialLoadMode,
         remote_update_guard: RemoteUpdateGuard,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
@@ -172,7 +166,6 @@ impl Network {
             ws_proxy_rx: ws_proxy_rx.clone(),
             channel_event_proxy,
             terminal_model,
-            initial_load_mode,
             remote_update_guard,
             terminal_view,
             stage: Stage::BeforeJoined,
@@ -234,7 +227,6 @@ impl Network {
             ws_proxy_rx,
             channel_event_proxy,
             terminal_model,
-            initial_load_mode: SharedSessionInitialLoadMode::ReplaceFromSessionScrollback,
             remote_update_guard,
             terminal_view,
             stage: Stage::BeforeJoined,
@@ -404,7 +396,7 @@ impl Network {
                         latest_block_id: None,
                         telemetry_context: Some(TelemetryContext(telemetry_context().as_value())),
                         feature_support: FeatureSupport {
-                            supports_agent_view: FeatureFlag::AgentView.is_enabled(),
+                            supports_agent_view: false,
                             supports_full_role: true,
                             supports_full_role_for_real: true,
                         },
@@ -487,7 +479,7 @@ impl Network {
                         latest_block_id: Some(latest_block_id.into()),
                         telemetry_context: Some(TelemetryContext(telemetry_context().as_value())),
                         feature_support: FeatureSupport {
-                            supports_agent_view: FeatureFlag::AgentView.is_enabled(),
+                            supports_agent_view: false,
                             supports_full_role: true,
                             supports_full_role_for_real: true,
                         },
@@ -594,7 +586,6 @@ impl Network {
                         window_size,
                         *scrollback,
                         latest_event_no,
-                        self.initial_load_mode,
                         self.remote_update_guard.clone(),
                         ctx,
                     )
@@ -731,17 +722,11 @@ impl Network {
             DownstreamMessage::CommandExecutionRequestFailed { reason, .. } => {
                 ctx.emit(NetworkEvent::CommandExecutionRequestFailed { reason });
             }
-            DownstreamMessage::AgentPromptRequestInFlight(id) => {
-                ctx.emit(NetworkEvent::AgentPromptRequestInFlight(id));
-            }
-            DownstreamMessage::AgentPromptRequestFailed { reason } => {
-                ctx.emit(NetworkEvent::AgentPromptRequestFailed { reason });
-            }
+            DownstreamMessage::AgentPromptRequestInFlight(_)
+            | DownstreamMessage::AgentPromptRequestFailed { .. }
+            | DownstreamMessage::ControlActionRequestFailed { .. } => {}
             DownstreamMessage::WriteToPtyRequestFailed { reason } => {
                 ctx.emit(NetworkEvent::WriteToPtyRequestFailed { reason });
-            }
-            DownstreamMessage::ControlActionRequestFailed { reason } => {
-                ctx.emit(NetworkEvent::ControlActionRequestFailed { reason });
             }
             DownstreamMessage::LinkAccessLevelUpdated { role } => {
                 ctx.emit(NetworkEvent::LinkAccessLevelUpdated { role });
@@ -942,34 +927,6 @@ impl Network {
         self.send_message_to_server(UpstreamMessage::ExecuteCommand { buffer_id, command });
     }
 
-    pub fn send_agent_prompt_request(
-        &mut self,
-        server_conversation_token: Option<ServerConversationToken>,
-        prompt: String,
-        attachments: Vec<AgentAttachment>,
-    ) {
-        let request = AgentPromptRequest {
-            id: AgentPromptRequestId::new(),
-            server_conversation_token,
-            prompt,
-            attachments,
-            // Viewer-typed prompts carry only text and attachments; warp-server fills this in for
-            // the follow-ups it injects.
-            user_query_b64: None,
-        };
-        self.send_message_to_server(UpstreamMessage::SendAgentPrompt(request));
-    }
-
-    pub fn send_cancel_control_action(
-        &mut self,
-        server_conversation_token: ServerConversationToken,
-    ) {
-        let action = ControlAction::CancelConversation {
-            server_conversation_token,
-        };
-        self.send_message_to_server(UpstreamMessage::SendControlAction(action));
-    }
-
     pub fn send_link_permission_update(&mut self, role: Option<Role>) {
         self.send_message_to_server(UpstreamMessage::UpdateLinkAccessLevel { role });
     }
@@ -1159,31 +1116,6 @@ pub fn write_to_pty_failure_reason_string(reason: &WriteToPtyFailureReason) -> S
     }
 }
 
-/// Converts AgentPromptFailureReason to a user-facing string
-pub fn agent_prompt_failure_reason_string(reason: &AgentPromptFailureReason) -> String {
-    match reason {
-        AgentPromptFailureReason::InsufficientPermissions => {
-            "Insufficient permissions. Please request edit access.".to_owned()
-        }
-        AgentPromptFailureReason::InvalidConversation => {
-            "Invalid conversation. Please try again.".to_owned()
-        }
-        AgentPromptFailureReason::CommandInProgress => {
-            "A long running command is currently in progress. Please wait for it to complete before sending an agent prompt.".to_owned()
-        }
-    }
-}
-
-/// Converts ControlActionFailureReason to a user-facing string
-pub fn control_action_failure_reason_string(reason: &ControlActionFailureReason) -> String {
-    match reason {
-        ControlActionFailureReason::InsufficientPermissions => {
-            "Insufficient permissions. Please request edit access.".to_owned()
-        }
-        _ => "Failed to perform action. Please try again.".to_owned(),
-    }
-}
-
 pub enum NetworkEvent {
     JoinedSuccessfully {
         active_prompt: ActivePrompt,
@@ -1221,15 +1153,8 @@ pub enum NetworkEvent {
     CommandExecutionRequestFailed {
         reason: CommandExecutionFailureReason,
     },
-    AgentPromptRequestInFlight(AgentPromptRequestId),
-    AgentPromptRequestFailed {
-        reason: AgentPromptFailureReason,
-    },
     WriteToPtyRequestFailed {
         reason: WriteToPtyFailureReason,
-    },
-    ControlActionRequestFailed {
-        reason: ControlActionFailureReason,
     },
     ViewerRemoved {
         reason: ViewerRemovedReason,

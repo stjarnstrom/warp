@@ -5,16 +5,14 @@ use url::Url;
 use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
 use warpui::r#async::executor::Background;
-use warpui::units::Lines;
 
 use super::decode_scrollback;
-use crate::assert_lines_approx_eq;
 use crate::channel::ChannelState;
 use crate::terminal::TerminalModel;
 use crate::terminal::color::List;
 use crate::terminal::event_listener::ChannelEventListener;
 use crate::terminal::model::ObfuscateSecrets;
-use crate::terminal::model::block::{BlockId, BlockState, SerializedBlock};
+use crate::terminal::model::block::{BlockId, BlockState};
 use crate::terminal::model::test_utils::block_size;
 use crate::themes::default_themes::dark_theme;
 use crate::uri::web_intent_parser::maybe_rewrite_web_url_to_intent;
@@ -147,164 +145,4 @@ fn test_scrollback_deserialization() {
     assert_eq!(decoded.len(), 1);
     assert_eq!(decoded[0].stylized_command, b"hello");
     assert_eq!(decoded[0].stylized_output, b"world");
-}
-
-#[test]
-fn test_loading_scrollback() {
-    let session_id = 42.into();
-    let mut active_block = SerializedBlock::new_active_block_for_test();
-    active_block.session_id = Some(session_id);
-
-    let scrollback_blocks = &[
-        SerializedBlock::new_for_test("block1".into(), "block1".into()),
-        SerializedBlock::new_for_test("block2".into(), "block2".into()),
-        // We expect the active block as part of scrollback to get the prompt.
-        active_block,
-    ];
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = terminal_model_for_viewer(channel_event_proxy);
-    model.load_shared_session_scrollback(scrollback_blocks);
-
-    // 4 blocks: first is the bootstrap block, the next two are completed scrollback blocks.
-    // The last is the active block, whose prompt came from the last scrollback.
-    assert_eq!(model.block_list().blocks().len(), 4);
-
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(1.into())
-            .unwrap()
-            .command_to_string(),
-        "block1"
-    );
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(1.into())
-            .unwrap()
-            .output_to_string(),
-        "block1"
-    );
-
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(2.into())
-            .unwrap()
-            .command_to_string(),
-        "block2"
-    );
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(2.into())
-            .unwrap()
-            .output_to_string(),
-        "block2"
-    );
-
-    // The last scrollback block is the active block and contains the prompt.
-    assert_eq!(model.block_list().active_block_index(), 3.into());
-    assert_eq!(
-        model
-            .block_list()
-            .active_block()
-            .height(&crate::terminal::model::block::TranscriptScope::Terminal),
-        Lines::zero()
-    );
-    assert!(!model.block_list().active_block().started());
-    assert_eq!(
-        model.block_list().active_block().session_id(),
-        Some(session_id)
-    );
-}
-
-#[test]
-fn test_loading_scrollback_with_completed_last_block_creates_active_block() {
-    let scrollback_blocks = &[
-        SerializedBlock::new_for_test("block1".into(), "block1".into()),
-        SerializedBlock::new_for_test("block2".into(), "block2".into()),
-    ];
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = terminal_model_for_viewer(channel_event_proxy);
-    model.load_shared_session_scrollback(scrollback_blocks);
-
-    // 4 blocks: first is the bootstrap block, the next two are completed scrollback blocks.
-    // Since no active block was serialized, restore creates a fresh active block.
-    assert_eq!(model.block_list().blocks().len(), 4);
-
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(1.into())
-            .unwrap()
-            .command_to_string(),
-        "block1"
-    );
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(2.into())
-            .unwrap()
-            .command_to_string(),
-        "block2"
-    );
-
-    assert_eq!(model.block_list().active_block_index(), 3.into());
-    assert_eq!(
-        model
-            .block_list()
-            .active_block()
-            .height(&crate::terminal::model::block::TranscriptScope::Terminal),
-        Lines::zero()
-    );
-    assert!(!model.block_list().active_block().started());
-}
-
-#[test]
-fn test_loading_scrollback_in_alt_screen() {
-    let scrollback_blocks = &[
-        SerializedBlock::new_for_test("block1".into(), "block1".into()),
-        // We expect the active block as part of scrollback to get the prompt.
-        SerializedBlock::new_active_block_for_test(),
-    ];
-    let channel_event_proxy = ChannelEventListener::new_for_test();
-    let mut model = terminal_model_for_viewer(channel_event_proxy);
-    model.load_shared_session_scrollback(scrollback_blocks);
-    model.enter_alt_screen(true);
-
-    // 3 blocks: first is the bootstrap block, the second is the completed scrollback blocks.
-    // The last is the active block, whose prompt came from the last scrollback.
-    assert_eq!(model.block_list().blocks().len(), 3);
-
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(1.into())
-            .unwrap()
-            .command_to_string(),
-        "block1"
-    );
-    assert_eq!(
-        model
-            .block_list()
-            .block_at(1.into())
-            .unwrap()
-            .output_to_string(),
-        "block1"
-    );
-
-    // The last scrollback block is the active block and contains the prompt.
-    assert_lines_approx_eq!(
-        model
-            .block_list()
-            .block_at(2.into())
-            .unwrap()
-            .height(&crate::terminal::model::block::TranscriptScope::Terminal),
-        0.
-    );
-    assert!(!model.block_list().block_at(2.into()).unwrap().started());
-
-    // Make sure we're in the alt screen.
-    assert!(model.is_alt_screen_active());
 }

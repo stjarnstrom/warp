@@ -13,19 +13,17 @@ use super::common::{
 };
 use super::{
     CLI_AGENT_RICH_INPUT_EDITOR_BOTTOM_PADDING, CLI_AGENT_RICH_INPUT_EDITOR_MAX_HEIGHT,
-    CLI_AGENT_RICH_INPUT_EDITOR_TOP_PADDING, Input, InputAction, InputDropTargetData,
+    CLI_AGENT_RICH_INPUT_EDITOR_TOP_PADDING, Input, InputDropTargetData,
     TERMINAL_VIEW_PADDING_LEFT,
 };
 use crate::appearance::Appearance;
-use crate::context_chips::spacing;
 use crate::editor::{EnterAction, EnterSettings, TextColors};
-use crate::features::FeatureFlag;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::should_right_click_paste;
 use crate::terminal::view::TerminalAction;
 
 impl Input {
-    /// Renders the CLI rich input (editor + CLI agent footer).
+    /// Renders the CLI rich input editor.
     pub(super) fn render_cli_agent_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
@@ -66,28 +64,7 @@ impl Input {
 
         let mut column = Flex::column();
 
-        // Render attachment chips (e.g. pasted screenshots) above the editor,
-        // matching the pattern used by the agent view input in agent.rs.
-        if FeatureFlag::ImageAsContext.is_enabled()
-            && let Some(images) = self.render_attachment_chips(appearance)
-        {
-            column.add_child(
-                Container::new(images)
-                    .with_margin_top(spacing::UDI_CHIP_MARGIN)
-                    .finish(),
-            );
-        }
-
         column.add_child(editor_element);
-        column.add_child(
-            SavePosition::new(
-                Container::new(ChildView::new(&self.agent_input_footer).finish())
-                    .with_padding_right(*TERMINAL_VIEW_PADDING_LEFT)
-                    .finish(),
-                &self.prompt_save_position_id(),
-            )
-            .finish(),
-        );
 
         stack.add_child(wrap_input_with_terminal_padding_and_focus_handler(
             self.is_active_session(app),
@@ -122,9 +99,6 @@ impl Input {
 
         let input = SavePosition::new(
             Hoverable::new(self.hoverable_handle.clone(), |_| drop_target)
-                .on_hover(|is_hovered, ctx, _app, _position| {
-                    ctx.dispatch_typed_action(InputAction::SetUDIHovered(is_hovered));
-                })
                 .on_middle_click(|ctx, _app, _position| {
                     ctx.dispatch_typed_action(TerminalAction::MiddleClickOnInput)
                 })
@@ -133,19 +107,7 @@ impl Input {
         )
         .finish();
 
-        // Render inline menus (slash commands, prompts, skills) above the input,
-        // matching the pattern used by the agent view input in agent.rs.
-        // These must be outside the Hoverable so that mouse events on the menu
-        // don't trigger SetUDIHovered, which would cause layout jitter.
-        let mut outer_column = Flex::column();
-        if self.suggestions_mode_model.as_ref(app).is_slash_commands() {
-            outer_column.add_child(ChildView::new(&self.inline_slash_commands_view).finish());
-        } else if self.suggestions_mode_model.as_ref(app).is_skill_menu() {
-            outer_column.add_child(ChildView::new(&self.inline_skill_selector_view).finish());
-        }
-        outer_column.add_child(input);
-
-        SavePosition::new(outer_column.finish(), &self.save_position_id()).finish()
+        SavePosition::new(input, &self.save_position_id()).finish()
     }
 
     /// Keep the rich input editor's text colors legible when it's rendered on
@@ -154,8 +116,7 @@ impl Input {
     /// agent rich input is active, restores the theme default text colors.
     ///
     /// This mirrors the contrast-adjustment pattern used for the use-agent
-    /// toolbar button text (see `AgentFooterButtonTheme::text_color`) and the
-    /// CLI agent brand icon in `AgentInputFooter::render_cli_mode_footer`.
+    /// toolbar button text (see `AgentFooterButtonTheme::text_color`).
     pub(super) fn update_cli_agent_editor_text_colors(&mut self, ctx: &mut ViewContext<Self>) {
         let appearance = Appearance::as_ref(ctx);
         let default_colors = TextColors::from_appearance(appearance);
@@ -211,7 +172,7 @@ impl Input {
 
         let settings = if rich_input_open {
             let submit_on_ctrl_enter =
-                *crate::settings::AISettings::as_ref(ctx).submit_on_ctrl_enter;
+                *crate::settings::CLIAgentSettings::as_ref(ctx).submit_on_ctrl_enter;
             EnterSettings {
                 // Always Emit so input_enter handles menus before submit/newline.
                 enter: EnterAction::Emit,

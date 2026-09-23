@@ -1,97 +1,5 @@
 use super::*;
 
-fn team(name: &str, member_uids: &[&str]) -> Team {
-    Team::from_local_cache(
-        ServerId::from_string_lossy(format!("{name:0>22}")),
-        name.to_string(),
-        None,
-        None,
-        Some(
-            member_uids
-                .iter()
-                .map(|uid| TeamMember {
-                    uid: UserUid::new(uid),
-                    email: format!("{uid}@example.com"),
-                    role: MembershipRole::User,
-                    is_disabled: false,
-                })
-                .collect(),
-        ),
-        None,
-    )
-}
-
-fn workspace(teams: Vec<Team>) -> Workspace {
-    Workspace::from_local_cache(
-        format!("{:0>22}", "workspace").into(),
-        "workspace".to_string(),
-        Some(teams),
-        None,
-    )
-}
-
-fn team_names(workspace: &Workspace) -> Vec<&str> {
-    workspace
-        .teams
-        .iter()
-        .map(|team| team.name.as_str())
-        .collect()
-}
-
-#[test]
-fn drop_teams_the_user_is_not_a_member_of() {
-    let mut workspace = workspace(vec![
-        team("non-member", &["other-user"]),
-        team("member", &["current-user"]),
-    ]);
-
-    retain_authenticated_teams(&mut workspace, UserUid::new("current-user"), false);
-
-    assert_eq!(team_names(&workspace), ["member"]);
-}
-
-#[test]
-fn preserve_server_order_across_member_teams() {
-    let mut workspace = workspace(vec![
-        team("non-member-one", &["other-user"]),
-        team("member-one", &["current-user"]),
-        team("non-member-two", &["another-user"]),
-        team("member-two", &["current-user"]),
-    ]);
-
-    retain_authenticated_teams(&mut workspace, UserUid::new("current-user"), false);
-
-    assert_eq!(team_names(&workspace), ["member-one", "member-two"]);
-}
-
-#[test]
-fn drop_every_team_when_user_has_no_team_membership() {
-    // A workspace admin the server grants every team but who joined none of them
-    // has nothing to operate as in the client, so the list ends up empty.
-    let mut workspace = workspace(vec![
-        team("first", &["other-user"]),
-        team("second", &["another-user"]),
-    ]);
-
-    retain_authenticated_teams(&mut workspace, UserUid::new("current-user"), false);
-
-    assert!(team_names(&workspace).is_empty());
-}
-
-#[test]
-fn service_accounts_keep_every_server_returned_team() {
-    // Service accounts aren't recorded as a human `TeamMember`, so the membership check
-    // must be skipped entirely and the server-returned teams trusted as-is.
-    let mut workspace = workspace(vec![
-        team("first", &["other-user"]),
-        team("second", &["another-user"]),
-    ]);
-
-    retain_authenticated_teams(&mut workspace, UserUid::new("current-user"), true);
-
-    assert_eq!(team_names(&workspace), ["first", "second"]);
-}
-
 #[test]
 fn team_member_conversion_preserves_is_disabled() {
     let enabled_member = GqlTeamMember {
@@ -197,13 +105,7 @@ mod pending_email_invites_conversion {
 mod team_settings_conversion {
     use warp_graphql::workspace as gqlws;
 
-    use crate::ai::execution_profiles::{
-        ActionPermission, ComputerUsePermission, WriteToPtyPermission,
-    };
     use crate::workspaces::gql_convert::team_settings_from_gql;
-    use crate::workspaces::workspace::{
-        AdminEnablementSetting, TeamSettings, UgcCollectionEnablementSetting,
-    };
 
     fn admin_info(
         value: gqlws::AdminEnablementSetting,
@@ -323,115 +225,6 @@ mod team_settings_conversion {
     }
 
     #[test]
-    fn reads_effective_values_and_preserves_metadata() {
-        let settings = TeamSettings::from(sample_gql_team_settings());
-
-        // Workspace-governable groups keep both the effective `.value` and the
-        // `is_enforced_by_workspace` bit.
-        assert!(matches!(
-            settings.ugc_collection.value,
-            UgcCollectionEnablementSetting::Enable
-        ));
-        assert!(settings.ugc_collection.is_enforced_by_workspace);
-        assert_eq!(
-            settings.cloud_conversation_storage.value,
-            AdminEnablementSetting::Disable
-        );
-        assert_eq!(
-            settings.codebase_context.value,
-            AdminEnablementSetting::Enable
-        );
-
-        // AI permissions preserve the enforcement bit and compile the merged patterns.
-        assert!(settings.ai_permissions.allow_ai_in_remote_sessions.value);
-        assert!(
-            settings
-                .ai_permissions
-                .allow_ai_in_remote_sessions
-                .is_enforced_by_workspace
-        );
-        assert_eq!(
-            settings
-                .ai_permissions
-                .remote_session_regex_list
-                .iter()
-                .map(|regex| regex.as_str())
-                .collect::<Vec<_>>(),
-            vec!["foo.*"],
-            "only the merged `values` compile into the effective list; the workspace/team \
-             split entries have no Rust-client reader to preserve them for"
-        );
-
-        // Secret redaction keeps the merged values and the workspace split entries.
-        assert!(settings.secret_redaction.enabled.value);
-        assert_eq!(settings.secret_redaction.regexes.values.len(), 1);
-        assert_eq!(settings.secret_redaction.regexes.values[0].pattern, "sk-.*");
-        assert_eq!(
-            settings.secret_redaction.regexes.workspace_entries[0].pattern,
-            "ws-secret"
-        );
-
-        // AI autonomy maps effective values to permissions (RespectUserSetting ->
-        // None) while preserving the enforcement bit.
-        assert_eq!(
-            settings.ai_autonomy.apply_code_diffs.value,
-            Some(ActionPermission::AlwaysAllow)
-        );
-        assert!(
-            settings
-                .ai_autonomy
-                .apply_code_diffs
-                .is_enforced_by_workspace
-        );
-        assert_eq!(settings.ai_autonomy.read_files.value, None);
-        assert_eq!(
-            settings.ai_autonomy.execute_commands.value,
-            Some(ActionPermission::AlwaysAsk)
-        );
-        assert_eq!(
-            settings.ai_autonomy.write_to_pty.value,
-            Some(WriteToPtyPermission::AlwaysAsk)
-        );
-        assert_eq!(
-            settings.ai_autonomy.computer_use.value,
-            Some(ComputerUsePermission::Never)
-        );
-        assert_eq!(
-            settings.ai_autonomy.read_files_allowlist.values,
-            vec!["/allowed".to_string()]
-        );
-
-        // Link sharing keeps each boolean value.
-        assert!(settings.link_sharing.anyone_with_link_sharing_enabled.value);
-        assert!(!settings.link_sharing.direct_link_sharing_enabled.value);
-
-        // Passthrough groups map directly.
-        assert!(settings.llm_settings.enabled);
-        assert!(settings.telemetry_settings.force_enabled);
-        assert!(settings.usage_based_pricing_settings.enabled);
-        assert_eq!(
-            settings
-                .usage_based_pricing_settings
-                .max_monthly_spend_cents,
-            Some(500)
-        );
-        assert!(settings.addon_credits_settings.auto_reload_enabled);
-
-        // Ambient agent settings surface attribution + default host slug.
-        assert_eq!(
-            settings.enable_warp_attribution,
-            AdminEnablementSetting::Enable
-        );
-        assert_eq!(settings.default_host_slug.as_deref(), Some("my-host"));
-
-        // Sandboxed agent denylist is populated from the effective list.
-        assert_eq!(
-            settings.sandboxed_agent.execute_commands_denylist.values,
-            vec!["danger".to_string()]
-        );
-    }
-
-    #[test]
     fn drops_an_uncompilable_remote_session_pattern_without_failing_the_rest() {
         // Compilation now happens at convert time (mirroring the workspace-level path), so an
         // org's one bad pattern must not take down the rest of its list.
@@ -448,30 +241,6 @@ mod team_settings_conversion {
                 .map(|regex| regex.as_str())
                 .collect::<Vec<_>>(),
             vec!["foo.*"]
-        );
-    }
-
-    #[test]
-    fn team_settings_from_gql_uses_team_payload() {
-        // The team payload carries distinctive values (llm enabled, codebase
-        // context Enable, ugc enforced). `team_settings_from_gql` derives
-        // `Team.settings` from this payload only — it takes just the team settings,
-        // so it structurally cannot clone workspace settings. This is the parse
-        // boundary replacing the old `Team::organization_settings` clone.
-        let settings = team_settings_from_gql(sample_gql_team_settings());
-
-        assert!(
-            settings.llm_settings.enabled,
-            "Team.settings must be sourced from the team payload"
-        );
-        assert_eq!(
-            settings.codebase_context.value,
-            AdminEnablementSetting::Enable,
-            "team codebase_context value must flow through from the team payload"
-        );
-        assert!(
-            settings.ugc_collection.is_enforced_by_workspace,
-            "enforcement metadata from the team payload must be preserved"
         );
     }
 }

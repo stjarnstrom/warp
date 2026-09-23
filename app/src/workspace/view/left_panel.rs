@@ -7,11 +7,10 @@ use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
-    Align, ChildView, ConstrainedBox, Container, CrossAxisAlignment, DragBarSide, Element, Empty,
-    Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Resizable,
+    ChildView, ConstrainedBox, Container, CrossAxisAlignment, DragBarSide, Element, Empty, Flex,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Resizable,
     ResizableStateHandle, Shrinkable, resizable_state_handle,
 };
-use warpui::fonts::Weight;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
@@ -20,10 +19,7 @@ use warpui::{
 };
 
 use crate::TelemetryEvent;
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::appearance::Appearance;
-use crate::auth::AuthStateProvider;
 use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeEvent;
@@ -38,7 +34,6 @@ use crate::pane_group::{
 #[cfg(feature = "local_fs")]
 use crate::server::telemetry::CodePanelsFileOpenEntrypoint;
 use crate::server::telemetry::FileTreeSource;
-use crate::settings::AISettings;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::terminal::resizable_data::{ModalType, ResizableData};
 use crate::ui_components::buttons::{icon_button, icon_button_with_color};
@@ -52,24 +47,18 @@ use crate::util::openable_file_type::{
     EditorLayout, is_markdown_file, resolve_file_target_with_editor_choice,
 };
 use crate::workspace::WorkspaceAction;
-use crate::workspace::view::conversation_list::view::{
-    ConversationListView, Event as ConversationListViewEvent,
-};
 use crate::workspace::view::global_search::view::{
     Event as GlobalSearchViewEvent, GlobalSearchEntryFocus, GlobalSearchView,
 };
 use crate::workspace::view::{
-    LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME, LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME,
-    LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME, MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH,
-    OPEN_GLOBAL_SEARCH_BINDING_NAME, TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME,
+    LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME, LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME,
+    MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH, OPEN_GLOBAL_SEARCH_BINDING_NAME,
     TOGGLE_PROJECT_EXPLORER_BINDING_NAME,
 };
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 #[derive(Default)]
 struct MouseStateHandles {
     project_explorer_button: MouseStateHandle,
-    conversation_list_view_button: MouseStateHandle,
     global_search_button: MouseStateHandle,
 }
 
@@ -77,36 +66,6 @@ struct MouseStateHandles {
 pub enum LeftPanelAction {
     ProjectExplorer,
     GlobalSearch { entry_focus: GlobalSearchEntryFocus },
-    ConversationListView,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ToolPanelAvailability {
-    Available,
-    RequiresAccount,
-    RequiresAi,
-}
-
-impl ToolPanelView {
-    fn availability(self, app: &AppContext) -> ToolPanelAvailability {
-        match self {
-            ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. } => {
-                ToolPanelAvailability::Available
-            }
-            ToolPanelView::ConversationListView => {
-                if AuthStateProvider::as_ref(app)
-                    .get()
-                    .is_anonymous_or_logged_out()
-                {
-                    ToolPanelAvailability::RequiresAccount
-                } else if AISettings::as_ref(app).is_conversation_history_available(app) {
-                    ToolPanelAvailability::Available
-                } else {
-                    ToolPanelAvailability::RequiresAi
-                }
-            }
-        }
-    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -119,19 +78,12 @@ pub enum LeftPanelEvent {
         target: FileTarget,
         line_col: Option<LineAndColumnArg>,
     },
-    NewConversationInNewTab,
-    ShowDeleteConfirmationDialog {
-        conversation_id: AIConversationId,
-        conversation_title: String,
-        terminal_view_id: Option<warpui::EntityId>,
-    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToolPanelView {
     ProjectExplorer,
     GlobalSearch { entry_focus: GlobalSearchEntryFocus },
-    ConversationListView,
 }
 
 /// Encapsulates the active view state to enforce that all mutations go through
@@ -158,18 +110,9 @@ mod active_view_state {
         new_view: ToolPanelView,
         ctx: &mut ViewContext<super::LeftPanelView>,
     ) {
-        let previous = left_panel.active_view.0;
         left_panel.active_view.0 = new_view;
         left_panel.update_button_active_states();
         ctx.notify();
-
-        let was_conversation_list_open = previous == ToolPanelView::ConversationListView;
-        let is_conversation_list_open = new_view == ToolPanelView::ConversationListView;
-        if was_conversation_list_open && !is_conversation_list_open {
-            left_panel.on_conversation_list_view_visibility_changed(false, ctx);
-        } else if !was_conversation_list_open && is_conversation_list_open {
-            left_panel.on_conversation_list_view_visibility_changed(true, ctx);
-        }
 
         left_panel.update_active_file_tree_subscription_state(ctx);
     }
@@ -197,13 +140,11 @@ pub struct LeftPanelView {
     resizable_state_handle: ResizableStateHandle,
     mouse_state_handles: MouseStateHandles,
     close_button_mouse_state: MouseStateHandle,
-    conversation_list_view: ViewHandle<ConversationListView>,
     active_view: active_view_state::ActiveViewState,
     toolbelt_buttons: Vec<ToolbeltButtonConfig>,
     active_pane_group: Option<WeakViewHandle<PaneGroup>>,
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     working_directories_model: ModelHandle<WorkingDirectoriesModel>,
-    is_agent_management_view_open: bool,
     panel_position: super::PanelPosition,
 }
 
@@ -224,72 +165,6 @@ fn toolbelt_tooltip_keybinding(binding_names: &[&'static str], app: &AppContext)
 }
 
 impl LeftPanelView {
-    pub(crate) fn active_view_availability(&self, app: &AppContext) -> ToolPanelAvailability {
-        self.active_view.get().availability(app)
-    }
-
-    fn render_unavailable_panel(
-        &self,
-        appearance: &Appearance,
-        view: ToolPanelView,
-        availability: ToolPanelAvailability,
-    ) -> Box<dyn Element> {
-        let (title, description) = match (view, availability) {
-            (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAccount) => (
-                "Sign in to access Agent conversations",
-                "Create an account and enable AI to access your conversation history.",
-            ),
-            (ToolPanelView::ConversationListView, ToolPanelAvailability::RequiresAi) => (
-                "Turn on AI to access Agent conversations",
-                "Enable Warp AI to access your conversation history.",
-            ),
-            (
-                ToolPanelView::ProjectExplorer | ToolPanelView::GlobalSearch { .. },
-                ToolPanelAvailability::RequiresAi | ToolPanelAvailability::RequiresAccount,
-            )
-            | (_, ToolPanelAvailability::Available) => {
-                debug_assert!(false, "unexpected locked tool-panel state");
-                (
-                    "Feature unavailable",
-                    "This feature is currently unavailable.",
-                )
-            }
-        };
-        let theme = appearance.theme();
-        let title = appearance
-            .ui_builder()
-            .paragraph(title)
-            .with_style(UiComponentStyles {
-                font_size: Some(16.),
-                font_weight: Some(Weight::Semibold),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-        let description = appearance
-            .ui_builder()
-            .paragraph(description)
-            .with_style(UiComponentStyles {
-                font_size: Some(13.),
-                font_color: Some(internal_colors::text_sub(
-                    theme,
-                    theme.background().into_solid(),
-                )),
-                ..Default::default()
-            })
-            .build()
-            .finish();
-        let content = Flex::column()
-            .with_main_axis_size(MainAxisSize::Min)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(title)
-            .with_child(Container::new(description).with_margin_top(8.).finish());
-        let content = ConstrainedBox::new(content.finish())
-            .with_max_width(280.)
-            .finish();
-
-        Align::new(Container::new(content).with_uniform_padding(24.).finish()).finish()
-    }
     pub fn new(
         working_directories_model: ModelHandle<WorkingDirectoriesModel>,
         views: Vec<ToolPanelView>,
@@ -306,25 +181,6 @@ impl LeftPanelView {
                 resizable_state_handle(600.0)
             }
         };
-        let conversation_list_view = ctx.add_typed_action_view(ConversationListView::new);
-
-        ctx.subscribe_to_view(&conversation_list_view, |_me, _, event, ctx| match event {
-            ConversationListViewEvent::NewConversationInNewTab => {
-                ctx.emit(LeftPanelEvent::NewConversationInNewTab);
-            }
-            ConversationListViewEvent::ShowDeleteConfirmationDialog {
-                conversation_id,
-                conversation_title,
-                terminal_view_id,
-            } => {
-                ctx.emit(LeftPanelEvent::ShowDeleteConfirmationDialog {
-                    conversation_id: *conversation_id,
-                    conversation_title: conversation_title.clone(),
-                    terminal_view_id: *terminal_view_id,
-                });
-            }
-        });
-
         let active_view = views
             .first()
             .copied()
@@ -419,22 +275,15 @@ impl LeftPanelView {
             resizable_state_handle,
             mouse_state_handles: Default::default(),
             close_button_mouse_state: Default::default(),
-            conversation_list_view,
             active_view: active_view_state::new(active_view),
             toolbelt_buttons,
             active_pane_group: None,
             working_directories_model,
-            is_agent_management_view_open: false,
             panel_position: super::PanelPosition::Left,
         };
         view.update_button_active_states();
 
         view
-    }
-
-    pub fn set_agent_management_view_open(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
-        self.is_agent_management_view_open = is_open;
-        ctx.notify();
     }
 
     pub fn set_panel_position(
@@ -477,17 +326,6 @@ impl LeftPanelView {
         } else {
             self.update_button_active_states();
         }
-        // The selected tab can remain the same while its account/AI
-        // availability changes. Reconcile the real conversation view's open
-        // registration so a locked placeholder never polls, and enabling AI
-        // while the panel is open starts polling without another click.
-        let is_left_panel_open = self
-            .active_pane_group
-            .as_ref()
-            .and_then(|pane_group| pane_group.upgrade(ctx))
-            .is_some_and(|pane_group| pane_group.as_ref(ctx).left_panel_open);
-        self.on_conversation_list_view_visibility_changed(is_left_panel_open, ctx);
-
         ctx.notify();
     }
 
@@ -525,22 +363,6 @@ impl LeftPanelView {
                     action: LeftPanelAction::GlobalSearch {
                         entry_focus: GlobalSearchEntryFocus::QueryEditor,
                     },
-                    render_with_active_state: false,
-                    tooltip_keybinding: toolbelt_tooltip_keybinding(&tooltip_keybinding_names, ctx),
-                    tooltip_keybinding_names,
-                }
-            }
-            ToolPanelView::ConversationListView => {
-                let tooltip_keybinding_names = vec![
-                    LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME,
-                    TOGGLE_CONVERSATION_LIST_VIEW_BINDING_NAME,
-                ];
-
-                ToolbeltButtonConfig {
-                    icon: Icon::Conversation,
-                    active_icon: Some(Icon::Conversation),
-                    tooltip_text: "Agent conversations".to_string(),
-                    action: LeftPanelAction::ConversationListView,
                     render_with_active_state: false,
                     tooltip_keybinding: toolbelt_tooltip_keybinding(&tooltip_keybinding_names, ctx),
                     tooltip_keybinding_names,
@@ -736,7 +558,7 @@ impl LeftPanelView {
             }
         });
 
-        self.on_left_panel_visibility_changed(left_panel_open, ctx);
+        self.on_left_panel_visibility_changed(ctx);
 
         ctx.notify();
     }
@@ -763,10 +585,6 @@ impl LeftPanelView {
     }
 
     pub fn focus_active_view_on_entry(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.active_view_availability(ctx) != ToolPanelAvailability::Available {
-            ctx.focus_self();
-            return;
-        }
         match self.active_view.get() {
             ToolPanelView::ProjectExplorer => {
                 if let Some(file_tree_view) = self.active_file_tree_view(ctx) {
@@ -790,11 +608,6 @@ impl LeftPanelView {
                     },
                     ctx,
                 );
-            }
-            ToolPanelView::ConversationListView => {
-                self.conversation_list_view.update(ctx, |view, ctx| {
-                    view.on_left_panel_focused(ctx);
-                });
             }
         }
     }
@@ -878,11 +691,6 @@ impl LeftPanelView {
                     path: path.clone(),
                 }));
             }
-            FileTreeEvent::AttachAsContext { path } => {
-                ctx.emit(LeftPanelEvent::FileTree(
-                    pane_group::Event::AttachPathAsContext { path: path.clone() },
-                ));
-            }
             FileTreeEvent::OpenFile {
                 path,
                 target,
@@ -957,9 +765,6 @@ impl LeftPanelView {
                 }
                 LeftPanelAction::GlobalSearch { .. } => {
                     matches!(self.active_view.get(), ToolPanelView::GlobalSearch { .. })
-                }
-                LeftPanelAction::ConversationListView => {
-                    self.active_view.get() == ToolPanelView::ConversationListView
                 }
             };
         }
@@ -1078,20 +883,10 @@ impl LeftPanelView {
                     send_telemetry_from_ctx!(TelemetryEvent::GlobalSearchOpened, ctx);
                 }
             }
-            LeftPanelAction::ConversationListView => {
-                active_view_state::set(self, ToolPanelView::ConversationListView, ctx);
-                if self.active_view_availability(ctx) == ToolPanelAvailability::Available {
-                    send_telemetry_from_ctx!(TelemetryEvent::ConversationListViewOpened, ctx);
-                }
-            }
         }
     }
 
-    pub fn on_left_panel_visibility_changed(&self, is_now_open: bool, ctx: &mut ViewContext<Self>) {
-        if ToolPanelView::ConversationListView == self.active_view.get() {
-            self.on_conversation_list_view_visibility_changed(is_now_open, ctx);
-        }
-
+    pub fn on_left_panel_visibility_changed(&self, ctx: &mut ViewContext<Self>) {
         self.update_active_file_tree_subscription_state(ctx);
     }
 
@@ -1133,29 +928,6 @@ impl LeftPanelView {
             });
         }
     }
-
-    /// When the conversation list view's visibility changes,
-    /// we need to update the conversation and tasks model to reflect the new state
-    /// (this information is used to decide whether or not we should poll for new tasks).
-    fn on_conversation_list_view_visibility_changed(
-        &self,
-        is_now_open: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let is_available = self.active_view.get() == ToolPanelView::ConversationListView
-            && self.active_view_availability(ctx) == ToolPanelAvailability::Available;
-        let window_id = ctx.window_id();
-        let view_id = self.conversation_list_view.id();
-        let team_context_resolver =
-            UserWorkspaces::team_context_resolver(self.conversation_list_view.downgrade());
-        AgentConversationsModel::handle(ctx).update(ctx, move |model, ctx| {
-            if is_now_open && is_available {
-                model.register_view_open(window_id, view_id, team_context_resolver, ctx);
-            } else {
-                model.register_view_closed(window_id, view_id, ctx);
-            }
-        });
-    }
 }
 
 impl TypedActionView for LeftPanelView {
@@ -1173,9 +945,7 @@ impl View for LeftPanelView {
 
     fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
         // Focus the active tool panel view on-left-panel-focus.
-        if focus_ctx.is_self_focused()
-            && self.active_view_availability(ctx) == ToolPanelAvailability::Available
-        {
+        if focus_ctx.is_self_focused() {
             match self.active_view.get() {
                 ToolPanelView::ProjectExplorer => {
                     if let Some(view) = self.active_file_tree_view(ctx) {
@@ -1187,7 +957,6 @@ impl View for LeftPanelView {
                         ctx.focus(&view);
                     }
                 }
-                ToolPanelView::ConversationListView => ctx.focus(&self.conversation_list_view),
             }
         }
     }
@@ -1197,9 +966,6 @@ impl View for LeftPanelView {
 
         let mouse_state_handles = vec![
             self.mouse_state_handles.project_explorer_button.clone(),
-            self.mouse_state_handles
-                .conversation_list_view_button
-                .clone(),
             self.mouse_state_handles.global_search_button.clone(),
         ];
 
@@ -1223,41 +989,26 @@ impl View for LeftPanelView {
         };
 
         let active_view = self.active_view.get();
-        let availability = self.active_view_availability(app);
-        let content_area: Box<dyn Element> = if availability != ToolPanelAvailability::Available {
-            Shrinkable::new(
-                1.0,
-                self.render_unavailable_panel(appearance, active_view, availability),
-            )
-            .finish()
-        } else {
-            match active_view {
-                ToolPanelView::ProjectExplorer => match self.active_file_tree_view(app) {
-                    Some(file_tree_view) => Shrinkable::new(
-                        1.0,
-                        Container::new(ChildView::new(&file_tree_view).finish())
-                            .with_padding_left(2.)
-                            .with_padding_right(2.)
-                            .finish(),
-                    )
-                    .finish(),
-                    _ => Shrinkable::new(1.0, Container::new(Empty::new().finish()).finish())
+        let content_area: Box<dyn Element> = match active_view {
+            ToolPanelView::ProjectExplorer => match self.active_file_tree_view(app) {
+                Some(file_tree_view) => Shrinkable::new(
+                    1.0,
+                    Container::new(ChildView::new(&file_tree_view).finish())
+                        .with_padding_left(2.)
+                        .with_padding_right(2.)
                         .finish(),
-                },
-                ToolPanelView::GlobalSearch { .. } => match self.active_global_search_view(app) {
-                    Some(global_search_view) => Shrinkable::new(
-                        1.0,
-                        Container::new(ChildView::new(&global_search_view).finish()).finish(),
-                    )
-                    .finish(),
-                    _ => Shrinkable::new(1.0, Container::new(Empty::new().finish()).finish())
-                        .finish(),
-                },
-                ToolPanelView::ConversationListView => {
-                    Shrinkable::new(1.0, ChildView::new(&self.conversation_list_view).finish())
-                        .finish()
-                }
-            }
+                )
+                .finish(),
+                _ => Shrinkable::new(1.0, Container::new(Empty::new().finish()).finish()).finish(),
+            },
+            ToolPanelView::GlobalSearch { .. } => match self.active_global_search_view(app) {
+                Some(global_search_view) => Shrinkable::new(
+                    1.0,
+                    Container::new(ChildView::new(&global_search_view).finish()).finish(),
+                )
+                .finish(),
+                _ => Shrinkable::new(1.0, Container::new(Empty::new().finish()).finish()).finish(),
+            },
         };
 
         let panel_content = Container::new({

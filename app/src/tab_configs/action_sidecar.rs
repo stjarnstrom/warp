@@ -4,14 +4,12 @@ use warpui::elements::{
     MouseStateHandle, ParentElement, Radius, Text,
 };
 use warpui::platform::Cursor;
-use warpui::ui_components::button::{ButtonTooltipPosition, ButtonVariant};
+use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::settings::ai::DefaultSessionMode;
 use crate::tab_configs::TabConfig;
-use crate::terminal::available_shells::AvailableShell;
 use crate::workspace::WorkspaceAction;
 
 pub(crate) const SIDECAR_WIDTH: f32 = 260.;
@@ -20,19 +18,12 @@ const SIDECAR_PADDING: f32 = 12.;
 /// Describes what the sidecar is showing, which determines which buttons appear.
 #[derive(Clone, Debug)]
 pub(crate) enum SidecarItemKind {
-    /// A built-in item (Terminal, a specific shell, Agent, Cloud agent).
-    BuiltIn {
-        name: String,
-        default_mode: DefaultSessionMode,
-        shell: Option<AvailableShell>,
-    },
     /// A user-created tab config loaded from disk.
     UserTabConfig { config: TabConfig },
 }
 
 #[derive(Default)]
 pub(crate) struct SidecarMouseStates {
-    pub(crate) make_default: MouseStateHandle,
     pub(crate) edit_config: MouseStateHandle,
     pub(crate) remove_config: MouseStateHandle,
 }
@@ -42,7 +33,6 @@ pub(crate) struct SidecarMouseStates {
 pub(crate) fn render_action_sidecar(
     item: &SidecarItemKind,
     mouse_states: &SidecarMouseStates,
-    is_already_default: bool,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
@@ -54,11 +44,10 @@ pub(crate) fn render_action_sidecar(
         .with_cross_axis_alignment(CrossAxisAlignment::Start)
         .with_main_axis_size(MainAxisSize::Min);
 
+    let SidecarItemKind::UserTabConfig { config } = item;
+
     // Title
-    let title = match item {
-        SidecarItemKind::BuiltIn { name, .. } => name.clone(),
-        SidecarItemKind::UserTabConfig { config } => config.name.clone(),
-    };
+    let title = config.name.clone();
     column.add_child(
         Container::new(
             Text::new_inline(title, font_family, font_size + 1.)
@@ -70,9 +59,7 @@ pub(crate) fn render_action_sidecar(
     );
 
     // Subtitle (file path for user configs)
-    if let SidecarItemKind::UserTabConfig { config } = item
-        && let Some(path) = &config.source_path
-    {
+    if let Some(path) = &config.source_path {
         let raw_path = path.to_string_lossy().into_owned();
         let home_dir = dirs::home_dir();
         let path_str =
@@ -102,71 +89,8 @@ pub(crate) fn render_action_sidecar(
         ..Default::default()
     };
 
-    let make_default_action = match item {
-        SidecarItemKind::BuiltIn {
-            default_mode,
-            shell,
-            ..
-        } => WorkspaceAction::TabConfigSidecarMakeDefault {
-            mode: *default_mode,
-            tab_config_path: None,
-            shell: shell.clone(),
-        },
-        SidecarItemKind::UserTabConfig { config } => WorkspaceAction::TabConfigSidecarMakeDefault {
-            mode: DefaultSessionMode::TabConfig,
-            tab_config_path: config.source_path.clone(),
-            shell: None,
-        },
-    };
-
-    // "Make default" button (always shown; visually disabled with tooltip when already the default)
-    let make_default_button = if is_already_default {
-        let disabled_style = UiComponentStyles {
-            font_color: Some(theme.disabled_text_color(theme.surface_2()).into()),
-            border_color: Some(theme.outline().into()),
-            ..button_style
-        };
-        appearance
-            .ui_builder()
-            .button(ButtonVariant::Outlined, mouse_states.make_default.clone())
-            .with_centered_text_label("Make default".into())
-            .with_style(disabled_style)
-            .with_tooltip({
-                let ui_builder = appearance.ui_builder().clone();
-                move || {
-                    ui_builder
-                        .tool_tip("Already the default".into())
-                        .build()
-                        .finish()
-                }
-            })
-            .with_tooltip_position(ButtonTooltipPosition::Above)
-            .set_clicked_styles(None)
-            .build()
-            .finish()
-    } else {
-        appearance
-            .ui_builder()
-            .button(ButtonVariant::Outlined, mouse_states.make_default.clone())
-            .with_centered_text_label("Make default".into())
-            .with_style(button_style)
-            .build()
-            .with_cursor(Cursor::PointingHand)
-            .on_click(move |ctx: &mut warpui::elements::EventContext, _, _| {
-                ctx.dispatch_typed_action(make_default_action.clone())
-            })
-            .finish()
-    };
-    column.add_child(
-        ConstrainedBox::new(make_default_button)
-            .with_max_width(SIDECAR_WIDTH - SIDECAR_PADDING * 2.)
-            .finish(),
-    );
-
-    // "Edit config" and "Remove" buttons (only for user tab configs)
-    if let SidecarItemKind::UserTabConfig { config } = item
-        && let Some(config_path) = &config.source_path
-    {
+    // "Edit config" and "Remove" buttons
+    if let Some(config_path) = &config.source_path {
         let edit_path = config_path.clone();
         let edit_button = appearance
             .ui_builder()

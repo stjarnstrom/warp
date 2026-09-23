@@ -14,25 +14,6 @@ fn app_api_key_requires_validation() {
 }
 
 #[test]
-fn command_line_api_key_requires_validation() {
-    let command_line = LaunchMode::CommandLine {
-        command: CliCommand::Whoami,
-        global_options: GlobalOptions {
-            api_key: Some("cli-api-key".to_owned()),
-            ..Default::default()
-        },
-        debug: false,
-        is_sandboxed: false,
-        computer_use_override: None,
-    };
-
-    assert!(matches!(
-        command_line.auth_initialization(),
-        AuthInitialization::PendingApiKey(api_key) if api_key == "cli-api-key"
-    ));
-}
-
-#[test]
 fn startup_without_api_key_loads_persisted_auth() {
     let app = LaunchMode::App {
         args: Default::default(),

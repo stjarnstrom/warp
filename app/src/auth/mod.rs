@@ -26,12 +26,6 @@ use warp_errors::{report_error, report_if_error};
 use warpui::modals::{AlertDialogWithCallbacks, ModalButton};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::ai::agent_conversations_model::AgentConversationsModel;
-use crate::ai::blocklist::BlocklistAIHistoryModel;
-use crate::ai::blocklist::agent_view::orchestration_pill_bar_model::OrchestrationPillBarModel;
-use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor_management::{CodeEditorStatus, CodeEditorSummary};
 use crate::palette::PaletteMode;
@@ -41,7 +35,7 @@ use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::{PaletteSource, TelemetryEvent};
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::{
-    AISettings, CRASH_REPORTING_ENABLED_DEFAULTS_KEY, CloudPreferencesSettings, PrivacySettings,
+    CRASH_REPORTING_ENABLED_DEFAULTS_KEY, CloudPreferencesSettings, PrivacySettings,
     TELEMETRY_ENABLED_DEFAULTS_KEY,
 };
 use crate::terminal::general_settings::GeneralSettings;
@@ -230,21 +224,6 @@ pub fn log_out(app: &mut AppContext) {
     AuthManager::handle(app).update(app, |auth_manager, ctx| {
         auth_manager.log_out(ctx);
     });
-    // Detach built-in Warp-hosted MCP servers; they authenticate with the
-    // credentials that were just cleared.
-    #[cfg(not(target_family = "wasm"))]
-    TemplatableMCPServerManager::handle(app).update(app, |manager, ctx| {
-        manager.sync_builtin_servers(false, ctx);
-    });
-    BlocklistAIHistoryModel::handle(app).update(app, |history_model, _| {
-        history_model.reset();
-    });
-    OrchestrationPillBarModel::handle(app).update(app, |pill_bar_model, _| {
-        pill_bar_model.reset();
-    });
-    AgentConversationsModel::handle(app).update(app, |agent_conversations_model, _| {
-        agent_conversations_model.reset();
-    });
     CloudModel::handle(app).update(app, |cloud_model, _| {
         cloud_model.reset();
     });
@@ -261,13 +240,6 @@ pub fn log_out(app: &mut AppContext) {
         manager.stop_polling_for_workspace_metadata_updates();
     });
     remove_cloud_persisted_settings(app);
-
-    let settings_profiles_are_explicit = AISettings::as_ref(app)
-        .execution_profiles
-        .is_value_explicitly_set();
-    AIExecutionProfilesModel::handle(app).update(app, |profiles, _| {
-        profiles.reset(settings_profiles_are_explicit);
-    });
 
     // Leave every joined session.
     SharedSessionManager::handle(app).update(app, |manager, _| {

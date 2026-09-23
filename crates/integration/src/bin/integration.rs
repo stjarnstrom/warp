@@ -128,7 +128,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     // Add new tests here
     register_test!(test_single_command);
     register_test!(test_add_and_close_session);
-    register_test!(test_child_pill_after_reopening_closed_parent_tab);
     register_test!(test_add_many_sessions);
     register_test!(test_ctrl_tab_session_switching);
     register_test!(test_ctrl_d_eot);
@@ -162,7 +161,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_undo_redo);
     register_test!(test_add_windows_correct_position_and_cascade);
     register_test!(test_typeahead);
-    register_test!(test_input_reporting_posix_shells);
     register_test!(test_input_reporting_powershell);
     register_test!(test_background_output);
     register_test!(test_home_key_should_not_appear_in_input);
@@ -215,7 +213,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_function_completions);
     register_test!(test_builtin_completions);
     register_test!(test_keyword_completions);
-    register_test!(test_native_shell_completions_menu);
     register_test!(test_command_runs_cleanly_after_native_shell_completion);
     register_test!(test_native_shell_completions_used_when_no_bundled_spec);
     register_test!(test_native_shell_completions_skipped_when_a_bundled_spec_answers);
@@ -301,9 +298,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_open_input_context_menu);
     register_test!(test_copy_all_from_input_context_menu);
     register_test!(test_cut_paste_from_input_context_menu);
-    register_test!(test_inline_model_selector_restores_prompt_on_dismissal);
-    register_test!(test_inline_model_selector_restores_prompt_on_model_selection);
-    register_test!(test_inline_model_selector_restores_prompt_on_chip_toggle_close);
     register_test!(test_paste_and_type_characters_before_bootstrap);
     register_test!(test_code_review_scroll_anchor_preserved_when_inserting_above);
     register_test!(test_code_review_scroll_anchor_unchanged_when_inserting_below);
@@ -335,8 +329,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
 
     register_test!(test_can_auto_bootstrap);
 
-    register_test!(test_ask_warp_ai_keybinding_for_selected_block);
-
     register_test!(test_tab_behavior_setting);
 
     register_test!(test_private_public_settings_routing_with_flag_enabled);
@@ -358,7 +350,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_copy_secret_respects_safe_mode_setting);
     register_test!(test_alt_screen_secret_detection);
     register_test!(test_secret_case_sensitivity);
-    register_test!(test_secrets_are_always_redacted_in_ai_inputs);
 
     // OSC 8 hyperlink tests (GH6393)
     register_test!(test_osc8_open_close_renders_visible_text);
@@ -409,8 +400,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_latest_buffer_operations);
 
     register_test!(test_pass_control_sequences_to_long_running_block);
-    register_test!(test_execution_profiles_load_from_settings_file);
-    register_test!(test_execution_profile_model_persists_and_hot_reloads_settings_file);
     register_test!(test_settings_file_migration_from_native_store);
     register_test!(test_settings_file_hot_reload_applies_new_values);
 
@@ -420,43 +409,13 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_settings_error_banner_on_reload_with_invalid_value);
 
     // Settings sidebar navigation and search
-    register_test!(test_settings_mouse_navigation_through_umbrella);
-    register_test!(test_settings_keyboard_navigation_down_into_collapsed_umbrella);
     register_test!(test_settings_keyboard_navigation_up_into_collapsed_umbrella);
-    register_test!(test_settings_keyboard_navigation_after_manual_collapse);
     register_test!(test_settings_search_filters_top_level_pages);
-    register_test!(test_settings_search_filters_subpages);
     register_test!(test_settings_search_subpage_still_renders_content);
     register_test!(test_settings_search_clear_restores_umbrella_state);
-    register_test!(test_settings_search_preserved_on_sidebar_click);
-    register_test!(test_settings_agent_mcp_servers_renders_standalone_page);
 
     register_test!(test_middle_click_paste);
 
-    register_test!(test_copy_selection_within_ai_block);
-    register_test!(test_selection_first_to_last_through_ai_simple);
-    register_test!(test_copy_on_select_first_to_last_through_ai_simple);
-    register_test!(test_selection_first_to_last_through_ai_semantic);
-    register_test!(test_selection_first_to_last_through_ai_lines);
-    register_test!(test_selection_last_to_first_through_ai_simple);
-    register_test!(test_selection_last_to_first_through_ai_semantic);
-    register_test!(test_selection_last_to_first_through_ai_lines);
-    register_test!(test_selection_first_to_ai_simple);
-    register_test!(test_selection_first_to_ai_semantic);
-    register_test!(test_selection_first_to_ai_lines);
-    register_test!(test_selection_ai_to_first_simple);
-    register_test!(test_selection_ai_to_first_semantic);
-    register_test!(test_selection_ai_to_first_lines);
-    register_test!(test_selection_ai_to_last_simple);
-    register_test!(test_selection_ai_to_last_semantic);
-    register_test!(test_selection_ai_to_last_lines);
-    register_test!(test_selection_last_to_ai_simple);
-    register_test!(test_selection_last_to_ai_semantic);
-    register_test!(test_selection_last_to_ai_lines);
-    register_test!(test_restored_ai_block_renders_mermaid_and_local_images);
-    register_test!(test_cancelled_run_agents_card_renders_cancelled_state);
-
-    register_test!(test_agent_mode_pane_minimum_size);
     register_test!(test_git_prompt_chips);
 
     // These tests are only invoked manually, and not included in the
@@ -465,9 +424,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_with_long_line);
     register_test!(make_1000_blocks_memory_benchmark);
 
-    register_test!(test_rule_creation);
-    register_test!(test_rule_update);
-    register_test!(test_rule_pane_opening);
     register_test!(test_undo_close_stack_timeout_cleanup);
 
     // File tree tests
@@ -491,8 +447,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_code_editor_relative_line_numbers_follow_cursor);
 
     // AI document tests
-    register_test!(test_copy_ai_document_as_markdown_from_overflow_menu);
-    register_test!(test_restored_ai_document_populates_code_block_after_first_layout);
 
     // Keyboard protocol tests
     register_test!(test_keyboard_protocol_disabled_shift_enter);

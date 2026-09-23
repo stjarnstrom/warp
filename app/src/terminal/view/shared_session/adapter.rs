@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 
 use markdown_parser::FormattedTextFragment;
 use session_sharing_protocol::common::{ParticipantId, ParticipantList, Role, SessionId};
-use session_sharing_protocol::sharer::SessionSourceType;
 use warp_core::features::FeatureFlag;
 use warpui::elements::MouseStateHandle;
 use warpui::{AppContext, Element, ModelHandle, ViewContext, ViewHandle};
@@ -60,7 +59,6 @@ pub struct Adapter {
     reconnecting_banner: ViewHandle<Banner<TerminalAction>>,
     is_reconnecting_banner_open: bool,
     session_id: SessionId,
-    source_type: SessionSourceType,
 }
 
 impl Adapter {
@@ -68,7 +66,6 @@ impl Adapter {
         kind: Kind,
         presence_manager: ModelHandle<PresenceManager>,
         session_id: SessionId,
-        source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
         let reconnecting_banner = ctx.add_typed_action_view(|_| {
@@ -89,7 +86,6 @@ impl Adapter {
             reconnecting_banner,
             is_reconnecting_banner_open: false,
             session_id,
-            source_type,
         }
     }
 
@@ -98,14 +94,13 @@ impl Adapter {
         firebase_uid: UserUid,
         participant_list: Box<ParticipantList>,
         session_id: SessionId,
-        source_type: SessionSourceType,
         ctx: &mut ViewContext<TerminalView>,
     ) -> Self {
         let presence_manager = ctx.add_model(|ctx| {
             PresenceManager::new_for_viewer(viewer_id, firebase_uid, *participant_list, ctx)
         });
         let viewer = Kind::Viewer(Viewer::new(ctx));
-        Self::new(viewer, presence_manager, session_id, source_type, ctx)
+        Self::new(viewer, presence_manager, session_id, ctx)
     }
 
     pub fn presence_manager(&self) -> &ModelHandle<PresenceManager> {
@@ -272,10 +267,6 @@ impl Adapter {
 
     pub fn session_id(&self) -> &SessionId {
         &self.session_id
-    }
-
-    pub fn source_type(&self) -> &SessionSourceType {
-        &self.source_type
     }
 
     /// Retrieves the viewer avatars we want to render on the right side of the

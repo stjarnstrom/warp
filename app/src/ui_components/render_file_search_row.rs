@@ -25,7 +25,6 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::search::ItemHighlightState;
-use crate::search::ai_context_menu::safe_truncate;
 
 pub const MAX_COMBINED_LENGTH: usize = 55;
 
@@ -253,6 +252,18 @@ pub fn render_file_search_row(
 /// A tuple containing:
 /// - `Vec<usize>` - Highlight indices for the item name portion
 /// - `Vec<usize>` - Highlight indices for the directory path portion
+/// Truncates `s` to at most `new_len` bytes without splitting a UTF-8 character.
+fn safe_truncate(s: &mut String, new_len: usize) {
+    if new_len >= s.len() {
+        return;
+    }
+    let mut len = new_len;
+    while len > 0 && !s.is_char_boundary(len) {
+        len -= 1;
+    }
+    s.truncate(len);
+}
+
 fn calculate_highlight_indices(
     match_result: &FuzzyMatchResult,
     original_path: &str,

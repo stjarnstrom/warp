@@ -6,11 +6,8 @@ use warp::integration_testing::terminal::{
     assert_no_visible_background_blocks, wait_until_bootstrapped_single_pane_for_tab,
 };
 use warp::integration_testing::view_getters::single_terminal_view_for_tab;
-use warp::terminal::model::block::TranscriptScope;
-use warp::terminal::model::terminal_model::BlockIndex;
-use warp::terminal::shell::{Shell, ShellType};
+use warp::terminal::shell::ShellType;
 use warpui_core::integration::{AssertionCallback, AssertionOutcome, TestStep};
-use warpui_core::{async_assert, async_assert_eq};
 
 use super::{Builder, new_builder};
 use crate::util::skip_if_powershell_core_2303;
@@ -48,124 +45,6 @@ pub fn test_typeahead() -> Builder {
 
 /// Checks a typeahead command has the expected value.
 ///
-/// There's a race condition sending the ESC-i keybinding to
-/// report input. In real user input, it's unlikely, but it
-/// happens in integration tests because of how quickly the
-/// command is entered.
-macro_rules! check_command {
-    ($command:expr, $expected:expr) => {
-        let command = $command;
-        if command.contains("^[i") {
-            return AssertionOutcome::PreconditionFailed(format!(
-                "Flake: input reporting keybinding sent too early on `{command}`"
-            ));
-        } else {
-            assert_eq!(command, $expected);
-        }
-    };
-}
-
-/// Tests that the shell reports its input buffer to the Warp typeahead model after
-/// a long-running command completes.
-pub fn test_input_reporting_posix_shells() -> Builder {
-    // When the shell can report its input buffer, we can handle typeahead with
-    // line editing. When matching user input ourselves (only on pre-4.0 bash),
-    // we do not support line edits.
-    let (starter, version) = current_shell_starter_and_version();
-    let shell = Shell::new(
-        starter.shell_type(),
-        Some(version),
-        None,
-        Default::default(),
-        None,
-    );
-    let supports_line_editing = shell.input_reporting_sequence().is_some();
-
-    let mut input_step = TestStep::new("Enter text to long-running command")
-        .with_input_string("true", Some(&["enter"]))
-        // Test behavior when one of the typeahead commands is itself long-running.
-        .with_input_string("sleep 1", Some(&["enter"]))
-        .add_assertion(require_long_running_block_executing(0));
-
-    if supports_line_editing {
-        // Test that we correctly handle line edits on both submitted lines and typeahead.
-        input_step = input_step
-            .with_keystrokes(&["p", "w", "f", "backspace", "d", "enter"])
-            .with_keystrokes(&["l", "s", " ", "-", "a", "backspace", "l"]);
-    } else {
-        input_step = input_step
-            .with_input_string("pwd", Some(&["enter"]))
-            // This is the input we expect as typeahead.
-            .with_input_string("ls -l", None);
-    }
-
-    new_builder()
-        .set_should_run_test(move || starter.shell_type() != ShellType::PowerShell)
-        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(
-            TestStep::new("Execute sleep")
-                .with_typed_characters(&["sleep 3"])
-                .with_keystrokes(&["enter"])
-                .add_assertion(
-                    assert_long_running_block_executing_for_single_terminal_in_tab(true, 0),
-                ),
-        )
-        .with_step(input_step)
-        .with_step(
-            new_step_with_default_assertions("Input should be reported to the terminal")
-                .add_named_assertion(
-                    "Typeahead is in input editor",
-                    assert_input_editor_contents(0, "ls -l"),
-                )
-                .add_named_assertion("Intermediate commands ran", |app, window_id| {
-                    let terminal_view = single_terminal_view_for_tab(app, window_id, 0);
-                    terminal_view.read(app, |view, _| {
-                        let model = view.model.lock();
-                        let blocks = model.block_list();
-
-                        let start_index = blocks
-                            .first_non_hidden_block_by_index()
-                            .expect("Block should exist");
-
-                        let sleep_3_block =
-                            blocks.block_at(start_index).expect("Block should exist");
-                        check_command!(sleep_3_block.command_to_string(), "sleep 3");
-
-                        let true_block = blocks
-                            .block_at(start_index + BlockIndex::from(1))
-                            .expect("Block should exist");
-                        assert!(!true_block.is_background());
-                        check_command!(true_block.command_to_string(), "true");
-
-                        let sleep_1_block = blocks
-                            .block_at(start_index + BlockIndex::from(2))
-                            .expect("Block should exist");
-                        assert!(!sleep_1_block.is_background());
-                        check_command!(sleep_1_block.command_to_string(), "sleep 1");
-
-                        let pwd_block = blocks
-                            .block_at(start_index + BlockIndex::from(3))
-                            .expect("Block should exist");
-                        assert!(!pwd_block.is_background());
-                        check_command!(pwd_block.command_to_string(), "pwd");
-
-                        // On shells that support input reporting, there will be
-                        // an empty block that formerly held echoed typeahead. On
-                        // shells using input matching, the typeahead block is never
-                        // created.
-                        let next_block = blocks
-                            .block_at(start_index + BlockIndex::from(4))
-                            .expect("Block should exist");
-                        if next_block.is_background() {
-                            async_assert!(next_block.is_empty(&TranscriptScope::Terminal))
-                        } else {
-                            async_assert_eq!(next_block.index(), blocks.active_block_index())
-                        }
-                    })
-                }),
-        )
-}
-
 /// PowerShell has different behavior for typeahead in that it ignores newlines.
 pub fn test_input_reporting_powershell() -> Builder {
     new_builder()

@@ -49,7 +49,6 @@ use crate::code_review::telemetry_event::CodeReviewTelemetryEvent;
 use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
 use crate::notebooks::editor::view::{EditorViewEvent, RichTextEditorView};
 use crate::send_telemetry_from_ctx;
-use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
@@ -122,8 +121,6 @@ pub struct CommentListDebugState {
     pub sendable_comments: usize,
     pub is_collapsed: bool,
     pub is_outdated_section_collapsed: Option<bool>,
-    pub ai_available: bool,
-    pub ai_enabled: bool,
     pub send_button_tooltip_text: String,
 }
 
@@ -299,20 +296,14 @@ impl CommentListView {
         let user_workspaces = UserWorkspaces::as_ref(ctx);
         let scope = user_workspaces.team_context(&self.view_handle, ctx);
         let _ = &scope;
-        let ai_available = true;
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
         let sendable_comments = self
             .comments_by_id
             .values()
             .filter(|state| !state.card.source().outdated)
             .count();
-        let send_button_tooltip_text = Self::send_button_tooltip_text(
-            &self.review_destination,
-            sendable_comments > 0,
-            ai_available,
-            ai_enabled,
-        )
-        .into_owned();
+        let send_button_tooltip_text =
+            Self::send_button_tooltip_text(&self.review_destination, sendable_comments > 0)
+                .into_owned();
 
         CommentListDebugState {
             review_destination: self.review_destination.clone(),
@@ -320,8 +311,6 @@ impl CommentListView {
             sendable_comments,
             is_collapsed: self.is_collapsed,
             is_outdated_section_collapsed: self.is_outdated_section_collapsed,
-            ai_available,
-            ai_enabled,
             send_button_tooltip_text,
         }
     }
@@ -908,27 +897,22 @@ impl CommentListView {
     }
 
     /// Whether the queued review comments can currently be sent to an agent.
-    pub fn can_send(&self, _ctx: &AppContext) -> bool {
+    pub fn can_send(&self) -> bool {
         let has_sendable_comments = self.has_non_outdated_comments();
         match &self.review_destination {
             ReviewDestination::None => false,
             // CLI agents don't consume AI credits, so bypass the ai check.
             ReviewDestination::Cli(_) => has_sendable_comments,
-            ReviewDestination::Warp => has_sendable_comments,
         }
     }
 
     /// Keep the stored "Send to Agent" button's enabled state and tooltip in sync with the current
     /// destination / comment / AI-availability state.
     fn sync_send_button(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_available = true;
-        let ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
-        let enabled = self.can_send(ctx);
+        let enabled = self.can_send();
         let tooltip = Self::send_button_tooltip_text(
             &self.review_destination,
             self.has_non_outdated_comments(),
-            ai_available,
-            ai_enabled,
         )
         .into_owned();
         self.send_button.update(ctx, |button, ctx| {
@@ -941,25 +925,15 @@ impl CommentListView {
     fn send_button_tooltip_text(
         destination: &ReviewDestination,
         has_sendable_comments: bool,
-        ai_available: bool,
-        ai_enabled: bool,
     ) -> Cow<'static, str> {
-        if let ReviewDestination::Cli(agent) = destination {
-            if !has_sendable_comments {
+        match destination {
+            ReviewDestination::Cli(_) if !has_sendable_comments => {
                 Cow::Borrowed("No non-outdated comments to send")
-            } else {
+            }
+            ReviewDestination::Cli(agent) => {
                 Cow::Owned(format!("Send diff comments to {}", agent.display_name()))
             }
-        } else if !ai_enabled {
-            Cow::Borrowed("AI must be enabled to send comments to Agent")
-        } else if !ai_available {
-            Cow::Borrowed("Agent code review requires AI credits")
-        } else if matches!(destination, ReviewDestination::None) {
-            Cow::Borrowed("All terminals are busy")
-        } else if !has_sendable_comments {
-            Cow::Borrowed("No non-outdated comments to send")
-        } else {
-            Cow::Borrowed("Send diff comments to Agent")
+            ReviewDestination::None => Cow::Borrowed("No CLI agent is running"),
         }
     }
 
@@ -1180,7 +1154,7 @@ impl TypedActionView for CommentListView {
                 ctx.emit(CommentListEvent::Cancelled);
             }
             CommentListAction::Submit => {
-                if self.can_send(ctx) {
+                if self.can_send() {
                     ctx.emit(CommentListEvent::Submitted);
                 }
             }

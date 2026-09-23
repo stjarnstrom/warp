@@ -14,14 +14,14 @@ use super::cloud_preferences::CloudPreferencesSettings;
 use super::initializer::SettingsInitializer;
 use super::native_preference::NativePreferenceSettings;
 use super::{
-    AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
-    BlockVisibilitySettings, ChangelogSettings, CodeSettings, DebugSettings, EmacsBindingsSettings,
-    FontSettings, FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings,
-    InputSettings, LocalControlSettings, PaneSettings, SameLinePromptBlockSettings, ScrollSettings,
-    SelectionSettings, SharedObjectLimitBannerSettings, SshSettings, ThemeSettings,
-    VimBannerSettings, WarpDrivePrivacySettings,
+    AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
+    CLIAgentSettings, ChangelogSettings, CodeSettings, CompiledCommandsForCodingAgentToolbar,
+    DebugSettings, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent, GPUSettings,
+    InputBoxType, InputModeSettings, InputSettings, LocalControlSettings, PaneSettings,
+    SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
+    SharedObjectLimitBannerSettings, SshSettings, ThemeSettings, VimBannerSettings,
+    WarpDrivePrivacySettings,
 };
-use crate::ai::cloud_agent_settings::CloudAgentSettings;
 use crate::appearance;
 use crate::banner::BannerState;
 use crate::resource_center::TipsCompleted;
@@ -72,8 +72,8 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     GPUSettings::register(ctx);
     ChangelogSettings::register(ctx);
     GeneralSettings::register(ctx);
-    AISettings::register_and_subscribe_to_events(ctx);
-    CloudAgentSettings::register(ctx);
+    CLIAgentSettings::register(ctx);
+    CompiledCommandsForCodingAgentToolbar::register(ctx);
     ScrollSettings::register(ctx);
     SelectionSettings::register(ctx);
     InputModeSettings::register(ctx);

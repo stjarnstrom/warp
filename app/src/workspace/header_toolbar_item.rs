@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use warpui::{AppContext, SingletonEntity};
 
-use crate::auth::AuthStateProvider;
 use crate::features::FeatureFlag;
-use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::workspace::tab_settings::TabSettings;
 
@@ -27,13 +25,11 @@ use crate::workspace::tab_settings::TabSettings;
 pub enum HeaderToolbarItemKind {
     TabsPanel,
     ToolsPanel,
-    AgentManagement,
     /// Conn took over this slot from the code review panel. The alias keeps
     /// existing `settings.toml` files, which persist this as `code_review`,
     /// deserializing instead of silently dropping the toolbar item.
     #[serde(alias = "code_review", alias = "CodeReview")]
     Conn,
-    NotificationsMailbox,
 }
 
 impl HeaderToolbarItemKind {
@@ -41,9 +37,7 @@ impl HeaderToolbarItemKind {
         match self {
             Self::TabsPanel => "Tabs Panel",
             Self::ToolsPanel => "Tools Panel",
-            Self::AgentManagement => "Agent Management",
             Self::Conn => "Conn",
-            Self::NotificationsMailbox => "Notifications",
         }
     }
 
@@ -51,14 +45,12 @@ impl HeaderToolbarItemKind {
         match self {
             Self::TabsPanel => Icon::Menu,
             Self::ToolsPanel => Icon::Tool2,
-            Self::AgentManagement => Icon::Grid,
             Self::Conn => Icon::ClockRewind,
-            Self::NotificationsMailbox => Icon::Inbox,
         }
     }
 
     /// Whether this item is supported on the current platform/configuration
-    /// (feature flags, compile-time features, AI enabled, auth state).
+    /// (feature flags, compile-time features).
     /// Does not check user show/hide preferences — use `is_available` for that.
     pub fn is_supported(&self, app: &AppContext) -> bool {
         match self {
@@ -67,30 +59,14 @@ impl HeaderToolbarItemKind {
                     && *TabSettings::as_ref(app).use_vertical_tabs
             }
             Self::ToolsPanel => true,
-            Self::AgentManagement => {
-                let is_web_anonymous_user = AuthStateProvider::as_ref(app)
-                    .get()
-                    .is_user_web_anonymous_user()
-                    .unwrap_or_default();
-                AISettings::as_ref(app).is_any_ai_enabled(app)
-                    && FeatureFlag::AgentManagementView.is_enabled()
-                    && !is_web_anonymous_user
-            }
             Self::Conn => true,
-            Self::NotificationsMailbox => FeatureFlag::HOANotifications.is_enabled(),
         }
     }
 
     /// Whether this item should be shown in the toolbar.
     /// Checks both `is_supported` and user show/hide preferences.
     pub fn is_available(&self, app: &AppContext) -> bool {
-        if !self.is_supported(app) {
-            return false;
-        }
-        match self {
-            Self::NotificationsMailbox => *AISettings::as_ref(app).show_agent_notifications,
-            _ => true,
-        }
+        self.is_supported(app)
     }
 
     /// Whether this item opens a side panel (as opposed to replacing the content
@@ -100,21 +76,15 @@ impl HeaderToolbarItemKind {
     }
 
     pub fn default_left() -> Vec<Self> {
-        vec![Self::TabsPanel, Self::ToolsPanel, Self::AgentManagement]
+        vec![Self::TabsPanel, Self::ToolsPanel]
     }
 
     pub fn default_right() -> Vec<Self> {
-        vec![Self::Conn, Self::NotificationsMailbox]
+        vec![Self::Conn]
     }
 
     /// All toolbar item variants (availability filtering is done at the call site).
     pub fn all_items() -> Vec<Self> {
-        vec![
-            Self::TabsPanel,
-            Self::ToolsPanel,
-            Self::AgentManagement,
-            Self::Conn,
-            Self::NotificationsMailbox,
-        ]
+        vec![Self::TabsPanel, Self::ToolsPanel, Self::Conn]
     }
 }

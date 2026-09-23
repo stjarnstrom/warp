@@ -7,18 +7,14 @@ use serde::{Deserialize, Serialize};
 use warpui::platform::FullscreenState;
 use warpui::{AppContext, SingletonEntity as _};
 
-use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_conversations_model::AgentManagementFilters;
-use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::blocklist::{InputConfig, SerializedBlockListItem};
 use crate::code::editor_management::CodeSource;
 use crate::drive::OpenWarpDriveObjectSettings;
 use crate::root_view::quake_mode_window_id;
 use crate::server::ids::{ServerId, SyncId};
 use crate::settings_view::SettingsSection;
-use crate::settings_view::environments_page::EnvironmentsPage;
 use crate::tab::SelectedTabColor;
 use crate::terminal::ShellLaunchData;
+use crate::terminal::model::block::SerializedBlockListItem;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::workspace::WorkspaceRegistry;
 use crate::workspace::tab_group::TabGroupId;
@@ -29,17 +25,10 @@ pub struct AppState {
     pub windows: Vec<WindowSnapshot>,
     pub active_window_index: Option<usize>,
     pub block_lists: Arc<HashMap<PaneUuid, Vec<SerializedBlockListItem>>>,
-    pub running_mcp_servers: Vec<uuid::Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PaneUuid(pub Vec<u8>);
-
-/// Wrapper for persisting agent management filters to restore.
-#[derive(Default, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PersistedAgentManagementFilters {
-    pub filters: AgentManagementFilters,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowSnapshot {
@@ -50,14 +39,12 @@ pub struct WindowSnapshot {
     pub fullscreen_state: FullscreenState,
     pub quake_mode: bool,
     pub universal_search_width: Option<f32>,
-    pub warp_ai_width: Option<f32>,
     pub voltron_width: Option<f32>,
     pub warp_drive_index_width: Option<f32>,
     pub left_panel_open: bool,
     pub vertical_tabs_panel_open: bool,
     pub left_panel_width: Option<f32>,
     pub right_panel_width: Option<f32>,
-    pub agent_management_filters: Option<PersistedAgentManagementFilters>,
     /// Tab groups defined in this window. Group order is implicit from
     /// member tabs' positions, so no explicit ordering is persisted.
     pub tab_groups: Vec<TabGroupSnapshot>,
@@ -137,17 +124,11 @@ pub struct LeafSnapshot {
 pub enum LeafContents {
     Terminal(TerminalPaneSnapshot),
     Notebook(NotebookPaneSnapshot),
-    AIDocument(AIDocumentPaneSnapshot),
     Code(CodePaneSnapShot),
     EnvVarCollection(EnvVarCollectionPaneSnapshot),
-    EnvironmentManagement(EnvironmentManagementPaneSnapshot),
     Workflow(WorkflowPaneSnapshot),
     Settings(SettingsPaneSnapshot),
-    AIFact(AIFactPaneSnapshot),
-    CustomRouterEditor,
-    ExecutionProfileEditor,
     CodeReview(CodeReviewPaneSnapshot),
-    AmbientAgent(AmbientAgentPaneSnapshot),
     /// The in-app network log pane. Not persisted across restarts because the
     /// backing log is an in-memory ring buffer that starts empty on launch.
     NetworkLog,
@@ -171,34 +152,17 @@ impl LeafContents {
             // Network log: the backing log is an in-memory ring buffer that
             // starts empty on launch; persisting would also regress back to
             // an on-disk log via the app-state database.
-            LeafContents::NetworkLog
-            // Environment management panes are opened on-demand via workspace
-            // actions and have no persistable state.
-            | LeafContents::EnvironmentManagement(_) => false,
+            LeafContents::NetworkLog => false,
             LeafContents::Terminal(_)
             | LeafContents::Notebook(_)
-            | LeafContents::AIDocument(_)
             | LeafContents::Code(_)
             | LeafContents::EnvVarCollection(_)
             | LeafContents::Workflow(_)
             | LeafContents::Settings(_)
-            | LeafContents::AIFact(_)
-            | LeafContents::CustomRouterEditor
-            | LeafContents::ExecutionProfileEditor
             | LeafContents::CodeReview(_)
-            | LeafContents::AmbientAgent(_)
             | LeafContents::GetStarted => true,
         }
     }
-}
-
-/// Snapshot of an ambient agent pane.
-#[derive(Clone, Debug, PartialEq)]
-pub struct AmbientAgentPaneSnapshot {
-    pub uuid: Vec<u8>,
-    // `task_id` is purposefully optional,
-    // as you can have a valid state (i.e. an empty cloud mode pane) where it is None.
-    pub task_id: Option<AmbientAgentTaskId>,
 }
 
 /// Snapshot of the contents of a terminal pane.
@@ -209,13 +173,6 @@ pub struct TerminalPaneSnapshot {
     pub shell_launch_data: Option<ShellLaunchData>,
     pub is_active: bool,
     pub is_read_only: bool,
-    pub input_config: Option<InputConfig>,
-    pub llm_model_override: Option<String>,
-    pub active_profile_id: Option<SyncId>,
-    pub conversation_ids_to_restore: Vec<AIConversationId>,
-    /// The active conversation ID if the agent view was open in fullscreen mode.
-    /// When `Some`, the agent view should be restored to fullscreen for this conversation.
-    pub active_conversation_id: Option<AIConversationId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -236,16 +193,6 @@ pub enum NotebookPaneSnapshot {
         /// The path to the local file that was open in this pane. This may be `None` if
         /// the pane contained an unreadable file.
         path: Option<PathBuf>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum AIDocumentPaneSnapshot {
-    Local {
-        document_id: String,
-        version: i32,
-        content: Option<String>,
-        title: Option<String>,
     },
 }
 
@@ -283,21 +230,11 @@ pub enum EnvVarCollectionPaneSnapshot {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnvironmentManagementPaneSnapshot {
-    pub mode: EnvironmentsPage,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub enum SettingsPaneSnapshot {
     Local {
         current_page: SettingsSection,
         search_query: Option<String>,
     },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum AIFactPaneSnapshot {
-    Personal,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -312,7 +249,6 @@ pub enum CodeReviewPaneSnapshot {
 pub enum LeftPanelDisplayedTab {
     FileTree,
     GlobalSearch,
-    ConversationListView,
 }
 
 impl From<ToolPanelView> for LeftPanelDisplayedTab {
@@ -320,7 +256,6 @@ impl From<ToolPanelView> for LeftPanelDisplayedTab {
         match view {
             ToolPanelView::ProjectExplorer => LeftPanelDisplayedTab::FileTree,
             ToolPanelView::GlobalSearch { .. } => LeftPanelDisplayedTab::GlobalSearch,
-            ToolPanelView::ConversationListView => LeftPanelDisplayedTab::ConversationListView,
         }
     }
 }
@@ -390,7 +325,6 @@ pub fn get_app_state(app: &AppContext) -> AppState {
         windows,
         active_window_index,
         block_lists: Default::default(),
-        running_mcp_servers: Vec::new(),
     }
 }
 

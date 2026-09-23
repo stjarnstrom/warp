@@ -12,7 +12,6 @@ use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use self::listener::CLIAgentSessionListener;
 use super::CLIAgent;
-use crate::ai::blocklist::InputConfig;
 
 /// How long to wait, after observing a synthesized Ctrl-C write to a working
 /// CLI agent session's PTY, for further plugin activity before concluding the
@@ -39,8 +38,8 @@ pub enum CLIAgentSessionStatus {
 }
 
 impl CLIAgentSessionStatus {
-    pub fn to_conversation_status(&self) -> crate::ai::agent::conversation::ConversationStatus {
-        use crate::ai::agent::conversation::ConversationStatus;
+    pub fn to_conversation_status(&self) -> crate::ui_components::agent_status::ConversationStatus {
+        use crate::ui_components::agent_status::ConversationStatus;
         match self {
             CLIAgentSessionStatus::InProgress => ConversationStatus::InProgress,
             CLIAgentSessionStatus::Success => ConversationStatus::Success,
@@ -75,10 +74,6 @@ pub enum CLIAgentInputState {
     Open {
         /// How this session was opened (for telemetry).
         entrypoint: CLIAgentInputEntrypoint,
-        /// The input config that was active before opening rich input.
-        previous_input_config: InputConfig,
-        /// Whether the previous lock state was established while the input buffer was empty.
-        previous_was_lock_set_with_empty_buffer: bool,
     },
 }
 
@@ -110,10 +105,6 @@ pub enum CLIAgentInputEntrypoint {
 }
 
 impl CLIAgentSessionContext {
-    pub(crate) fn display_title(&self) -> Option<String> {
-        self.latest_user_prompt().or_else(|| self.title_like_text())
-    }
-
     pub(crate) fn latest_user_prompt(&self) -> Option<String> {
         self.query
             .as_deref()
@@ -167,10 +158,6 @@ pub struct CLIAgentSession {
 }
 
 impl CLIAgentSession {
-    pub fn is_remote(&self) -> bool {
-        self.remote_host.is_some()
-    }
-
     /// Whether the session surfaces trustworthy fine-grained status
     /// (in-progress / blocked / success). True only after receiving a rich OSC
     /// 777 notification. Codex's OSC 9 fallback emits only opaque `Stop`
@@ -705,8 +692,6 @@ impl CLIAgentSessionsModel {
         &mut self,
         terminal_view_id: EntityId,
         entrypoint: CLIAgentInputEntrypoint,
-        previous_input_config: InputConfig,
-        previous_was_lock_set_with_empty_buffer: bool,
         should_auto_toggle_input: bool,
         ctx: &mut ModelContext<Self>,
     ) {
@@ -715,11 +700,7 @@ impl CLIAgentSessionsModel {
         };
 
         let previous_input_state = session.input_state;
-        session.input_state = CLIAgentInputState::Open {
-            entrypoint,
-            previous_input_config,
-            previous_was_lock_set_with_empty_buffer,
-        };
+        session.input_state = CLIAgentInputState::Open { entrypoint };
         session.should_auto_toggle_input = should_auto_toggle_input;
 
         ctx.emit(CLIAgentSessionsModelEvent::InputSessionChanged {
@@ -761,8 +742,8 @@ impl CLIAgentSessionsModel {
         ctx: &mut ModelContext<Self>,
     ) {
         let agent = session.agent;
-        // Close any open rich input before replacing, so subscribers can
-        // restore input config before the session ends.
+        // Close any open rich input before replacing, so subscribers observe the close before
+        // the session ends.
         self.close_input(terminal_view_id, false, ctx);
         // A fresh session must re-observe `prompt_submit` before Ctrl-C can
         // arm, and any pending window belonged to the session being replaced.
@@ -783,9 +764,13 @@ impl CLIAgentSessionsModel {
 
     /// Records that an auto plugin operation (install or update) failed for the given agent/host.
     /// `remote_host` is `None` for local sessions, `Some("user@hostname")` for remote.
-    #[cfg(not(target_family = "wasm"))]
     pub fn record_plugin_auto_failure(&mut self, agent: CLIAgent, remote_host: Option<String>) {
         self.plugin_auto_failures.insert((agent, remote_host));
+    }
+
+    pub fn has_plugin_auto_failed(&self, agent: CLIAgent, remote_host: &Option<String>) -> bool {
+        self.plugin_auto_failures
+            .contains(&(agent, remote_host.clone()))
     }
 
     /// Saves draft text from the rich input composer for the given terminal.
@@ -812,12 +797,6 @@ impl CLIAgentSessionsModel {
         self.sessions
             .get_mut(&terminal_view_id)
             .and_then(|s| s.draft_text.take())
-    }
-
-    /// Whether an auto plugin operation has previously failed for this agent on this host.
-    pub fn has_plugin_auto_failed(&self, agent: CLIAgent, remote_host: &Option<String>) -> bool {
-        self.plugin_auto_failures
-            .contains(&(agent, remote_host.clone()))
     }
 }
 

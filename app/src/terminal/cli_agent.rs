@@ -14,15 +14,15 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use warp_cli::agent::Harness;
 use warp_completer::parsers::simple::top_level_command;
+use warp_core::ui::color::CLAUDE_ORANGE;
 use warp_editor::content::buffer::Buffer;
 use warp_editor::content::markdown::MarkdownStyle;
 use warp_util::path::EscapeChar;
 use warpui::{AppContext, SingletonEntity};
 
-use crate::ai::agent::{AgentReviewCommentBatch, DiffSetHunk};
-use crate::ai::blocklist::CLAUDE_ORANGE;
 use crate::code::editor::line::EditorLineLocation;
 use crate::code_review::comments::AttachedReviewCommentTarget;
+use crate::code_review::diff_types::{AgentReviewCommentBatch, DiffSetHunk};
 use crate::server::telemetry::CLIAgentType;
 use crate::ui_components::icons::Icon;
 use crate::workspaces::user_workspaces::UserWorkspaces;

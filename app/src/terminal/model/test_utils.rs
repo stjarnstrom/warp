@@ -28,9 +28,9 @@ use super::kitty::{
 };
 use super::terminal_model::BlockIndex;
 use super::{ObfuscateSecrets, TerminalModel};
-use crate::ai::blocklist::SerializedBlockListItem;
 use crate::terminal::color::{self, Colors};
 use crate::terminal::event_listener::ChannelEventListener;
+use crate::terminal::model::block::SerializedBlockListItem;
 use crate::terminal::{BlockPadding, SizeInfo};
 
 pub fn block_size() -> BlockSize {
@@ -199,12 +199,11 @@ impl<'a> TestBlockListBuilder<'a> {
             self.honor_ps1,
             false, /* is_inverted */
             ObfuscateSecrets::No,
-            false, /* is_telemetry_enabled */
         );
         // This is usually done by the terminal manager after constructing the blocklist,
         // but we have tests assuming the separator exists.
         if self.restored_blocks.is_some() {
-            block_list.append_session_restoration_separator_to_block_list(false);
+            block_list.append_session_restoration_separator_to_block_list();
         }
         block_list
     }
@@ -284,8 +283,6 @@ impl TestBlockBuilder {
             self.block_index,
             self.honor_ps1,
             ObfuscateSecrets::No,
-            false, /* is_telemetry_enabled */
-            None,
         )
     }
 }

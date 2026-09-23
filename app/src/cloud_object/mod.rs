@@ -15,9 +15,6 @@ use warpui::{AppContext, SingletonEntity};
 
 use self::breadcrumbs::ContainingObject;
 use self::model::actions::ObjectActions;
-use self::model::generic_string_model::{
-    GenericStringModel, GenericStringObjectId, Serializer, StringModel,
-};
 use self::model::persistence::CloudModel;
 use crate::auth::UserUid;
 use crate::channel::ChannelState;
@@ -519,54 +516,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
         false
     }
 }
-/// Provides app-local typed lookup helpers for generic cloud object aliases.
-pub trait CloudObjectLookup: Sized + Clone {
-    fn get_all(app: &AppContext) -> Vec<Self>;
-
-    fn get_by_id<'a>(sync_id: &'a SyncId, app: &'a AppContext) -> Option<&'a Self>;
-}
-
-impl<K, M> CloudObjectLookup for GenericCloudObject<K, M>
-where
-    K: HashableId + ToServerId + Debug + Into<String> + Clone + 'static,
-    M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-{
-    fn get_all(app: &AppContext) -> Vec<Self> {
-        CloudModel::as_ref(app)
-            .get_all_objects_of_type::<K, M>()
-            .cloned()
-            .collect()
-    }
-
-    fn get_by_id<'a>(sync_id: &'a SyncId, app: &'a AppContext) -> Option<&'a Self> {
-        CloudModel::as_ref(app).get_object_of_type::<K, M>(sync_id)
-    }
-}
-
-/// Marks string model payloads that can be looked up by UUID.
-pub trait CloudObjectUuid {
-    fn uuid(&self) -> uuid::Uuid;
-}
-
-/// Provides app-local UUID lookups for cloud objects whose payload exposes a UUID.
-pub trait CloudObjectUuidLookup: Sized {
-    fn get_by_uuid<'a>(uuid: &'a uuid::Uuid, app: &'a AppContext) -> Option<&'a Self>;
-}
-
-impl<T, S> CloudObjectUuidLookup
-    for GenericCloudObject<GenericStringObjectId, GenericStringModel<T, S>>
-where
-    T: StringModel<
-            CloudObjectType = GenericCloudObject<GenericStringObjectId, GenericStringModel<T, S>>,
-        > + CloudObjectUuid,
-    S: Serializer<T>,
-{
-    fn get_by_uuid<'a>(uuid: &'a uuid::Uuid, app: &'a AppContext) -> Option<&'a Self> {
-        CloudModel::as_ref(app)
-            .get_all_objects_of_type::<GenericStringObjectId, GenericStringModel<T, S>>()
-            .find(|object| object.model().string_model.uuid() == *uuid)
-    }
-}
 
 lazy_static! {
     static ref SPACE_DETECT_RE: Regex = Regex::new(r"\s+").expect("Expect regex to be valid");
@@ -831,10 +780,6 @@ pub trait CloudObjectMetadataExt {
     /// Returns a semantic summary of the last edit to the object. For example, "Alice edited 4 weeks ago".
     /// Returns None if the revision and last_editor are None.
     fn semantic_editing_history(&self, app: &AppContext) -> Option<String>;
-
-    /// Returns a semantic summary of the object's creator. For example, "Alice" or "joan@warp.dev".
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    fn semantic_creator(&self, app: &AppContext) -> Option<String>;
 }
 
 impl CloudObjectMetadataExt for CloudObjectMetadata {
@@ -862,24 +807,16 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
 
         Some(full_string)
     }
-
-    fn semantic_creator(&self, app: &AppContext) -> Option<String> {
-        // Todo(Jack): add creation ts.
-        let user_profiles = UserProfiles::as_ref(app);
-        self.creator_uid
-            .as_ref()
-            .and_then(|uid| user_profiles.displayable_identifier_for_uid(UserUid::new(uid)))
-    }
 }
 
 pub use cloud_object_client::ObjectDeleteResult;
 #[cfg(test)]
 pub use cloud_object_client::ObjectMetadataUpdateResult;
 pub use cloud_object_models::{
-    ServerAIExecutionProfile, ServerAIFact, ServerAmbientAgentEnvironment, ServerCloudAgentConfig,
-    ServerCloudObject, ServerEnvVarCollection, ServerFolder, ServerMCPServer, ServerNotebook,
-    ServerPreference, ServerScheduledAmbientAgent, ServerTemplatableMCPServer, ServerWorkflow,
-    ServerWorkflowEnum, TryFromGql,
+    ServerAIExecutionProfile, ServerAIFact, ServerAmbientAgentEnvironment, ServerCloudObject,
+    ServerEnvVarCollection, ServerFolder, ServerMCPServer, ServerNotebook, ServerPreference,
+    ServerScheduledAmbientAgent, ServerTemplatableMCPServer, ServerWorkflow, ServerWorkflowEnum,
+    TryFromGql,
 };
 use warp_errors::report_error;
 

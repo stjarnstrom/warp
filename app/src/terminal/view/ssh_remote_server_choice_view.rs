@@ -7,8 +7,7 @@
 //! [Remote session initialization](https://www.figma.com/design/r0BO9cTZCK6pDE6qerg2K0/Remote-session-initialization).
 //!
 //! The view owns:
-//! - a child [`KeyboardNavigableButtons`] handle for the two selectable
-//!   cards ("Install Warp's SSH extension" / "Continue without installing"),
+//! - the two selectable cards ("Install Warp's SSH extension" / "Continue without installing"),
 //! - the [`SessionId`] this prompt is scoped to (used for event forwarding),
 //! - the current "Don't ask me this again" checked state (purely local to
 //!   this prompt instance; persisted to `ssh_extension_install_mode` only
@@ -20,22 +19,14 @@ use settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warp_errors::report_error;
 use warpui::elements::{
-    Border, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
+    Border, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
 };
+use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{
-    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
-};
+use warpui::{AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext};
 
-use crate::ai::blocklist::block::keyboard_navigable_buttons::{
-    KeyboardNavigableButtons, rich_navigation_button,
-};
-use crate::ai::blocklist::inline_action::inline_action_header::{
-    HeaderConfig, INLINE_ACTION_HORIZONTAL_PADDING,
-};
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettings};
@@ -43,6 +34,7 @@ use crate::ui_components::blended_colors;
 use crate::{Appearance, send_telemetry_from_ctx};
 
 const PROMPT_BORDER_RADIUS: f32 = 8.;
+const HORIZONTAL_PADDING: f32 = 16.;
 
 #[derive(Clone, Debug)]
 pub enum SshRemoteServerChoiceViewAction {
@@ -62,7 +54,8 @@ pub enum SshRemoteServerChoiceViewEvent {
 /// Choice block prompting the user to install the remote-server binary on the remote host or skip.
 pub struct SshRemoteServerChoiceView {
     session_id: SessionId,
-    buttons: ViewHandle<KeyboardNavigableButtons>,
+    install_mouse_state: MouseStateHandle,
+    skip_mouse_state: MouseStateHandle,
     do_not_ask_again_mouse_state: MouseStateHandle,
     do_not_ask_again_label_mouse_state: MouseStateHandle,
     manage_settings_mouse_state: MouseStateHandle,
@@ -71,37 +64,11 @@ pub struct SshRemoteServerChoiceView {
 }
 
 impl SshRemoteServerChoiceView {
-    pub fn new(session_id: SessionId, ctx: &mut ViewContext<Self>) -> Self {
-        let buttons = ctx.add_typed_action_view(|_| {
-            KeyboardNavigableButtons::new(vec![
-                rich_navigation_button(
-                    "Install Warp's SSH extension".to_string(),
-                    Some(
-                        "Install Warp's extension to enable agent features like file browsing, \
-                         code review, and intelligent command completions in this session."
-                            .to_string(),
-                    ),
-                    /* recommended */ true,
-                    MouseStateHandle::default(),
-                    SshRemoteServerChoiceViewAction::Install,
-                ),
-                rich_navigation_button(
-                    "Continue without installing".to_string(),
-                    Some(
-                        "You'll still get a Warpified experience just without the coding \
-                         features."
-                            .to_string(),
-                    ),
-                    /* recommended */ false,
-                    MouseStateHandle::default(),
-                    SshRemoteServerChoiceViewAction::Skip,
-                ),
-            ])
-        });
-
+    pub fn new(session_id: SessionId) -> Self {
         Self {
             session_id,
-            buttons,
+            install_mouse_state: MouseStateHandle::default(),
+            skip_mouse_state: MouseStateHandle::default(),
             do_not_ask_again_mouse_state: MouseStateHandle::default(),
             do_not_ask_again_label_mouse_state: MouseStateHandle::default(),
             manage_settings_mouse_state: MouseStateHandle::default(),
@@ -113,24 +80,93 @@ impl SshRemoteServerChoiceView {
         self.session_id
     }
 
-    pub fn buttons(&self) -> &ViewHandle<KeyboardNavigableButtons> {
-        &self.buttons
+    fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
+        Container::new(
+            Text::new(
+                "Choose your experience for this remote session:",
+                appearance.ui_font_family(),
+                appearance.monospace_font_size(),
+            )
+            .with_style(Properties::default().weight(Weight::Semibold))
+            .with_color(appearance.theme().foreground().into())
+            .finish(),
+        )
+        .with_horizontal_padding(HORIZONTAL_PADDING)
+        .with_padding_top(10.)
+        .finish()
     }
 
-    fn render_header(&self, app: &AppContext) -> Box<dyn Element> {
-        // Match the Figma design: a plain title row, no icon / chevron /
-        // action buttons. `HeaderConfig` without an `interaction_mode` set
-        // renders exactly that.
-        HeaderConfig::new("Choose your experience for this remote session:", app)
-            .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(
-                PROMPT_BORDER_RADIUS,
-            )))
-            .render_header(app, None)
+    fn render_option(
+        title: &'static str,
+        sub_label: &'static str,
+        mouse_state: MouseStateHandle,
+        action: SshRemoteServerChoiceViewAction,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let ui_font_family = appearance.ui_font_family();
+        let font_size = appearance.monospace_font_size();
+        let title_color = theme.foreground().into_solid();
+        let sub_label_color = internal_colors::neutral_5(theme);
+        let hover_background = internal_colors::fg_overlay_2(theme);
+        Hoverable::new(mouse_state, move |state| {
+            let content = Flex::column()
+                .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                .with_child(
+                    Text::new(title, ui_font_family, font_size)
+                        .soft_wrap(true)
+                        .with_color(title_color)
+                        .finish(),
+                )
+                .with_child(
+                    Container::new(
+                        Text::new(sub_label, ui_font_family, font_size - 2.)
+                            .soft_wrap(true)
+                            .with_color(sub_label_color)
+                            .finish(),
+                    )
+                    .with_margin_top(4.)
+                    .finish(),
+                )
+                .finish();
+            let mut container = Container::new(content)
+                .with_uniform_padding(8.)
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)));
+            if state.is_hovered() {
+                container = container.with_background(hover_background);
+            }
+            container.finish()
+        })
+        .with_cursor(Cursor::PointingHand)
+        .on_click(move |ctx, _, _| ctx.dispatch_typed_action(action.clone()))
+        .finish()
     }
 
-    fn render_buttons(&self) -> Box<dyn Element> {
-        Container::new(ChildView::new(&self.buttons).finish())
-            .with_uniform_padding(INLINE_ACTION_HORIZONTAL_PADDING)
+    fn render_buttons(&self, appearance: &Appearance) -> Box<dyn Element> {
+        let options = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(Self::render_option(
+                "Install Warp's SSH extension",
+                "Install Warp's extension to enable file browsing, code review, and intelligent \
+                 command completions in this session.",
+                self.install_mouse_state.clone(),
+                SshRemoteServerChoiceViewAction::Install,
+                appearance,
+            ))
+            .with_child(
+                Container::new(Self::render_option(
+                    "Continue without installing",
+                    "You'll still get a Warpified experience just without the coding features.",
+                    self.skip_mouse_state.clone(),
+                    SshRemoteServerChoiceViewAction::Skip,
+                    appearance,
+                ))
+                .with_margin_top(4.)
+                .finish(),
+            )
+            .finish();
+        Container::new(options)
+            .with_uniform_padding(HORIZONTAL_PADDING)
             .finish()
     }
 
@@ -205,8 +241,8 @@ impl SshRemoteServerChoiceView {
         Container::new(row)
             .with_padding_top(8.)
             .with_padding_bottom(8.)
-            .with_padding_left(INLINE_ACTION_HORIZONTAL_PADDING)
-            .with_padding_right(INLINE_ACTION_HORIZONTAL_PADDING)
+            .with_padding_left(HORIZONTAL_PADDING)
+            .with_padding_right(HORIZONTAL_PADDING)
             .with_border(Border::top(1.).with_border_fill(border_color))
             .finish()
     }
@@ -221,14 +257,6 @@ impl View for SshRemoteServerChoiceView {
         "SshRemoteServerChoiceView"
     }
 
-    // Forwards focus to the inner [`KeyboardNavigableButtons`].
-    fn on_focus(&mut self, focus_ctx: &FocusContext, ctx: &mut ViewContext<Self>) {
-        if !focus_ctx.is_self_focused() {
-            return;
-        }
-        ctx.focus(&self.buttons);
-    }
-
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let theme = appearance.theme();
@@ -236,8 +264,8 @@ impl View for SshRemoteServerChoiceView {
         let content = Flex::column()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(self.render_header(app))
-            .with_child(self.render_buttons())
+            .with_child(self.render_header(appearance))
+            .with_child(self.render_buttons(appearance))
             .with_child(self.render_footer(appearance))
             .finish();
 

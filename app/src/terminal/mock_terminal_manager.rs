@@ -3,23 +3,26 @@ use std::sync::Arc;
 
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::Vector2F;
-use warpui::{AppContext, ModelHandle, SingletonEntity, ViewHandle, WindowId};
+use warpui::{AppContext, ModelHandle, ViewHandle, WindowId};
 
 use super::event_listener::ChannelEventListener;
+use super::model::block::SerializedBlockListItem;
 use super::model::session::Sessions;
 use super::model_events::ModelEventDispatcher;
 use super::terminal_manager::BlockSpacing;
 use super::{ShellLaunchState, TerminalManager, TerminalModel, TerminalView};
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::blocklist::SerializedBlockListItem;
 use crate::context_chips::prompt_type::PromptType;
 use crate::pane_group::TerminalViewResources;
-use crate::terminal::view::ConversationRestorationInNewPaneType;
 
 pub struct MockTerminalManager {
     model: Arc<FairMutex<TerminalModel>>,
+    #[cfg_attr(feature = "local_tty", allow(dead_code))]
     view: ViewHandle<TerminalView>,
 }
+
+/// Only read by pane groups built without `local_tty`, which use the mock manager in place of
+/// a real PTY.
+#[cfg_attr(feature = "local_tty", allow(dead_code))]
 pub struct MockTerminalManagerInit {
     pub(crate) manager: ModelHandle<Box<dyn TerminalManager>>,
     pub(crate) view: ViewHandle<TerminalView>,
@@ -30,7 +33,6 @@ impl MockTerminalManager {
         shell_state: ShellLaunchState,
         resources: TerminalViewResources,
         restored_blocks: Option<&Vec<SerializedBlockListItem>>,
-        conversation_restoration: Option<ConversationRestorationInNewPaneType>,
         initial_size: Vector2F,
         window_id: WindowId,
         ctx: &mut AppContext,
@@ -75,12 +77,7 @@ impl MockTerminalManager {
                 colors,
                 None,
                 prompt_type,
-                None,
-                // We use conversation restoration to load a view-only cloud conversation
-                // into the web view.
-                conversation_restoration,
                 None, // inactive_pty_reads_rx
-                false,
                 ctx,
             )
         });
@@ -112,20 +109,6 @@ impl MockTerminalManager {
 impl TerminalManager for MockTerminalManager {
     fn model(&self) -> Arc<FairMutex<TerminalModel>> {
         self.model.clone()
-    }
-
-    fn on_view_detached(
-        &self,
-        _detach_type: crate::pane_group::pane::DetachType,
-        app: &mut AppContext,
-    ) {
-        // If this is a conversation transcript viewer, unregister the ambient session.
-        if self.model.lock().is_conversation_transcript_viewer() {
-            let terminal_view_id = self.view.id();
-            ActiveAgentViewsModel::handle(app).update(app, |model, ctx| {
-                model.unregister_ambient_session(terminal_view_id, ctx);
-            });
-        }
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -191,7 +174,6 @@ mod testing {
                     },
                     resources,
                     restored_blocks.map(|blocks| blocks.to_vec()).as_ref(),
-                    None,
                     Vector2F::new(7., 10.5),
                     ctx.window_id(),
                     ctx,

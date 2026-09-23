@@ -8,10 +8,9 @@ use super::event::{
     CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource, CLIAgentEventType, parse_event,
 };
 use super::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext,
-    CLIAgentSessionStatus, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
+    CLIAgentInputState, CLIAgentSession, CLIAgentSessionContext, CLIAgentSessionStatus,
+    CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
 };
-use crate::ai::blocklist::{InputConfig, InputType};
 use crate::terminal::CLIAgent;
 
 #[test]
@@ -256,85 +255,6 @@ fn parse_droid_stop_notification() {
     assert_eq!(notif.event, CLIAgentEventType::Stop);
     assert_eq!(notif.payload.query.as_deref(), Some("write a haiku"));
     assert_eq!(notif.payload.response.as_deref(), Some("Memory is safe"));
-}
-
-#[test]
-fn apply_event_preserves_input_session() {
-    let input_state = CLIAgentInputState::Open {
-        entrypoint: CLIAgentInputEntrypoint::CtrlG,
-        previous_input_config: InputConfig {
-            input_type: InputType::Shell,
-            is_locked: false,
-        },
-        previous_was_lock_set_with_empty_buffer: true,
-    };
-    let mut session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state,
-        should_auto_toggle_input: false,
-        listener: None,
-        remote_host: None,
-        plugin_version: None,
-        draft_text: None,
-        custom_command_prefix: None,
-        received_rich_notification: false,
-    };
-
-    let event = CLIAgentEvent {
-        source: CLIAgentEventSource::RichPlugin,
-        v: 1,
-        agent: CLIAgent::Claude,
-        event: CLIAgentEventType::PermissionRequest,
-        session_id: Some("abc".to_string()),
-        cwd: Some("/tmp/proj".to_string()),
-        project: Some("proj".to_string()),
-        payload: CLIAgentEventPayload {
-            summary: Some("Needs approval".to_string()),
-            ..Default::default()
-        },
-    };
-
-    session.apply_event(&event);
-
-    assert_eq!(session.input_state, input_state);
-}
-
-#[test]
-fn is_remote_returns_true_when_remote_host_is_set() {
-    let session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        plugin_version: None,
-        draft_text: None,
-        remote_host: Some("user@devbox".to_owned()),
-        custom_command_prefix: None,
-        received_rich_notification: false,
-    };
-    assert!(session.is_remote());
-}
-
-#[test]
-fn is_remote_returns_false_when_remote_host_is_none() {
-    let session = CLIAgentSession {
-        agent: CLIAgent::Claude,
-        status: CLIAgentSessionStatus::InProgress,
-        session_context: CLIAgentSessionContext::default(),
-        input_state: CLIAgentInputState::Closed,
-        should_auto_toggle_input: false,
-        listener: None,
-        remote_host: None,
-        plugin_version: None,
-        draft_text: None,
-        custom_command_prefix: None,
-        received_rich_notification: false,
-    };
-    assert!(!session.is_remote());
 }
 
 #[test]

@@ -10,7 +10,6 @@ use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::generic_string_model::GenericStringObjectId;
-use crate::ai::execution_profiles::CloudAIExecutionProfile;
 use crate::auth::AuthStateProvider;
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectLocation, CloudObjectPermissions, GenericCloudObject,
@@ -96,8 +95,6 @@ pub enum CloudModelEvent {
     },
     /// The initial bulk load of cloud objects from the server has completed.
     InitialLoadCompleted,
-    /// Environment last-task timestamps fetched outside the generic cloud-object sync were merged.
-    EnvironmentLastTaskRunTimestampsUpdated,
 }
 
 enum FolderOpenState {
@@ -514,27 +511,13 @@ impl CloudModel {
             ServerCloudObject::WorkflowEnum(workflow_enum) => {
                 self.upsert_from_server_object(workflow_enum, ctx);
             }
-            ServerCloudObject::AIFact(aifact) => {
-                self.upsert_from_server_object(aifact, ctx);
-            }
-            ServerCloudObject::MCPServer(mcp_server) => {
-                self.upsert_from_server_object(mcp_server, ctx);
-            }
-            ServerCloudObject::AIExecutionProfile(ai_execution_profile) => {
-                self.upsert_from_server_object(ai_execution_profile, ctx);
-            }
-            ServerCloudObject::TemplatableMCPServer(templatable_mcp_server) => {
-                self.upsert_from_server_object(templatable_mcp_server, ctx);
-            }
-            ServerCloudObject::AmbientAgentEnvironment(ambient_agent_environment) => {
-                self.upsert_from_server_object(ambient_agent_environment, ctx);
-            }
-            ServerCloudObject::ScheduledAmbientAgent(scheduled_ambient_agent) => {
-                self.upsert_from_server_object(scheduled_ambient_agent, ctx);
-            }
-            ServerCloudObject::CloudAgentConfig(cloud_agent_config) => {
-                self.upsert_from_server_object(cloud_agent_config, ctx);
-            }
+            ServerCloudObject::AIFact(_)
+            | ServerCloudObject::MCPServer(_)
+            | ServerCloudObject::AIExecutionProfile(_)
+            | ServerCloudObject::TemplatableMCPServer(_)
+            | ServerCloudObject::AmbientAgentEnvironment(_)
+            | ServerCloudObject::ScheduledAmbientAgent(_)
+            | ServerCloudObject::CloudAgentConfig(_) => {}
         }
     }
 
@@ -758,23 +741,6 @@ impl CloudModel {
             ctx.emit(CloudModelEvent::NotebookEditorChangedFromServer { notebook_id });
             ctx.notify();
         }
-    }
-
-    /// Updates the per-environment "last used" timestamp.
-    ///
-    /// This timestamp is derived from `CloudEnvironment.lastTaskCreated.createdAt`.
-    pub fn update_environment_last_task_run_timestamps(
-        &mut self,
-        timestamps: HashMap<String, DateTime<Utc>>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        for (uid, timestamp) in timestamps {
-            if let Some(object) = self.objects_by_id.get_mut(&uid) {
-                object.metadata_mut().last_task_run_ts = Some(timestamp.into());
-            }
-        }
-        ctx.emit(CloudModelEvent::EnvironmentLastTaskRunTimestampsUpdated);
-        ctx.notify();
     }
 
     pub fn update_object_metadata_last_updated_ts(
@@ -1110,15 +1076,6 @@ impl CloudModel {
     pub fn get_workflow_enum(&self, enum_id: &SyncId) -> Option<&CloudWorkflowEnum> {
         self.objects_by_id
             .get(&enum_id.uid())
-            .and_then(|object| object.into())
-    }
-
-    pub fn get_ai_execution_profile(
-        &self,
-        profile_id: &SyncId,
-    ) -> Option<&CloudAIExecutionProfile> {
-        self.objects_by_id
-            .get(&profile_id.uid())
             .and_then(|object| object.into())
     }
 

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use pathfinder_geometry::vector::vec2f;
 use vim::vim::{VimMode, VimState};
 use warp_completer::completer::Description;
-use warp_core::features::FeatureFlag;
 use warpui::elements::{
     AnchorPair, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
     DispatchEventResult, Element, EventHandler, Flex, OffsetPositioning, OffsetType, ParentAnchor,
@@ -13,32 +12,15 @@ use warpui::elements::{
 use warpui::fonts::Weight;
 use warpui::presenter::ChildView;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{AppContext, SingletonEntity, ViewHandle};
+use warpui::{AppContext, ViewHandle};
 
 use crate::appearance::Appearance;
-use crate::settings::{AISettings, InputSettings};
 use crate::terminal::input::{Input, InputAction, InputSuggestionsMode, MenuPositioning};
-use crate::terminal::model::TerminalModel;
 use crate::terminal::view::{PADDING_LEFT, TerminalAction};
 use crate::ui_components::icons::Icon;
 
-/// Whether the terminal input message bar should be shown.
-///
-/// The message bar is hidden when AI is disabled, the user has turned it off in settings,
-/// or the session is a shared ambient agent session.
-pub(super) fn should_show_terminal_input_message_bar(
-    model: &TerminalModel,
-    app: &AppContext,
-) -> bool {
-    FeatureFlag::AgentView.is_enabled()
-        && !FeatureFlag::AgentViewPromptChip.is_enabled()
-        && InputSettings::as_ref(app).is_terminal_input_message_bar_enabled()
-        && AISettings::as_ref(app).is_any_ai_enabled(app)
-        && !model.is_shared_ambient_agent_session()
-}
-
 /// Renders vim status bar
-/// Used by: agent.rs, terminal.rs, universal.rs, legacy.rs
+/// Used by: terminal.rs, universal.rs, classic.rs
 pub(super) fn render_vim_status(vim_state: &VimState, appearance: &Appearance) -> Container {
     let theme = appearance.theme();
     let ansi_colors = theme.terminal_colors().bright;
@@ -298,27 +280,10 @@ pub(super) fn add_input_suggestions_overlays(
                 ),
             );
         }
-        InputSuggestionsMode::AIContextMenu { .. } => {
-            input.render_ai_context_menu(stack, &menu_positioning, app);
-        }
-        // SlashCommandsMenu is rendered separately via inline_slash_commands_menu_view
-        InputSuggestionsMode::SlashCommands => {}
-        // Conversation menu is rendered separately via inline_conversation_menu_view
-        InputSuggestionsMode::ConversationMenu => {}
-        // Model selector is rendered separately via inline_model_selector_view
-        InputSuggestionsMode::ModelSelector => {}
-        // Profile selector is rendered separately via inline_profile_selector_view
-        InputSuggestionsMode::ProfileSelector => {}
-        // Skill menu is rendered separately via inline_skill_selector_view
-        InputSuggestionsMode::SkillMenu => {}
-        // User query menu is rendered separately via user_query_menu_view
-        InputSuggestionsMode::UserQueryMenu { .. } => {}
         // Inline history menu is rendered separately via inline_history_menu_view
-        InputSuggestionsMode::InlineHistoryMenu { .. } => {}
+        InputSuggestionsMode::InlineHistoryMenu => {}
         // Repos menu is rendered separately via inline_repos_menu_view
         InputSuggestionsMode::IndexedReposMenu => {}
-        // Plan menu is rendered separately via inline_plan_menu_view
-        InputSuggestionsMode::PlanMenu { .. } => {}
         InputSuggestionsMode::Closed => {}
     }
 }

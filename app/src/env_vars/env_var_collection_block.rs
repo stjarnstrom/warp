@@ -19,14 +19,6 @@ use warpui::{
     ViewContext,
 };
 
-use crate::ai::agent::icons::{yellow_running_icon, yellow_stop_icon};
-use crate::ai::blocklist::block::view_impl::{
-    CONTENT_HORIZONTAL_PADDING, CONTENT_ITEM_VERTICAL_MARGIN,
-};
-use crate::ai::blocklist::inline_action::inline_action_header::{
-    ExpandedConfig, HeaderConfig, INLINE_ACTION_HORIZONTAL_PADDING, InteractionMode,
-};
-use crate::ai::blocklist::inline_action::inline_action_icons::{self};
 use crate::appearance::Appearance;
 use crate::settings::InputModeSettings;
 use crate::terminal::block_list_element::BlockListMenuSource;
@@ -36,13 +28,19 @@ use crate::ui_components::blended_colors;
 use crate::view_components::action_button::{
     ButtonSize, KeystrokeSource, NakedTheme, PrimaryTheme,
 };
+use crate::view_components::action_header::{
+    ExpandedConfig, HEADER_HORIZONTAL_PADDING, HeaderConfig, InteractionMode, cancelled_icon,
+    green_check_icon, red_x_icon, yellow_running_icon, yellow_stop_icon,
+};
 use crate::view_components::compactible_action_button::{
     CompactibleActionButton, RenderCompactibleActionButton, SMALL_SIZE_SWITCH_THRESHOLD,
 };
 
 /// The vertical padding applied to the env var collection block's content body.
-/// For horizontal padding, use [`INLINE_ACTION_HORIZONTAL_PADDING`] for consistency.
+/// For horizontal padding, use [`HEADER_HORIZONTAL_PADDING`] for consistency.
 const ENV_VAR_COLLECTION_BODY_VERTICAL_PADDING: f32 = 16.;
+const CONTENT_HORIZONTAL_PADDING: f32 = 20.;
+const CONTENT_ITEM_VERTICAL_MARGIN: f32 = 16.;
 
 const ENV_VAR_COLLECTION_CANCEL_LABEL: &str = "Cancel";
 const ENV_VAR_COLLECTION_ACCEPT_LABEL: &str = "Run";
@@ -268,13 +266,9 @@ impl EnvVarCollectionBlock {
         let icon = match self.state {
             EnvVarCollectionState::WaitingForUser => Some(yellow_stop_icon(appearance)),
             EnvVarCollectionState::Running => Some(yellow_running_icon(appearance)),
-            EnvVarCollectionState::Succeeded => {
-                Some(inline_action_icons::green_check_icon(appearance))
-            }
-            EnvVarCollectionState::Failed => Some(inline_action_icons::red_x_icon(appearance)),
-            EnvVarCollectionState::Cancelled => {
-                Some(inline_action_icons::cancelled_icon(appearance))
-            }
+            EnvVarCollectionState::Succeeded => Some(green_check_icon(appearance)),
+            EnvVarCollectionState::Failed => Some(red_x_icon(appearance)),
+            EnvVarCollectionState::Cancelled => Some(cancelled_icon(appearance)),
         };
 
         let interaction_mode = match self.state {
@@ -300,7 +294,7 @@ impl EnvVarCollectionBlock {
             _ => None,
         };
 
-        let mut config = HeaderConfig::new(title, app).with_selectable_text();
+        let mut config = HeaderConfig::new(title).with_selectable_text();
 
         if let Some(icon) = icon {
             config = config.with_icon(icon);
@@ -357,7 +351,7 @@ impl View for EnvVarCollectionBlock {
                 .set_selectable(true)
                 .finish(),
             )
-            .with_horizontal_padding(INLINE_ACTION_HORIZONTAL_PADDING)
+            .with_horizontal_padding(HEADER_HORIZONTAL_PADDING)
             .with_vertical_padding(ENV_VAR_COLLECTION_BODY_VERTICAL_PADDING)
             .with_background(theme.background())
             .with_corner_radius(CornerRadius::with_bottom(Radius::Pixels(8.)))

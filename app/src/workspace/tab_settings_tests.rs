@@ -93,22 +93,6 @@ fn header_toolbar_chip_selection_default_contains_code_review() {
 }
 
 #[test]
-fn header_toolbar_chip_selection_custom_without_code_review_reports_absent() {
-    let config = HeaderToolbarChipSelection::Custom {
-        left: vec![
-            HeaderToolbarItemKind::TabsPanel,
-            HeaderToolbarItemKind::ToolsPanel,
-        ],
-        right: vec![HeaderToolbarItemKind::NotificationsMailbox],
-    };
-    assert!(!config.contains_item(&HeaderToolbarItemKind::Conn));
-    assert!(config.contains_item(&HeaderToolbarItemKind::TabsPanel));
-    assert!(config.contains_item(&HeaderToolbarItemKind::ToolsPanel));
-    assert!(config.contains_item(&HeaderToolbarItemKind::NotificationsMailbox));
-    assert!(!config.contains_item(&HeaderToolbarItemKind::AgentManagement));
-}
-
-#[test]
 fn header_toolbar_chip_selection_custom_with_code_review_on_left_reports_present() {
     let config = HeaderToolbarChipSelection::Custom {
         left: vec![HeaderToolbarItemKind::Conn],

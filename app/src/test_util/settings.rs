@@ -26,18 +26,17 @@ pub fn initialize_settings_for_tests_with_mode(
     use warp_core::execution_mode::AppExecutionMode;
     use warp_core::semantic_selection::SemanticSelection;
 
-    use crate::ai::cloud_agent_settings::CloudAgentSettings;
     use crate::search::command_search::settings::CommandSearchSettings;
     use crate::settings::app_icon::AppIconSettings;
     use crate::settings::manager::SettingsManager;
     use crate::settings::{
-        AISettings, AccessibilitySettings, AliasExpansionSettings, AppEditorSettings,
-        BlockVisibilitySettings, ChangelogSettings, CloudPreferencesSettings, CodeSettings,
-        DebugSettings, EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings,
-        InputSettings, LocalControlSettings, NativePreferenceSettings, PaneSettings,
-        SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
-        SharedObjectLimitBannerSettings, SshSettings, ThemeSettings, VimBannerSettings,
-        init_and_register_user_preferences,
+        AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
+        CLIAgentSettings, ChangelogSettings, CloudPreferencesSettings, CodeSettings,
+        CompiledCommandsForCodingAgentToolbar, DebugSettings, EmacsBindingsSettings, FontSettings,
+        GPUSettings, InputModeSettings, InputSettings, LocalControlSettings,
+        NativePreferenceSettings, PaneSettings, SameLinePromptBlockSettings, ScrollSettings,
+        SelectionSettings, SharedObjectLimitBannerSettings, SshSettings, ThemeSettings,
+        VimBannerSettings, init_and_register_user_preferences,
     };
     use crate::terminal::BlockListSettings;
     use crate::terminal::general_settings::GeneralSettings;
@@ -63,9 +62,9 @@ pub fn initialize_settings_for_tests_with_mode(
     });
 
     AccessibilitySettings::register(app);
-    app.update(AISettings::register_and_subscribe_to_events);
+    CLIAgentSettings::register(app);
+    app.update(CompiledCommandsForCodingAgentToolbar::register);
     AliasExpansionSettings::register(app);
-    CloudAgentSettings::register(app);
     AppEditorSettings::register(app);
     BlockVisibilitySettings::register(app);
     BlockListSettings::register(app);
@@ -119,9 +118,4 @@ pub fn initialize_settings_for_tests_with_mode(
     SharedSessionSettings::register(app);
     CodeSettings::register(app);
     SemanticSelection::register(app);
-
-    app.update(|ctx| {
-        // Add settings models that are backed by secure storage, not user preferences.
-        ctx.add_singleton_model(ai::api_keys::ApiKeyManager::new);
-    });
 }

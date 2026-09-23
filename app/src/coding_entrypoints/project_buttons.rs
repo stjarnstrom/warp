@@ -2,7 +2,6 @@ use std::borrow::Cow;
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::Vector2F;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::Icon;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::color::blend::Blend as _;
@@ -28,32 +27,19 @@ const BUTTON_MIN_WIDTH: f32 = 149.;
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
 
-    app.register_editable_bindings([
-        EditableBinding::new(
-            "project_buttons:open_repository",
-            "Open repository",
-            ProjectButtonsAction::OpenRepository,
-        )
-        .with_context_predicate(id!("ProjectButons"))
-        .with_group(BindingGroup::Folders.as_str())
-        .with_custom_action(CustomAction::OpenRepository),
-        EditableBinding::new(
-            "project_buttons:create_new_project",
-            "Create new project",
-            ProjectButtonsAction::CreateProject,
-        )
-        .with_context_predicate(id!("ProjectButons"))
-        .with_enabled(|| FeatureFlag::CreateProjectFlow.is_enabled())
-        .with_mac_key_binding("cmd-shift-N")
-        .with_linux_or_windows_key_binding("alt-shift-N"),
-    ]);
+    app.register_editable_bindings([EditableBinding::new(
+        "project_buttons:open_repository",
+        "Open repository",
+        ProjectButtonsAction::OpenRepository,
+    )
+    .with_context_predicate(id!("ProjectButons"))
+    .with_group(BindingGroup::Folders.as_str())
+    .with_custom_action(CustomAction::OpenRepository)]);
 }
 
 #[derive(Default)]
 struct StateHandles {
     open_repo_button: MouseStateHandle,
-    create_project_button: MouseStateHandle,
-    clone_repo_button: MouseStateHandle,
 }
 
 pub struct ProjectButtons {
@@ -186,8 +172,6 @@ impl ProjectButtons {
 
 pub enum ProjectButtonsEvent {
     OpenRepository(Result<String, FilePickerError>),
-    CreateProject,
-    CloneRepository,
 }
 
 impl Entity for ProjectButtons {
@@ -197,8 +181,6 @@ impl Entity for ProjectButtons {
 #[derive(Clone, Copy, Debug)]
 pub enum ProjectButtonsAction {
     OpenRepository,
-    CreateProject,
-    CloneRepository,
 }
 
 impl TypedActionView for ProjectButtons {
@@ -207,8 +189,6 @@ impl TypedActionView for ProjectButtons {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
             ProjectButtonsAction::OpenRepository => Self::open_repository(ctx),
-            ProjectButtonsAction::CreateProject => ctx.emit(ProjectButtonsEvent::CreateProject),
-            ProjectButtonsAction::CloneRepository => ctx.emit(ProjectButtonsEvent::CloneRepository),
         }
     }
 }
@@ -219,62 +199,14 @@ impl View for ProjectButtons {
     }
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
-        let mut row = Flex::row();
-
-        if FeatureFlag::CreateProjectFlow.is_enabled() {
-            row.add_children([
-                Container::new(self.glowing_button(
-                    "Create new project",
-                    Icon::Plus,
-                    ProjectButtonsAction::CreateProject,
-                    TooltipData {
-                        text: "Create and initialize a brand new project".to_string(),
-                        keybinding: keybinding_name_to_display_string(
-                            "project_buttons:create_new_project",
-                            app,
-                        ),
-                    },
-                    self.state_handles.create_project_button.clone(),
-                    app,
-                ))
-                .with_margin_right(16.)
-                .finish(),
-                Container::new(self.glowing_button(
-                    "Open repository",
-                    Icon::Folder,
-                    ProjectButtonsAction::OpenRepository,
-                    TooltipData {
-                        text: "Open an existing local folder or repository".to_string(),
-                        keybinding: keybinding_name_to_display_string(
-                            "project_buttons:open_repository",
-                            app,
-                        ),
-                    },
-                    self.state_handles.open_repo_button.clone(),
-                    app,
-                ))
-                .with_margin_right(16.)
-                .finish(),
-                self.glowing_button(
-                    "Clone repository",
-                    Icon::Duplicate,
-                    ProjectButtonsAction::CloneRepository,
-                    TooltipData {
-                        text: "Clone a repo from GitHub or another source".to_string(),
-                        keybinding: None,
-                    },
-                    self.state_handles.clone_repo_button.clone(),
-                    app,
-                ),
-            ]);
-        } else {
-            row.add_child(
+        Flex::row()
+            .with_child(
                 Expanded::new(
                     1.,
                     self.glowing_button(
                         "Open repository",
-                        Icon::Plus,
-                        ProjectButtonsAction::CreateProject,
+                        Icon::Folder,
+                        ProjectButtonsAction::OpenRepository,
                         TooltipData {
                             text: "Open an existing local folder or repository".to_string(),
                             keybinding: keybinding_name_to_display_string(
@@ -282,14 +214,12 @@ impl View for ProjectButtons {
                                 app,
                             ),
                         },
-                        self.state_handles.create_project_button.clone(),
+                        self.state_handles.open_repo_button.clone(),
                         app,
                     ),
                 )
                 .finish(),
-            );
-        }
-
-        row.finish()
+            )
+            .finish()
     }
 }

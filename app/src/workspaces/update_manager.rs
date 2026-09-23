@@ -112,7 +112,6 @@ impl TeamUpdateManager {
                     workspaces: vec![],
                     joinable_teams: vec![],
                     experiments: None,
-                    ai_credit_availability: None,
                     user_purchase_policy: None,
                 },
                 pricing_info: None,

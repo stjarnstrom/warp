@@ -33,13 +33,6 @@ impl CloudObjectToastMessage {
             (_, ObjectOperation::Update, OperationSuccessType::Success) => {
                 Some(format!("{object_name} updated"))
             }
-            (_, ObjectOperation::MoveToFolder, OperationSuccessType::Success) | (_, ObjectOperation::MoveToDrive, OperationSuccessType::Success) => {
-                let containing_object_name = object.containing_object_name(app);
-                Some(format!("{object_name} moved to {containing_object_name}"))
-            }
-            (_, ObjectOperation::Trash, OperationSuccessType::Success) => {
-                Some(format!("{object_name} trashed"))
-            }
             #[cfg(test)]
             (_, ObjectOperation::Untrash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} restored"))
@@ -52,12 +45,6 @@ impl CloudObjectToastMessage {
             }
             (_, ObjectOperation::Update, OperationSuccessType::Failure) => {
                 Some(format!("Failed to update {object_name_lowercase}"))
-            }
-            (_, ObjectOperation::MoveToFolder, OperationSuccessType::Failure) | (_, ObjectOperation::MoveToDrive, OperationSuccessType::Failure) => {
-                Some(format!("Failed to move {object_name_lowercase}"))
-            }
-            (_, ObjectOperation::Trash, OperationSuccessType::Failure) => {
-                Some(format!("Failed to trash {object_name_lowercase}"))
             }
             #[cfg(test)]
             (_, ObjectOperation::Untrash, OperationSuccessType::Failure) => {
