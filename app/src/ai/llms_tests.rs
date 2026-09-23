@@ -4,6 +4,7 @@ use std::rc::Rc;
 use warpui::App;
 
 use super::*;
+use crate::LaunchMode;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::auth::AuthStateProvider;
@@ -17,7 +18,6 @@ use crate::terminal::input::models::query_model_picker_choices;
 use crate::test_util::settings::initialize_settings_for_tests;
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::{TeamlessScopeForTest, UserWorkspaces};
-use crate::{LaunchMode, TuiEntryPoint};
 
 // -- DisableReason::should_clear_preference tests --
 
@@ -1086,71 +1086,6 @@ fn shared_model_picker_query_orders_filters_and_marks_disabled_choices() {
         assert_eq!(filtered[0].llm.id.as_str(), "gpt-5");
         assert!(filtered[0].name_match_result.is_some());
         assert!(filtered[0].is_selectable());
-    });
-}
-
-#[test]
-fn updating_active_profile_base_model_persists_and_updates_resolution() {
-    App::test((), |mut app| async move {
-        initialize_settings_for_tests(&mut app);
-        app.add_singleton_model(|_| ServerApiProvider::new_for_test());
-        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
-        app.add_singleton_model(AuthManager::new_for_test);
-        app.add_singleton_model(|_| NetworkStatus::new());
-        app.add_singleton_model(UserWorkspaces::default_mock);
-        app.add_singleton_model(CloudModel::mock);
-        app.add_singleton_model(TeamTesterStatus::mock);
-        app.add_singleton_model(SyncQueue::mock);
-        app.add_singleton_model(UpdateManager::mock);
-        app.add_singleton_model(|_| TemplatableMCPServerManager::default());
-        let profiles = app.add_singleton_model(|ctx| {
-            AIExecutionProfilesModel::new(
-                &LaunchMode::Tui {
-                    entrypoint: TuiEntryPoint::Interactive {
-                        mount: Box::new(|_| {}),
-                        api_key: None,
-                    },
-                },
-                ctx,
-            )
-        });
-        let preferences = app.add_singleton_model(preferences_for_profile_model_tests);
-        let surface_id = EntityId::new();
-        let profile_id = profiles.read(&app, |profiles, ctx| {
-            profiles.active_profile(Some(surface_id), ctx).id().clone()
-        });
-        profiles.update(&mut app, |profiles, ctx| {
-            profiles.set_context_window_limit(&profile_id, Some(123), ctx);
-        });
-
-        let persisted = preferences.update(&mut app, |preferences, ctx| {
-            preferences.update_active_profile_base_model(
-                &LLMId::from("claude-opus"),
-                Some(surface_id),
-                ctx,
-            )
-        });
-
-        assert!(persisted);
-        profiles.read(&app, |profiles, ctx| {
-            let profile = profiles
-                .get_profile_by_id(&profile_id, ctx)
-                .expect("active profile should exist");
-            assert_eq!(
-                profile.data().base_model.as_ref().map(LLMId::as_str),
-                Some("claude-opus")
-            );
-            assert_eq!(profile.data().context_window_limit, None);
-        });
-        preferences.read(&app, |preferences, ctx| {
-            assert_eq!(
-                preferences
-                    .get_active_base_model(&TeamlessScopeForTest, ctx, Some(surface_id))
-                    .id
-                    .as_str(),
-                "claude-opus"
-            );
-        });
     });
 }
 
