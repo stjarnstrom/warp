@@ -872,7 +872,9 @@ impl CloudObjectMetadataExt for CloudObjectMetadata {
     }
 }
 
-pub use cloud_object_client::{ObjectDeleteResult, ObjectMetadataUpdateResult};
+pub use cloud_object_client::ObjectDeleteResult;
+#[cfg(test)]
+pub use cloud_object_client::ObjectMetadataUpdateResult;
 pub use cloud_object_models::{
     ServerAIExecutionProfile, ServerAIFact, ServerAmbientAgentEnvironment, ServerCloudAgentConfig,
     ServerCloudObject, ServerEnvVarCollection, ServerFolder, ServerMCPServer, ServerNotebook,

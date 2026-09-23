@@ -393,9 +393,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_open_in_warp_banner);
 
     // Workflow tests
-    register_test!(test_open_workflow_in_pane);
-    register_test!(test_create_personal_workflow_pane_from_command_palette);
-    register_test!(test_create_team_workflow_pane_from_command_palette);
 
     register_test!(test_block_filtering_keybinding);
     register_test!(test_block_filtering_keybinding_with_long_running_command);

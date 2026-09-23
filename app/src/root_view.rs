@@ -2416,11 +2416,7 @@ impl RootView {
             match arg.object_type {
                 ObjectType::Workflow => {
                     handle.update(ctx, |workspace, ctx| {
-                        workspace.open_workflow_from_intent(
-                            SyncId::ServerId(arg.server_id),
-                            &arg.settings,
-                            ctx,
-                        );
+                        workspace.open_workflow_from_intent(SyncId::ServerId(arg.server_id), ctx);
                     });
                 }
                 _ => {

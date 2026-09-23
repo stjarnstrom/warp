@@ -1049,19 +1049,6 @@ fn handle_terminal_view_event(
             Event::OnboardingTutorialCompleted => {
                 ctx.emit(pane_group::Event::OnboardingTutorialCompleted);
             }
-            Event::OpenWorkflowModalWithCommand(command) => {
-                ctx.emit(pane_group::Event::OpenWorkflowModalWithCommand(
-                    command.clone(),
-                ));
-            }
-            Event::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
-                ctx.emit(pane_group::Event::OpenCloudWorkflowForEdit(*workflow_id));
-            }
-            Event::OpenWorkflowModalWithTemporary(workflow) => {
-                ctx.emit(pane_group::Event::OpenWorkflowModalWithTemporary(
-                    workflow.clone(),
-                ));
-            }
             Event::OpenPromptEditor => {
                 ctx.emit(pane_group::Event::OpenPromptEditor);
             }
@@ -1160,11 +1147,6 @@ fn handle_terminal_view_event(
             }
             Event::RoleRequestCancelled(role_request_id) => {
                 group.remove_shared_session_role_request(role_request_id.clone(), ctx);
-            }
-            Event::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
-                ctx.emit(pane_group::Event::OpenSuggestedAgentModeWorkflowModal {
-                    workflow_and_id: workflow_and_id.clone(),
-                });
             }
             Event::OpenSuggestedRuleDialog { rule_and_id } => {
                 ctx.emit(pane_group::Event::OpenSuggestedRuleModal {

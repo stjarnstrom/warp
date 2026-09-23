@@ -244,9 +244,6 @@ integration_tests! {
 
     test_open_in_warp_banner,
 
-    test_open_workflow_in_pane,
-    test_create_personal_workflow_pane_from_command_palette,
-    test_create_team_workflow_pane_from_command_palette,
 
     // TODO(alokedesai): Fix this on the latest version of Bash.
     #[ignore]

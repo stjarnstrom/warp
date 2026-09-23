@@ -34,7 +34,6 @@ mod drive;
 mod dynamic_libraries;
 mod env_vars;
 mod experiments;
-mod external_secrets;
 #[cfg(target_family = "wasm")]
 mod font_fallback;
 mod global_resource_handles;
@@ -234,7 +233,6 @@ use warpui::platform::app::{ApproveTerminateResult, TerminationRequestSource};
 use warpui::windowing::state::ApplicationStage;
 use warpui::{App, AppContext, Event, SingletonEntity, WindowId};
 use window_settings::WindowSettings;
-use workflows::manager::WorkflowManager;
 use workspace::sync_inputs::SyncedInputState;
 
 use self::features::FeatureFlag;
@@ -268,7 +266,6 @@ use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::export::ExportManager;
-use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::experiments::ImprovedPaletteSearch;
 pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::gpu_state::GPUState;
@@ -2074,7 +2071,6 @@ pub(crate) fn initialize_app(
     env_vars::env_var_collection_block::init(ctx);
     context_chips::display_menu::init(ctx);
     context_chips::node_version_popup::init(ctx);
-    env_vars::view::env_var_collection::init(ctx);
     ai::agent::todos::popup::init(ctx);
     terminal::view::init_environment::mode_selector::init(ctx);
     coding_entrypoints::project_buttons::init(ctx);
@@ -2421,9 +2417,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(
         terminal::shared_session::permissions_manager::SessionPermissionsManager::new,
     );
-
-    ctx.add_singleton_model(EnvVarCollectionManager::new);
-    ctx.add_singleton_model(WorkflowManager::new);
 
     if FeatureFlag::ScheduledAmbientAgents.is_enabled() {
         ctx.add_singleton_model(ScheduledAgentManager::new);

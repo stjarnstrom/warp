@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::HashSet;
 use std::future::Future;
 use std::sync::Arc;
@@ -18,9 +19,11 @@ use warp_errors::report_error;
 use warp_graphql::mcp_gallery_template::MCPGalleryTemplate;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warp_util::sync::Condition;
+#[cfg(test)]
+use warpui::AppContext;
 use warpui::r#async::{FutureId, Timer};
 use warpui::{
-    AppContext, Entity, ModelContext, ModelHandle, RequestState, RetryOption, SingletonEntity,
+    Entity, ModelContext, ModelHandle, RequestState, RetryOption, SingletonEntity,
     duration_with_jitter,
 };
 
@@ -36,6 +39,8 @@ use crate::ai::facts::{AIFact, CloudAIFactModel};
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::mcp::templatable::{CloudTemplatableMCPServerModel, TemplatableMCPServer};
 use crate::auth::AuthStateProvider;
+#[cfg(test)]
+use crate::cloud_object::ObjectMetadataUpdateResult;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionType, ObjectActions,
 };
@@ -47,20 +52,16 @@ use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
     CloudObjectSyncStatus, CreateCloudObjectResult, CreateObjectRequest, GenericCloudObject,
     GenericServerObject, GenericStringObjectFormat, JsonObjectType, NumInFlightRequests,
-    ObjectDeleteResult, ObjectIdType, ObjectMetadataUpdateResult, ObjectType, Owner, Revision,
-    RevisionAndLastEditor, ServerAIExecutionProfile, ServerAIFact, ServerAmbientAgentEnvironment,
-    ServerCloudAgentConfig, ServerCloudObject, ServerEnvVarCollection, ServerMCPServer,
-    ServerMetadata, ServerPermissions, ServerPreference, ServerScheduledAmbientAgent,
-    ServerTemplatableMCPServer, ServerWorkflowEnum, Space, UpdateCloudObjectResult,
+    ObjectDeleteResult, ObjectIdType, ObjectType, Owner, Revision, RevisionAndLastEditor,
+    ServerAIExecutionProfile, ServerAIFact, ServerAmbientAgentEnvironment, ServerCloudAgentConfig,
+    ServerCloudObject, ServerEnvVarCollection, ServerMCPServer, ServerMetadata, ServerPermissions,
+    ServerPreference, ServerScheduledAmbientAgent, ServerTemplatableMCPServer, ServerWorkflowEnum,
+    Space, UpdateCloudObjectResult,
 };
 use crate::drive::CloudObjectTypeAndId;
-use crate::drive::drive_helpers::{
-    is_feature_gated_anonymous_user_past_env_var_limit,
-    is_feature_gated_anonymous_user_past_notebook_limit,
-    is_feature_gated_anonymous_user_past_workflow_limit,
-};
+use crate::drive::drive_helpers::is_feature_gated_anonymous_user_past_notebook_limit;
 use crate::drive::folders::{CloudFolderModel, FolderId};
-use crate::env_vars::{CloudEnvVarCollectionModel, EnvVarCollection};
+use crate::env_vars::CloudEnvVarCollectionModel;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
@@ -77,7 +78,9 @@ use crate::server::sync_queue::{
 };
 use crate::settings::cloud_preferences::Preference;
 use crate::workflows::workflow::Workflow;
-use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel, WorkflowEnum};
+#[cfg(test)]
+use crate::workflows::workflow_enum::WorkflowEnum;
+use crate::workflows::workflow_enum::{CloudWorkflowEnum, CloudWorkflowEnumModel};
 use crate::workflows::{CloudWorkflowModel, WorkflowId};
 use crate::workspaces::team_tester::{TeamTesterStatus, TeamTesterStatusEvent};
 use crate::workspaces::update_manager::TeamUpdateManager;
@@ -106,13 +109,18 @@ pub enum OperationSuccessType {
 
 #[derive(Debug, PartialEq)]
 pub enum ObjectOperation {
-    Create { initiated_by: InitiatedBy },
+    Create {
+        initiated_by: InitiatedBy,
+    },
     Update,
     MoveToFolder,
     MoveToDrive,
     Trash,
+    #[cfg(test)]
     Untrash,
-    Delete { initiated_by: InitiatedBy },
+    Delete {
+        initiated_by: InitiatedBy,
+    },
 }
 
 #[derive(Debug)]
@@ -144,6 +152,7 @@ pub enum UpdateManagerEvent {
 /// An enum for choosing the behavior of the fetch_single_cloud_object function.
 pub enum FetchSingleObjectOption {
     /// Perform the normal upsert behavior.
+    #[cfg(test)]
     None,
     /// Only perform the normal upsert behavior if the object doesn't already
     /// exist in-memory.
@@ -1842,36 +1851,6 @@ impl UpdateManager {
         );
     }
 
-    pub fn update_workflow_enum(
-        &mut self,
-        workflow_enum: WorkflowEnum,
-        workflow_enum_id: SyncId,
-        revision_ts: Option<Revision>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudWorkflowEnumModel::new(workflow_enum),
-            workflow_enum_id,
-            revision_ts,
-            ctx,
-        );
-    }
-
-    pub fn update_env_var_collection(
-        &mut self,
-        env_var_collection: EnvVarCollection,
-        env_var_collection_id: SyncId,
-        revision_ts: Option<Revision>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudEnvVarCollectionModel::new(env_var_collection),
-            env_var_collection_id,
-            revision_ts,
-            ctx,
-        );
-    }
-
     pub fn update_ambient_agent_environment(
         &mut self,
         environment: AmbientAgentEnvironment,
@@ -2477,6 +2456,7 @@ impl UpdateManager {
         ctx.notify();
     }
 
+    #[cfg(test)]
     pub fn duplicate_object(
         &mut self,
         cloud_object_type_and_id: &CloudObjectTypeAndId,
@@ -2509,6 +2489,7 @@ impl UpdateManager {
         }
     }
 
+    #[cfg(test)]
     fn duplicate_object_internal<K, M>(&mut self, id: &SyncId, ctx: &mut ModelContext<Self>)
     where
         K: HashableId
@@ -2767,6 +2748,7 @@ impl UpdateManager {
         );
     }
 
+    #[cfg(test)]
     fn get_next_duplicate_object_name(
         &self,
         original_cloud_object: &dyn CloudObject,
@@ -2797,6 +2779,7 @@ impl UpdateManager {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[cfg(any(test, feature = "integration_tests"))]
     pub fn create_workflow(
         &mut self,
         workflow: Workflow,
@@ -2807,20 +2790,6 @@ impl UpdateManager {
         force_expand: bool,
         ctx: &mut ModelContext<Self>,
     ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
-            model
-                .active_non_welcome_workflows_in_space(Space::Personal, ctx)
-                .count()
-        });
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_workflow_limit(
-                auth_state_provider.get(),
-                count + 1,
-            )
-        }) {
-            return;
-        };
-
         self.create_object(
             CloudWorkflowModel::new(workflow),
             owner,
@@ -2836,6 +2805,7 @@ impl UpdateManager {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[cfg(test)]
     pub fn create_workflow_enum(
         &mut self,
         workflow_enum: WorkflowEnum,
@@ -2852,42 +2822,6 @@ impl UpdateManager {
             entrypoint,
             force_expand,
             None,
-            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-            // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
-            InitiatedBy::User,
-            ctx,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn create_env_var_collection(
-        &mut self,
-        client_id: ClientId,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        model: CloudEnvVarCollectionModel,
-        entrypoint: CloudObjectEventEntrypoint,
-        force_expand: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
-            model
-                .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
-                .count()
-        });
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_env_var_limit(auth_state_provider.get(), count + 1)
-        }) {
-            return;
-        };
-
-        self.create_object(
-            model,
-            owner,
-            client_id,
-            entrypoint,
-            force_expand,
-            initial_folder_id,
             // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
             // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
             InitiatedBy::User,
@@ -3594,6 +3528,7 @@ impl UpdateManager {
         self.spawned_futures.push(future.future_id());
     }
 
+    #[cfg(test)]
     pub fn untrash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
         // If the object isn't known to the server yet, we can't untrash it.
         let Some(server_id) = id.server_id() else {
@@ -3900,6 +3835,7 @@ impl UpdateManager {
     /// function.
     ///
     /// See https://docs.google.com/document/d/1fLfSJu53DAlxeznRUaE3WjqJ2W3qbVIxCOisKdW-yBE/edit
+    #[cfg(test)]
     fn store_metadata_update(
         &mut self,
         server_id: ServerId,

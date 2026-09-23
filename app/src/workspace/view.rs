@@ -191,10 +191,6 @@ use crate::ai::blocklist::handoff::{
 };
 use crate::ai::blocklist::history_model::{CloudConversationData, load_conversation_from_server};
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
-use crate::ai::blocklist::suggested_agent_mode_workflow_modal::{
-    SuggestedAgentModeWorkflowAndId, SuggestedAgentModeWorkflowModal,
-    SuggestedAgentModeWorkflowModalEvent,
-};
 use crate::ai::blocklist::suggested_rule_modal::{
     SuggestedRuleAndId, SuggestedRuleModal, SuggestedRuleModalEvent,
 };
@@ -222,7 +218,7 @@ use crate::ai_assistant::{AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, As
 use crate::app_state::{
     LeafContents, LeafSnapshot, LeftPanelDisplayedTab, LeftPanelSnapshot, NotebookPaneSnapshot,
     PaneNodeSnapshot, PaneUuid, RightPanelSnapshot, SettingsPaneSnapshot, TabGroupSnapshot,
-    TabSnapshot, TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
+    TabSnapshot, TerminalPaneSnapshot, WindowSnapshot,
 };
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::auth::AuthStateProvider;
@@ -240,7 +236,7 @@ use crate::changelog_model::{ChangelogModel, ChangelogRequestType, Event as Chan
 use crate::channel::{Channel, ChannelState};
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::toast_message::CloudObjectToastMessage;
-use crate::cloud_object::{CloudObject, GenericStringObjectFormat, JsonObjectType, Owner, Space};
+use crate::cloud_object::{CloudObject, Owner, Space};
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code::editor::{add_color, remove_color};
 #[cfg(feature = "local_fs")]
@@ -256,15 +252,14 @@ use crate::conn::panel::ConnPanelView;
 use crate::conn::{ConnModel, ConnModelEvent};
 use crate::context_chips::ChipRuntimeCapabilities;
 use crate::default_terminal::DefaultTerminal;
+use crate::drive::CloudObjectTypeAndId;
 use crate::drive::settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
 use crate::drive::workflows::arguments::ArgumentsState;
-use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectSettings};
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
 use crate::env_vars::CloudEnvVarCollection;
-use crate::env_vars::manager::{EnvVarCollectionManager, EnvVarCollectionSource};
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::launch_configs::launch_config::WindowTemplate;
 use crate::launch_configs::save_modal::{LaunchConfigModalEvent, LaunchConfigSaveModal};
@@ -460,11 +455,9 @@ use crate::view_components::{
 #[cfg(target_family = "wasm")]
 use crate::wasm_nux_dialog::WasmNUXDialog;
 use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent, ZoomLevel};
-use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{
     AIWorkflowOrigin, CloudWorkflow, WorkflowSelectionSource, WorkflowSource, WorkflowType,
-    WorkflowViewMode,
 };
 use crate::workspace::action::CommandSearchOptions;
 #[cfg(target_os = "macos")]
@@ -675,8 +668,6 @@ const KEYBINDINGS_TO_CACHE: [&str; 4] = [
     SHOW_SETTINGS_KEYBINDING_NAME,
     TOGGLE_COMMAND_PALETTE_KEYBINDING_NAME,
 ];
-
-const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
 
 #[cfg(target_family = "wasm")]
 const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
@@ -1096,7 +1087,6 @@ pub struct Workspace {
     show_team_switcher_menu: bool,
     theme_creator_modal: ViewHandle<ThemeCreatorModal>,
     theme_deletion_modal: ViewHandle<ThemeDeletionModal>,
-    suggested_agent_mode_workflow_modal: ViewHandle<SuggestedAgentModeWorkflowModal>,
     suggested_rule_modal: ViewHandle<SuggestedRuleModal>,
     oz_launch_modal: ModalWithTab<LaunchModal<OzLaunchSlide>>,
     openwarp_launch_modal: ViewHandle<OpenWarpLaunchModal>,
@@ -1735,19 +1725,6 @@ impl Workspace {
         });
 
         theme_deletion_modal
-    }
-
-    fn build_suggested_agent_mode_workflow_modal(
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<SuggestedAgentModeWorkflowModal> {
-        let suggested_agent_mode_workflow_modal =
-            ctx.add_typed_action_view(|_| SuggestedAgentModeWorkflowModal::default());
-
-        ctx.subscribe_to_view(&suggested_agent_mode_workflow_modal, |me, _, event, ctx| {
-            me.handle_suggested_agent_mode_workflow_modal_event(event, ctx);
-        });
-
-        suggested_agent_mode_workflow_modal
     }
 
     fn build_suggested_rule_modal(ctx: &mut ViewContext<Self>) -> ViewHandle<SuggestedRuleModal> {
@@ -2799,9 +2776,6 @@ impl Workspace {
 
         let theme_deletion_modal = Self::build_theme_deletion_modal(ctx);
 
-        let suggested_agent_mode_workflow_modal =
-            Self::build_suggested_agent_mode_workflow_modal(ctx);
-
         let suggested_rule_modal = Self::build_suggested_rule_modal(ctx);
 
         let oz_launch_view = ctx.add_typed_action_view(LaunchModal::<OzLaunchSlide>::new);
@@ -3214,7 +3188,6 @@ impl Workspace {
             should_show_ai_assistant_warm_welcome,
             ai_assistant_close_warm_welcome_mouse_state_handle: Default::default(),
             auth_override_warning_modal,
-            suggested_agent_mode_workflow_modal,
             suggested_rule_modal,
             theme_creator_modal,
             theme_deletion_modal,
@@ -3941,8 +3914,8 @@ impl Workspace {
             NewWorkspaceSource::NotebookFromFilePath { file_path } => {
                 self.add_tab_for_file_notebook(file_path, ctx);
             }
-            NewWorkspaceSource::WorkflowById { id, settings } => {
-                self.open_workflow_from_intent(id, &settings, ctx);
+            NewWorkspaceSource::WorkflowById { id, .. } => {
+                self.open_workflow_from_intent(id, ctx);
             }
             #[cfg(feature = "local_fs")]
             NewWorkspaceSource::TransferredTab {
@@ -4129,9 +4102,7 @@ impl Workspace {
         shell: Option<AvailableShell>,
         ctx: &mut ViewContext<Self>,
     ) {
-        let show_warp_home = !ContextFlag::CreateNewSession.is_enabled();
-        let mut placeholder_pane = None;
-        let open_warp_drive = if !show_warp_home {
+        if ContextFlag::CreateNewSession.is_enabled() {
             if self.should_trigger_get_started_onboarding(ctx) {
                 self.trigger_get_started_onboarding(ctx);
             } else {
@@ -4145,63 +4116,9 @@ impl Workspace {
                 );
                 self.check_and_trigger_onboarding(ctx);
             }
-            false
         } else {
             let home_pane = super::home::create_home_pane(ctx);
-            placeholder_pane = Some(home_pane.as_pane().id());
             self.add_tab_from_existing_pane(home_pane, 0, None, ctx);
-
-            // If we can't start a terminal session to run the onboarding flow, show the Warp Home
-            // placeholder along with Warp Drive.
-            true
-        };
-        let initial_tab = self.active_tab_pane_group().clone();
-
-        if open_warp_drive {
-            // We open Warp Drive automatically in two cases:
-            // * The user is new to Warp, and went through the overall onboarding flow
-            // * The user is on the web, so we can't open a terminal session.
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            ctx.spawn(initial_load_complete, move |me, _, ctx| {
-                // New Warp users can have non-welcome objects if they were directly invited OR if
-                // linked objects were copied over from an anonymous user.
-                if CloudModel::as_ref(ctx).has_non_welcome_objects() {
-                    // After opening Warp Drive, if we rendered the Warp Home placeholder panel, replace it with one of
-                    // the user's own objects.
-                    if show_warp_home {
-                        let cloud_model = CloudModel::as_ref(ctx);
-                        let candidate_objects = cloud_model
-                            .cloud_objects()
-                            .filter(|object| {
-                                !object.is_trashed(cloud_model)
-                                    && object.renders_in_warp_drive()
-                                    && !object.metadata().is_welcome_object
-                            })
-                            .map(|object| object.cloud_object_type_and_id())
-                            .collect_vec();
-                        // Collect into a temporary Vec so that we can create a pane for the first
-                        // supported object.
-                        let target_object_pane = candidate_objects
-                            .into_iter()
-                            .find_map(|object_id| me.create_cloud_object_pane(object_id, ctx));
-
-                        if let Some((target_object_pane, placeholder_pane)) =
-                            target_object_pane.zip(placeholder_pane)
-                        {
-                            initial_tab.update(ctx, |pane_group, ctx| {
-                                pane_group.add_pane_sibling(
-                                    placeholder_pane,
-                                    Direction::Left,
-                                    target_object_pane,
-                                    true,
-                                    ctx,
-                                );
-                                pane_group.close_pane(placeholder_pane, ctx);
-                            });
-                        }
-                    }
-                }
-            });
         }
     }
 
@@ -5742,37 +5659,6 @@ impl Workspace {
             });
 
             ctx.notify();
-        }
-    }
-
-    fn handle_suggested_agent_mode_workflow_modal_event(
-        &mut self,
-        event: &SuggestedAgentModeWorkflowModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            SuggestedAgentModeWorkflowModalEvent::Close
-            | SuggestedAgentModeWorkflowModalEvent::WorkflowCreated => {
-                self.current_workspace_state
-                    .is_suggested_agent_mode_workflow_modal_open = false;
-                self.focus_active_tab(ctx);
-                ctx.notify();
-            }
-            SuggestedAgentModeWorkflowModalEvent::RunWorkflow {
-                workflow,
-                source,
-                argument_override,
-                workflow_selection_source,
-            } => {
-                self.run_workflow_in_active_input(
-                    workflow,
-                    *source.clone(),
-                    *workflow_selection_source,
-                    argument_override.clone(),
-                    TerminalSessionFallbackBehavior::default(),
-                    ctx,
-                );
-            }
         }
     }
 
@@ -7986,22 +7872,6 @@ impl Workspace {
         }
     }
 
-    fn open_suggested_agent_mode_workflow_modal(
-        &mut self,
-        workflow_and_id: &SuggestedAgentModeWorkflowAndId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.current_workspace_state
-            .is_suggested_agent_mode_workflow_modal_open = true;
-        self.suggested_agent_mode_workflow_modal.update(
-            ctx,
-            |suggested_agent_mode_workflow_modal, ctx| {
-                suggested_agent_mode_workflow_modal.open_workflow(workflow_and_id, ctx);
-            },
-        );
-        ctx.notify();
-    }
-
     fn open_suggested_rule_modal(
         &mut self,
         rule_and_id: &SuggestedRuleAndId,
@@ -8016,149 +7886,21 @@ impl Workspace {
         ctx.notify();
     }
 
-    /// Open a Warp Drive workflow in response to an intent URL.
-    pub fn open_workflow_from_intent(
-        &mut self,
-        workflow_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // If running workflows is supported, do so. Otherwise, or if the workflow isn't in memory,
-        // fall back to the workflow pane.
-        // We don't want to run the workflow if the invitee email is set, as we want to open the share dialog instead with the
-        // workflow open in a pane.
-        if ContextFlag::RunWorkflow.is_enabled() && settings.invitee_email.is_none() {
-            match CloudModel::as_ref(ctx).get_workflow(&workflow_id).cloned() {
-                Some(workflow) => {
-                    self.run_cloud_workflow_in_active_input(
-                        workflow,
-                        WorkflowSelectionSource::Undefined,
-                        TerminalSessionFallbackBehavior::OpenIfNeeded,
-                        ctx,
-                    );
-                }
-                None => self.add_tab_for_cloud_workflow(workflow_id, settings, ctx),
-            }
-        } else {
-            self.add_tab_for_cloud_workflow(workflow_id, settings, ctx);
+    /// Run a Warp Drive workflow in response to an intent URL.
+    pub fn open_workflow_from_intent(&mut self, workflow_id: SyncId, ctx: &mut ViewContext<Self>) {
+        if !ContextFlag::RunWorkflow.is_enabled() {
+            return;
         }
-    }
-
-    pub fn open_workflow_in_pane(
-        &mut self,
-        source: &WorkflowOpenSource,
-        settings: &OpenWarpDriveObjectSettings,
-        mode: WorkflowViewMode,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let workflow_manager = WorkflowManager::handle(ctx);
-
-        if let Some((window_id, locator)) = workflow_manager.as_ref(ctx).find_pane(source) {
-            if window_id == ctx.window_id() {
-                self.focus_pane(locator, ctx);
-            } else if let Some(root_view) = ctx.root_view_id(window_id) {
-                ctx.dispatch_action_for_view(
-                    window_id,
-                    root_view,
-                    "root_view:handle_pane_navigation_event",
-                    &locator,
-                );
-            }
-        } else {
-            let window_id = ctx.window_id();
-            let pane = workflow_manager.update(ctx, |manager, ctx| {
-                manager.create_pane(source, settings, mode, window_id, ctx)
-            });
-            self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                let smart_split_direction =
-                    pane_group.smart_split_direction(ctx, WORKFLOW_AND_ENV_VAR_SPLIT_RATIO);
-                pane_group.add_pane_with_direction(
-                    smart_split_direction,
-                    pane,
-                    true, /* focus_new_pane */
-                    ctx,
-                );
-            });
-        }
-    }
-
-    pub fn open_env_var_collection(
-        &mut self,
-        source: &EnvVarCollectionSource,
-        reload: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let env_var_collection_manager = EnvVarCollectionManager::handle(ctx);
-
-        if let Some((window_id, locator)) = env_var_collection_manager.as_ref(ctx).find_pane(source)
-        {
-            if reload {
-                env_var_collection_manager
-                    .update(ctx, |manager, ctx| manager.reload_collection(source, ctx));
-            }
-            if window_id == ctx.window_id() {
-                self.focus_pane(locator, ctx);
-            } else if let Some(root_view) = ctx.root_view_id(window_id) {
-                ctx.dispatch_action_for_view(
-                    window_id,
-                    root_view,
-                    "root_view:handle_pane_navigation_event",
-                    &locator,
-                );
-            }
-        } else {
-            let window_id = ctx.window_id();
-            let pane = env_var_collection_manager.update(ctx, |manager, ctx| {
-                manager.create_pane(source, window_id, ctx)
-            });
-            self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                let smart_split_direction =
-                    pane_group.smart_split_direction(ctx, WORKFLOW_AND_ENV_VAR_SPLIT_RATIO);
-                pane_group.add_pane_with_direction(
-                    smart_split_direction,
-                    pane,
-                    true, /* focus_new_pane */
-                    ctx,
-                );
-            });
-        }
-    }
-
-    /// Create a pane from a cloud object. Returns `None` if the object cannot be opened in a
-    /// pane. The pane will not be associated with any tab - the caller is responsible for
-    /// inserting it.
-    fn create_cloud_object_pane(
-        &self,
-        cloud_object: CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<Box<dyn AnyPaneContent>> {
-        let window_id = ctx.window_id();
-        let object_settings = Default::default();
-        match cloud_object {
-            CloudObjectTypeAndId::Notebook(_) => None,
-            CloudObjectTypeAndId::Workflow(sync_id) => Some(Box::new(
-                WorkflowManager::handle(ctx).update(ctx, |workflow_manager, ctx| {
-                    workflow_manager.create_pane(
-                        &WorkflowOpenSource::Existing(sync_id),
-                        &object_settings,
-                        WorkflowViewMode::Edit,
-                        window_id,
-                        ctx,
-                    )
-                }),
-            )),
-            CloudObjectTypeAndId::Folder(_) => None,
-            CloudObjectTypeAndId::GenericStringObject {
-                object_type: GenericStringObjectFormat::Json(JsonObjectType::EnvVarCollection),
-                id,
-            } => Some(Box::new(EnvVarCollectionManager::handle(ctx).update(
-                ctx,
-                |evc_manager, ctx| {
-                    evc_manager.create_pane(&EnvVarCollectionSource::Existing(id), window_id, ctx)
-                },
-            ))),
-            CloudObjectTypeAndId::GenericStringObject { .. } => None,
-        }
+        let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&workflow_id).cloned() else {
+            log::warn!("Workflow {workflow_id:?} is not available locally");
+            return;
+        };
+        self.run_cloud_workflow_in_active_input(
+            workflow,
+            WorkflowSelectionSource::Undefined,
+            TerminalSessionFallbackBehavior::OpenIfNeeded,
+            ctx,
+        );
     }
 
     fn open_settings_pane(
@@ -8193,7 +7935,7 @@ impl Workspace {
         self.settings_pane.update(ctx, move |settings_pane, ctx| {
             // TODO: This check shouldn't be necessary, but `active_session_ps1_grid_info` returns
             // None when the active tab has no running terminal sessions, e.g. if it contains only
-            // notebooks/workflow panes.
+            // file or code panes.
             if ps1_grid_info.is_some() {
                 settings_pane.set_ps1_info(ps1_grid_info, ctx);
             }
@@ -12217,23 +11959,6 @@ impl Workspace {
         }
     }
 
-    fn add_tab_for_cloud_workflow(
-        &mut self,
-        workflow_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let panes_layout = PanesLayout::Snapshot(Box::new(PaneNodeSnapshot::Leaf(LeafSnapshot {
-            is_focused: true,
-            custom_vertical_tabs_title: None,
-            contents: LeafContents::Workflow(WorkflowPaneSnapshot::CloudWorkflow {
-                workflow_id: Some(workflow_id),
-                settings: settings.clone(),
-            }),
-        })));
-        self.add_tab_with_pane_layout(panes_layout, Arc::new(HashMap::new()), None, ctx);
-    }
-
     /// Add a tab with a file notebook pane open.
     pub fn add_tab_for_file_notebook(
         &mut self,
@@ -15255,18 +14980,6 @@ impl Workspace {
                     self.handle_task_status_reset(pane_group.id(), ctx);
                 }
             }
-            pane_group::Event::OpenWorkflowModalWithCommand(command) => {
-                self.open_workflow_with_command(command.clone(), ctx)
-            }
-            pane_group::Event::OpenCloudWorkflowForEdit(workflow_id) => self
-                .open_workflow_with_existing(
-                    *workflow_id,
-                    &OpenWarpDriveObjectSettings::default(),
-                    ctx,
-                ),
-            pane_group::Event::OpenWorkflowModalWithTemporary(workflow) => {
-                self.open_workflow_with_temporary(*workflow.clone(), ctx)
-            }
             pane_group::Event::OpenAIFactCollection { sync_id } => {
                 // Entrypoint from AI blocklist
                 let page = if sync_id.is_some() {
@@ -15774,9 +15487,6 @@ impl Workspace {
                 ctx.notify();
             }
             pane_group::Event::ClearHoveredTabIndex => self.hovered_tab_index = None,
-            pane_group::Event::OpenSuggestedAgentModeWorkflowModal { workflow_and_id } => {
-                self.open_suggested_agent_mode_workflow_modal(workflow_and_id, ctx);
-            }
             pane_group::Event::OpenSuggestedRuleModal { rule_and_id } => {
                 self.open_suggested_rule_modal(rule_and_id, ctx);
             }
@@ -17063,35 +16773,11 @@ impl Workspace {
                             view.add_persistent_toast(new_toast, ctx);
                         }
                         OperationSuccessType::Rejection => {
-                            let new_toast = if let Some(workflow) = cloned_workflow {
-                                DismissibleToast::error(message)
-                                    .with_link(
-                                        ToastLink::new(
-                                            "Check out the latest version and try again."
-                                                .to_string(),
-                                        )
-                                        .with_onclick_action(
-                                            WorkspaceAction::HandleConflictingWorkflow(workflow.id),
-                                        ),
-                                    )
-                                    .with_object_id(object_id)
-                            } else if let Some(env_var_collection) = cloned_env_var_collection {
-                                DismissibleToast::error(message)
-                                    .with_link(
-                                        ToastLink::new(
-                                            "Check out the latest version and try again."
-                                                .to_string(),
-                                        )
-                                        .with_onclick_action(
-                                            WorkspaceAction::HandleConflictingEnvVarCollection(
-                                                env_var_collection.id,
-                                            ),
-                                        ),
-                                    )
-                                    .with_object_id(object_id)
-                            } else {
+                            if cloned_workflow.is_none() && cloned_env_var_collection.is_none() {
                                 return;
-                            };
+                            }
+                            let new_toast =
+                                DismissibleToast::error(message).with_object_id(object_id);
                             view.add_persistent_toast(new_toast, ctx);
                         }
                         OperationSuccessType::FeatureNotAvailable => {
@@ -17709,9 +17395,6 @@ impl Workspace {
                 self.focus_active_tab(ctx);
                 ctx.notify();
             }
-            AIAssistantPanelEvent::OpenWorkflowModalWithCommand(command) => {
-                self.open_workflow_with_command(command.clone(), ctx);
-            }
         }
     }
 
@@ -18163,59 +17846,6 @@ impl Workspace {
                 theme_deletion_modal.set_theme_kind(theme_kind, ctx);
             });
         ctx.focus(&self.theme_deletion_modal);
-        ctx.notify();
-    }
-
-    /// Opens the workflow from a given [`CloudWorkflow`]'s server ID.
-    fn open_workflow_with_existing(
-        &mut self,
-        workflow_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let source = WorkflowOpenSource::Existing(workflow_id);
-        self.open_workflow_in_pane(&source, settings, WorkflowViewMode::Edit, ctx)
-    }
-
-    /// Opens the workflow using a mocked [`Workflow`] object as the base
-    fn open_workflow_with_temporary(&mut self, workflow: Workflow, ctx: &mut ViewContext<Self>) {
-        let Some(owner) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) else {
-            log::warn!("Unable to open temporary workflow - unset personal drive");
-            return;
-        };
-        let source = WorkflowOpenSource::NewFromWorkflow {
-            workflow: workflow.into(),
-            owner,
-            initial_folder_id: None,
-        };
-        self.open_workflow_in_pane(
-            &source,
-            &OpenWarpDriveObjectSettings::default(),
-            WorkflowViewMode::Create,
-            ctx,
-        );
-    }
-
-    /// Opens the workflow for create with a prepopulated command specified
-    fn open_workflow_with_command(&mut self, command: String, ctx: &mut ViewContext<Self>) {
-        let Some(owner) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) else {
-            log::warn!("Unable to open workflow with command - unset personal drive");
-            return;
-        };
-        let source = WorkflowOpenSource::New {
-            title: None,
-            content: Some(command),
-            owner,
-            initial_folder_id: None,
-            is_for_agent_mode: false,
-        };
-        self.open_workflow_in_pane(
-            &source,
-            &OpenWarpDriveObjectSettings::default(),
-            WorkflowViewMode::Create,
-            ctx,
-        );
-
         ctx.notify();
     }
 
@@ -22837,54 +22467,6 @@ impl TypedActionView for Workspace {
                 init_content,
             }) => self.show_command_search(*filter, init_content, ctx),
             TriggerExternalCtrlTFileSearch => self.trigger_external_ctrl_t_file_search(ctx),
-            CreatePersonalEnvVarCollection => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    self.open_env_var_collection(
-                        &EnvVarCollectionSource::New {
-                            title: None,
-                            owner: personal_drive,
-                            initial_folder_id: None,
-                        },
-                        false,
-                        ctx,
-                    );
-                }
-            }
-            CreatePersonalWorkflow => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    let source = WorkflowOpenSource::New {
-                        title: None,
-                        content: None,
-                        owner: personal_drive,
-                        initial_folder_id: None,
-                        is_for_agent_mode: false,
-                    };
-                    self.open_workflow_in_pane(
-                        &source,
-                        &OpenWarpDriveObjectSettings::default(),
-                        WorkflowViewMode::Create,
-                        ctx,
-                    );
-                }
-            }
-            CreateTeamWorkflow => {
-                let team_uid = self.team_uid(ctx);
-                if let Some(team_uid) = team_uid {
-                    let source = WorkflowOpenSource::New {
-                        title: None,
-                        content: None,
-                        owner: Owner::Team { team_uid },
-                        initial_folder_id: None,
-                        is_for_agent_mode: false,
-                    };
-                    self.open_workflow_in_pane(
-                        &source,
-                        &OpenWarpDriveObjectSettings::default(),
-                        WorkflowViewMode::Create,
-                        ctx,
-                    );
-                }
-            }
             ToggleMouseReporting => self.toggle_mouse_reporting(ctx),
             ToggleScrollReporting => self.toggle_scroll_reporting(ctx),
             ToggleFocusReporting => self.toggle_focus_reporting(ctx),
@@ -23462,26 +23044,6 @@ impl TypedActionView for Workspace {
             SignInAnonymousWebUser => {
                 self.redirect_to_sign_in();
             }
-            HandleConflictingWorkflow(workflow_id) => {
-                self.toast_stack.update(ctx, |view, ctx| {
-                    view.dismiss_older_toasts(&workflow_id.uid(), ctx);
-                });
-                self.open_workflow_with_existing(
-                    *workflow_id,
-                    &OpenWarpDriveObjectSettings::default(),
-                    ctx,
-                );
-            }
-            HandleConflictingEnvVarCollection(env_var_collection_id) => {
-                self.toast_stack.update(ctx, |view, ctx| {
-                    view.dismiss_older_toasts(&env_var_collection_id.uid(), ctx);
-                });
-                self.open_env_var_collection(
-                    &EnvVarCollectionSource::Existing(*env_var_collection_id),
-                    true,
-                    ctx,
-                );
-            }
             OpenPromptEditor { open_source } => {
                 self.open_prompt_editor(*open_source, ctx);
             }
@@ -23911,41 +23473,6 @@ impl TypedActionView for Workspace {
                         });
                     }
                 });
-            }
-            CreatePersonalAIPrompt => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    let source = WorkflowOpenSource::New {
-                        title: None,
-                        content: None,
-                        owner: personal_drive,
-                        initial_folder_id: None,
-                        is_for_agent_mode: true,
-                    };
-                    self.open_workflow_in_pane(
-                        &source,
-                        &OpenWarpDriveObjectSettings::default(),
-                        WorkflowViewMode::Create,
-                        ctx,
-                    );
-                }
-            }
-            CreateTeamAIPrompt => {
-                let team_uid = self.team_uid(ctx);
-                if let Some(team_uid) = team_uid {
-                    let source = WorkflowOpenSource::New {
-                        title: None,
-                        content: None,
-                        owner: Owner::Team { team_uid },
-                        initial_folder_id: None,
-                        is_for_agent_mode: true,
-                    };
-                    self.open_workflow_in_pane(
-                        &source,
-                        &OpenWarpDriveObjectSettings::default(),
-                        WorkflowViewMode::Create,
-                        ctx,
-                    );
-                }
             }
             #[cfg(feature = "local_fs")]
             FileRenamed { old_path, new_path } => {
@@ -25496,13 +25023,6 @@ impl View for Workspace {
 
         if self.current_workspace_state.is_header_toolbar_editor_open {
             stack.add_child(ChildView::new(&self.header_toolbar_editor_modal).finish());
-        }
-
-        if self
-            .current_workspace_state
-            .is_suggested_agent_mode_workflow_modal_open
-        {
-            stack.add_child(ChildView::new(&self.suggested_agent_mode_workflow_modal).finish());
         }
 
         if self.current_workspace_state.is_suggested_rule_modal_open {

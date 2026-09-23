@@ -36,7 +36,6 @@ use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::mcp::TemplatableMCPServerManager;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor_management::{CodeEditorStatus, CodeEditorSummary};
-use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::palette::PaletteMode;
 use crate::root_view::RootView;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -49,7 +48,6 @@ use crate::settings::{
 };
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::shared_session::manager::Manager as SharedSessionManager;
-use crate::workflows::manager::WorkflowManager;
 use crate::workspace::{Workspace, WorkspaceAction};
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::{
@@ -303,9 +301,6 @@ pub fn log_out(app: &mut AppContext) {
     AIExecutionProfilesModel::handle(app).update(app, |profiles, _| {
         profiles.reset(settings_profiles_are_explicit);
     });
-
-    EnvVarCollectionManager::handle(app).update(app, |manager, _| manager.reset());
-    WorkflowManager::handle(app).update(app, |manager, _| manager.reset());
 
     // Leave every joined session.
     SharedSessionManager::handle(app).update(app, |manager, _| {

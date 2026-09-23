@@ -27,7 +27,6 @@ pub enum AlertFlavor {
     #[default]
     Default,
     Success,
-    Error,
     Warning,
 }
 
@@ -36,7 +35,7 @@ impl AlertFlavor {
         match self {
             Self::Default => None,
             Self::Success => Some(SUCCESS_ICON_PATH),
-            Self::Error | Self::Warning => Some(ERROR_ICON_PATH),
+            Self::Warning => Some(ERROR_ICON_PATH),
         }
     }
 
@@ -54,7 +53,6 @@ impl AlertFlavor {
         match self {
             Self::Default => internal_colors::neutral_4(theme).into(),
             Self::Success => theme.ansi_fg_green().into(),
-            Self::Error => theme.ansi_fg_red().into(),
             Self::Warning => theme.yellow_overlay_1(),
         }
     }
@@ -64,7 +62,6 @@ impl AlertFlavor {
         match self {
             AlertFlavor::Default => internal_colors::neutral_3(theme).into(),
             AlertFlavor::Success => theme.ansi_bg_green().into(),
-            AlertFlavor::Error => theme.ansi_bg_red().into(),
             AlertFlavor::Warning => Fill::Solid(ColorU::transparent_black()),
         }
     }
@@ -85,12 +82,6 @@ pub struct Alert;
 impl Alert {
     pub fn new() -> Self {
         Self
-    }
-
-    /// Creates a basic alert without a link.
-    /// Ergonomic constructor to avoid writing `Alert::<()>::new()`.
-    pub fn basic() -> Self {
-        Self::new()
     }
 
     pub fn render(&self, config: AlertConfig, appearance: &Appearance) -> Box<dyn Element> {
@@ -154,10 +145,6 @@ impl AlertConfig {
             message,
             main_axis_size: None,
         }
-    }
-
-    pub fn error(message: String) -> Self {
-        Self::new(message, AlertFlavor::Error)
     }
 
     #[allow(dead_code)]

@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::ops::Range;
 
 use handlebars::parser::{ParsedArgumentResult, ParsedArgumentsIterator};
 
@@ -24,8 +23,6 @@ pub struct ArgumentsState {
     /// arguments vector. Enables `query_argument_by_word_index`.
     arg_name_to_arg_index_map: HashMap<String, usize>,
     number_of_words: usize,
-    pub invalid_arguments_char_ranges: Vec<Range<usize>>,
-    pub valid_arguments_char_ranges_and_arg_index: Vec<(Range<usize>, usize)>,
 }
 
 impl ArgumentsState {
@@ -54,19 +51,8 @@ impl ArgumentsState {
     /// If the edited result is instead `ls {{argument_10}} {{argument_2}} {{argument_3}}`, the number of
     /// words did not change, and so we use a by_word_index search (which will argument_10 to argument_1, etc.).
     pub fn for_command_workflow(prev_state: &ArgumentsState, input_string: String) -> Self {
-        Self::new(prev_state, input_string, false)
-    }
-
-    pub fn for_saved_prompt(prev_state: &ArgumentsState, input_string: String) -> Self {
-        Self::new(prev_state, input_string, true)
-    }
-
-    fn new(prev_state: &ArgumentsState, input_string: String, is_for_saved_prompt: bool) -> Self {
         let mut arg_name_word_index_pairs: Vec<(String, usize)> = Vec::new();
         let mut arg_names = HashSet::new();
-
-        let mut valid_arguments_char_ranges_and_name: Vec<(Range<usize>, String)> = Vec::new();
-        let mut invalid_arguments_char_ranges = Vec::new();
 
         let mut arguments_iterator = ParsedArgumentsIterator::new(input_string.chars());
 
@@ -84,20 +70,10 @@ impl ArgumentsState {
                     if !arg_names.contains(&argument_name) {
                         arg_name_word_index_pairs
                             .push((argument_name.clone(), *current_word_index));
-                        arg_names.insert(argument_name.clone());
-                    }
-
-                    valid_arguments_char_ranges_and_name
-                        .push((argument_result.chars_range(), argument_name));
-                }
-                ParsedArgumentResult::Invalid => {
-                    // We don't care about 'invalid' arguments for saved prompts, since the argument
-                    // might be intentional/valid. For example, a user's saved prompt might contain
-                    // {{.foo}} which isn't intended to be an _argument_.
-                    if !is_for_saved_prompt {
-                        invalid_arguments_char_ranges.push(argument_result.chars_range());
+                        arg_names.insert(argument_name);
                     }
                 }
+                ParsedArgumentResult::Invalid => {}
             }
         }
 
@@ -110,26 +86,11 @@ impl ArgumentsState {
                 arg_name_word_index_pairs,
             );
 
-        let valid_arguments_char_ranges_and_arg_index: Vec<(Range<usize>, usize)> =
-            valid_arguments_char_ranges_and_name
-                .iter()
-                .map(|(range, name)| {
-                    (
-                        range.clone(),
-                        *arg_name_to_arg_index_map
-                            .get(name)
-                            .expect("All valid arguments' names must map to an argument index"),
-                    )
-                })
-                .collect();
-
         Self {
             arguments,
             word_index_to_arg_index_map,
             arg_name_to_arg_index_map,
             number_of_words,
-            invalid_arguments_char_ranges,
-            valid_arguments_char_ranges_and_arg_index,
         }
     }
 

@@ -21,7 +21,6 @@ use crate::terminal::input::Input;
 use crate::themes::theme_chooser::ThemeChooser;
 use crate::view_components::find::{Find, FindEvent, FindModel};
 use crate::workflows::CategoriesView;
-use crate::workflows::workflow_view::WorkflowView;
 use crate::workspace::Workspace;
 
 /// This identifier is useful when you'd like to weakly identify a terminal view
@@ -159,22 +158,6 @@ pub fn input_view(
 ) -> ViewHandle<Input> {
     terminal_view(app, window_id, tab_index, pane_index)
         .read(app, |terminal_view, _| terminal_view.input().to_owned())
-}
-
-/// Panics if there isn't a workflow view at the given tab and pane index.
-pub fn workflow_view(
-    app: &App,
-    window_id: WindowId,
-    tab_index: usize,
-    pane_index: usize,
-) -> ViewHandle<WorkflowView> {
-    pane_group_view(app, window_id, tab_index).read(
-        app,
-        |pane_group, ctx| match pane_group.workflow_view_at_pane_index(pane_index, ctx) {
-            Some(pane) => pane.clone(),
-            None => panic!("workflow view should exist for window_id={window_id}, tab_index={tab_index}, pane_index={pane_index}")
-        },
-    )
 }
 
 /// Panics if there isn't a single pane group for the given tab.

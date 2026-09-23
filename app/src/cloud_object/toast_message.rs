@@ -40,6 +40,7 @@ impl CloudObjectToastMessage {
             (_, ObjectOperation::Trash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} trashed"))
             }
+            #[cfg(test)]
             (_, ObjectOperation::Untrash, OperationSuccessType::Success) => {
                 Some(format!("{object_name} restored"))
             }
@@ -58,6 +59,7 @@ impl CloudObjectToastMessage {
             (_, ObjectOperation::Trash, OperationSuccessType::Failure) => {
                 Some(format!("Failed to trash {object_name_lowercase}"))
             }
+            #[cfg(test)]
             (_, ObjectOperation::Untrash, OperationSuccessType::Failure) => {
                 Some(format!("Failed to restore {object_name_lowercase}"))
             }

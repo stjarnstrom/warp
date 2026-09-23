@@ -29,7 +29,7 @@ use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::palette::PaletteMode;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::ServerId;
 use crate::server::telemetry::{AddTabWithShellSource, AgentModeEntrypoint, PaletteSource};
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
@@ -330,11 +330,6 @@ pub enum WorkspaceAction {
     ToggleKeybindingsPage,
     ShowCommandSearch(CommandSearchOptions),
     TriggerExternalCtrlTFileSearch,
-    CreatePersonalWorkflow,
-    CreateTeamWorkflow,
-    CreatePersonalEnvVarCollection,
-    CreatePersonalAIPrompt,
-    CreateTeamAIPrompt,
     ToggleMouseReporting,
     ToggleScrollReporting,
     ToggleFocusReporting,
@@ -404,8 +399,6 @@ pub enum WorkspaceAction {
     ToggleSyncTerminalInputsInTab,
     /// An action to force terminal input syncing off
     DisableTerminalInputSync,
-    HandleConflictingWorkflow(SyncId),
-    HandleConflictingEnvVarCollection(SyncId),
     OpenPromptEditor {
         open_source: PromptEditorOpenSource,
     },
@@ -967,11 +960,6 @@ impl WorkspaceAction {
             | ToggleMouseReporting
             | ToggleScrollReporting
             | ToggleFocusReporting
-            | CreatePersonalWorkflow
-            | CreateTeamWorkflow
-            | CreatePersonalEnvVarCollection
-            | CreatePersonalAIPrompt
-            | CreateTeamAIPrompt
             | OpenInExplorer { .. }
             | DragTab { .. }
             | StartTabDrag
@@ -1010,8 +998,6 @@ impl WorkspaceAction {
             | ToggleSyncAllTerminalInputsInAllTabs
             | ToggleSyncTerminalInputsInTab
             | DisableTerminalInputSync
-            | HandleConflictingWorkflow(_)
-            | HandleConflictingEnvVarCollection(_)
             | OpenPromptEditor { .. }
             | OpenAgentToolbarEditor
             | OpenCLIAgentToolbarEditor

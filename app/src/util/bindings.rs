@@ -102,10 +102,6 @@ pub enum CustomAction {
     AddWindow,
     CloseCurrentSession,
     CloseWindow,
-    NewPersonalWorkflow,
-    NewPersonalEnvVars,
-    NewTeamWorkflow,
-    NewTeamEnvVars,
     SearchDrive,
     OpenTeamSettings,
     ShareCurrentSession,
@@ -120,8 +116,6 @@ pub enum CustomAction {
     OpenAIFactCollection,
     OpenMCPServerCollection,
     ToggleProjectExplorer,
-    NewPersonalAIPrompt,
-    NewTeamAIPrompt,
     OpenRepository,
     NewTerminalTab,
     NewAgentTab,
@@ -448,17 +442,11 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::HistorySearch
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs
-        | CustomAction::NewPersonalWorkflow
-        | CustomAction::NewPersonalEnvVars
-        | CustomAction::NewTeamWorkflow
-        | CustomAction::NewTeamEnvVars
         | CustomAction::SearchDrive
         | CustomAction::OpenTeamSettings
         | CustomAction::ShareCurrentSession
         | CustomAction::OpenAIFactCollection
         | CustomAction::OpenMCPServerCollection
-        | CustomAction::NewPersonalAIPrompt
-        | CustomAction::NewTeamAIPrompt
         | CustomAction::NewAgentTab => None,
     }
 }

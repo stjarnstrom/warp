@@ -57,7 +57,6 @@ use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::history_model::CloudConversationData;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
-use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::suggested_rule_modal::SuggestedRuleAndId;
 use crate::ai::blocklist::{BlocklistAIHistoryModel, InputConfig, SerializedBlockListItem};
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDocumentVersion};
@@ -69,9 +68,8 @@ use crate::ai_assistant::AskAIType;
 #[cfg(feature = "local_fs")]
 use crate::app_state::CodePaneSnapShot;
 use crate::app_state::{
-    self, AIFactPaneSnapshot, BranchSnapshot, EnvVarCollectionPaneSnapshot, LeafContents,
-    LeafSnapshot, NotebookPaneSnapshot, PaneNodeSnapshot, PaneUuid, SettingsPaneSnapshot,
-    TerminalPaneSnapshot, WorkflowPaneSnapshot,
+    self, AIFactPaneSnapshot, BranchSnapshot, LeafContents, LeafSnapshot, NotebookPaneSnapshot,
+    PaneNodeSnapshot, PaneUuid, SettingsPaneSnapshot, TerminalPaneSnapshot,
 };
 use crate::appearance::Appearance;
 use crate::banner::{Banner, BannerEvent, BannerState, BannerTextContent, DismissalType};
@@ -148,7 +146,6 @@ use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::FileTarget;
 use crate::view_components::ToastFlavor;
-use crate::workflows::workflow::Workflow;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::tab_group::TabGroupId;
 use crate::workspace::{
@@ -178,14 +175,12 @@ pub use pane::ai_fact_pane::AIFactPane;
 pub use pane::code_diff_pane::CodeDiffPane;
 pub use pane::code_pane::CodePane;
 pub use pane::custom_router_editor_pane::CustomRouterEditorPane;
-pub use pane::env_var_collection_pane::EnvVarCollectionPane;
 pub use pane::environment_management_pane::EnvironmentManagementPane;
 pub use pane::execution_profile_editor_pane::ExecutionProfileEditorPane;
 pub use pane::file_pane::FilePane;
 pub use pane::network_log_pane::NetworkLogPane;
 pub use pane::settings_pane::SettingsPane;
 pub use pane::terminal_pane::TerminalPane;
-pub use pane::workflow_pane::WorkflowPane;
 pub use pane::{
     AnyPaneContent, BackingView, PaneConfiguration, PaneConfigurationEvent, PaneContent, PaneEvent,
     PaneHeaderAction, PaneHeaderCustomAction, PaneId, PaneView, TerminalPaneId,
@@ -515,12 +510,6 @@ pub enum Event {
     TerminalViewStateChanged,
     /// Event used to propagate guided onboarding tutorial completion to the workspace.
     OnboardingTutorialCompleted,
-    // Tell the workspace to open the workflow modal.
-    OpenWorkflowModalWithCommand(String),
-    // Tell the workspace to open the workflow for edit.
-    OpenCloudWorkflowForEdit(SyncId),
-    // Tell the workspace to open the workflow modal with an unsaved workflow.
-    OpenWorkflowModalWithTemporary(Box<Workflow>),
     OpenPromptEditor,
     OpenAgentToolbarEditor,
     OpenCLIAgentToolbarEditor,
@@ -603,9 +592,6 @@ pub enum Event {
     /// from the orchestration pill bar's 3-dot menu.
     OpenChildAgentInNewTab {
         conversation_id: AIConversationId,
-    },
-    OpenSuggestedAgentModeWorkflowModal {
-        workflow_and_id: SuggestedAgentModeWorkflowAndId,
     },
     OpenSuggestedRuleModal {
         rule_and_id: SuggestedRuleAndId,
@@ -1792,39 +1778,10 @@ impl PaneGroup {
             LeafContents::Code(_) => Err(anyhow::anyhow!(
                 "Code pane restoration not supported on this platform"
             )),
-            LeafContents::EnvVarCollection(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    EnvVarCollectionPaneSnapshot::CloudEnvVarCollection {
-                        env_var_collection_id,
-                    } => Box::new(EnvVarCollectionPane::restore(env_var_collection_id, ctx)?),
-                };
-
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-
-                Ok((PaneData::new(pane_id), focus))
+            LeafContents::EnvVarCollection(_) => {
+                anyhow::bail!("Environment variable panes can no longer be opened")
             }
-            LeafContents::Workflow(snapshot) => {
-                let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
-                    WorkflowPaneSnapshot::CloudWorkflow {
-                        workflow_id,
-                        settings,
-                    } => Box::new(WorkflowPane::restore(workflow_id, settings, ctx)?),
-                };
-
-                let pane_id = pane.as_pane().id();
-                pane_contents.insert(pane_id, pane);
-                let focus = InitialFocus {
-                    focused_pane: leaf.is_focused.then_some(pane_id),
-                    active_session: None,
-                };
-
-                Ok((PaneData::new(pane_id), focus))
-            }
+            LeafContents::Workflow(_) => anyhow::bail!("Workflow panes can no longer be opened"),
             LeafContents::Settings(snapshot) => {
                 let pane: Box<dyn AnyPaneContent + 'static> = match snapshot {
                     SettingsPaneSnapshot::Local {
@@ -3947,18 +3904,6 @@ impl PaneGroup {
         self.pane_contents.contains_key(&pane_id)
     }
 
-    /// Get the notebook view within the pane at `pane_index`.
-    #[cfg(any(test, feature = "integration_tests"))]
-    pub fn workflow_view_at_pane_index(
-        &self,
-        pane_index: usize,
-        ctx: &AppContext,
-    ) -> Option<ViewHandle<crate::workflows::workflow_view::WorkflowView>> {
-        self.content_by_pane_index(pane_index)
-            .and_then(|pane| pane.as_any().downcast_ref::<WorkflowPane>())
-            .map(|pane| pane.get_view(ctx))
-    }
-
     /// Find the ID of the pane at an index (going left to right, top to bottom).
     /// Only considers visible panes (excludes panes hidden for close, move, job, etc.).
     pub fn pane_id_by_index(&self, pane_index: usize) -> Option<PaneId> {
@@ -4079,17 +4024,6 @@ impl PaneGroup {
         ctx.emit(Event::TerminalViewStateChanged);
         ctx.emit(Event::AppStateChanged);
         pane_content
-    }
-
-    pub fn env_var_collection_pane_by_pane_id(
-        &self,
-        pane_id: Option<PaneId>,
-    ) -> Option<&EnvVarCollectionPane> {
-        self.downcast_pane_by_id(pane_id?)
-    }
-
-    pub fn workflow_pane_by_pane_id(&self, pane_id: Option<PaneId>) -> Option<&WorkflowPane> {
-        self.downcast_pane_by_id(pane_id?)
     }
 
     pub fn ai_fact_pane_by_pane_id(&self, pane_id: Option<PaneId>) -> Option<&AIFactPane> {
