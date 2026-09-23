@@ -79,7 +79,6 @@ const ALL_SECTIONS: &[SettingsSection] = &[
     SettingsSection::Privacy,
     SettingsSection::Scripting,
     SettingsSection::SharedBlocks,
-    SettingsSection::Teams,
     SettingsSection::WarpDrive,
     SettingsSection::Warpify,
     SettingsSection::WarpAgent,
@@ -111,7 +110,6 @@ fn all_sections_list_is_exhaustive() {
             | SettingsSection::Privacy
             | SettingsSection::Scripting
             | SettingsSection::SharedBlocks
-            | SettingsSection::Teams
             | SettingsSection::WarpDrive
             | SettingsSection::Warpify
             | SettingsSection::WarpAgent
@@ -297,7 +295,7 @@ fn realistic_nav_items() -> Vec<SettingsNavItem> {
                 SettingsSection::WarpCloudAgentAPIKeys,
             ],
         )),
-        SettingsNavItem::Page(SettingsSection::Teams),
+        SettingsNavItem::Page(SettingsSection::Appearance),
     ]
 }
 
@@ -317,7 +315,7 @@ fn collapsed_umbrella_is_a_single_nav_stop() {
     let stops = build_nav_stops(&nav_items, |_| true);
 
     // Expect: Account, <Agents umbrella>, <Code umbrella>,
-    // <Cloud platform umbrella>, Teams.
+    // <Cloud platform umbrella>, Appearance.
     assert_eq!(stops.len(), 5);
     assert!(matches!(
         stops[0],
@@ -347,7 +345,10 @@ fn collapsed_umbrella_is_a_single_nav_stop() {
             last_subpage: SettingsSection::WarpCloudAgentAPIKeys,
         }
     ));
-    assert!(matches!(stops[4], NavStop::Section(SettingsSection::Teams)));
+    assert!(matches!(
+        stops[4],
+        NavStop::Section(SettingsSection::Appearance)
+    ));
 }
 
 #[test]
@@ -359,7 +360,7 @@ fn expanded_umbrella_produces_section_stop_per_subpage() {
     let stops = build_nav_stops(&nav_items, |_| true);
 
     // Expect: Account, WarpAgent, AgentProfiles, AgentMCPServers, Knowledge,
-    // ThirdPartyCLIAgents, <Code umbrella>, <Cloud platform umbrella>, Teams.
+    // ThirdPartyCLIAgents, <Code umbrella>, <Cloud platform umbrella>, Appearance.
     let sections: Vec<_> = stops
         .iter()
         .map(|s| match s {
@@ -378,7 +379,7 @@ fn expanded_umbrella_produces_section_stop_per_subpage() {
             "ThirdPartyCLIAgents",
             "Umbrella@2",
             "Umbrella@3",
-            "Teams",
+            "Appearance",
         ]
     );
 }
@@ -451,13 +452,13 @@ fn umbrella_with_no_visible_subpages_is_skipped_entirely() {
 fn filtered_out_top_level_page_is_skipped() {
     let nav_items = realistic_nav_items();
 
-    let stops = build_nav_stops(&nav_items, |section| section != SettingsSection::Teams);
+    let stops = build_nav_stops(&nav_items, |section| section != SettingsSection::Appearance);
 
     assert!(
         !stops
             .iter()
-            .any(|s| matches!(s, NavStop::Section(SettingsSection::Teams))),
-        "Teams should be filtered out entirely"
+            .any(|s| matches!(s, NavStop::Section(SettingsSection::Appearance))),
+        "Appearance should be filtered out entirely"
     );
     // But other pages remain.
     assert!(
@@ -474,7 +475,7 @@ fn current_stop_index_matches_section_stop() {
     let nav_items = realistic_nav_items();
     let stops = build_nav_stops(&nav_items, |_| true);
 
-    let idx = current_stop_index(&stops, &nav_items, SettingsSection::Teams);
+    let idx = current_stop_index(&stops, &nav_items, SettingsSection::Appearance);
     assert_eq!(idx, Some(4));
 }
 
@@ -575,14 +576,14 @@ fn arrow_up_from_teams_with_collapsed_cloud_platform_lands_on_last_subpage() {
     let nav_items = realistic_nav_items();
     let stops = build_nav_stops(&nav_items, |_| true);
 
-    // Pressing Up from Teams should land on the collapsed Cloud platform
+    // Pressing Up from Appearance should land on the collapsed Cloud platform
     // umbrella, which resolves to WarpCloudAgentAPIKeys (last visible subpage)
     // so the user continues moving in natural reading order rather than being
     // jumped back to the top of the umbrella.
     let next = simulate_cycle(
         &nav_items,
         &stops,
-        SettingsSection::Teams,
+        SettingsSection::Appearance,
         CycleDirection::Up,
     );
     assert_eq!(next, SettingsSection::WarpCloudAgentAPIKeys);
@@ -597,12 +598,12 @@ fn arrow_up_into_collapsed_umbrella_respects_search_filter_for_last_subpage() {
         |section: SettingsSection| !matches!(section, SettingsSection::WarpCloudAgentAPIKeys);
     let stops = build_nav_stops(&nav_items, is_visible);
 
-    // From Teams, Up should land on the last *visible* Cloud platform subpage
+    // From Appearance, Up should land on the last *visible* Cloud platform subpage
     // (CloudEnvironments), not on the filtered-out WarpCloudAgentAPIKeys.
     let next = simulate_cycle(
         &nav_items,
         &stops,
-        SettingsSection::Teams,
+        SettingsSection::Appearance,
         CycleDirection::Up,
     );
     assert_eq!(next, SettingsSection::CloudEnvironments);

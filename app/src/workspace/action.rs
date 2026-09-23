@@ -809,7 +809,6 @@ pub enum WorkspaceAction {
     OpenNewWindowForTeam {
         team_uid: ServerId,
     },
-    BrowseTeams,
     /// Shows (toggles) the team-switcher dropdown menu in the title bar.
     ShowTeamSwitcherMenu,
 }
@@ -1078,7 +1077,6 @@ impl WorkspaceAction {
             | OpenCreateAuthSecretModal { .. }
             | OpenNetworkLogPane
             | OpenNewWindowForTeam { .. }
-            | BrowseTeams
             | ShowTeamSwitcherMenu => false,
             #[cfg(debug_assertions)]
             ShowHoaOnboardingFlow => false,

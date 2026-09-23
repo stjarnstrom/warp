@@ -562,27 +562,6 @@ const THEME_CHOOSER_RATIO: f32 = 3.5;
 pub(crate) const TAB_BAR_POSITION_ID: &str = "workspace_view:tab_bar";
 const TEAM_SWITCHER_PILL_POSITION_ID: &str = "workspace_view:team_switcher_pill";
 const TEAM_SWITCHER_DOT_ALPHA: u8 = 204;
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TeamNavigationMode {
-    Hidden,
-    BrowseTeams,
-    TeamSwitcher,
-}
-
-fn team_navigation_mode(
-    has_current_team: bool,
-    has_teams: bool,
-    can_switch_teams: bool,
-    has_joinable_teams: bool,
-) -> TeamNavigationMode {
-    if has_current_team && (can_switch_teams || has_joinable_teams) {
-        TeamNavigationMode::TeamSwitcher
-    } else if !has_teams && has_joinable_teams {
-        TeamNavigationMode::BrowseTeams
-    } else {
-        TeamNavigationMode::Hidden
-    }
-}
 
 /// Save position for the vertical tabs panel.
 /// HOA onboarding callouts anchor relative to this position, so whichever code
@@ -5798,12 +5777,7 @@ impl Workspace {
         let Some(workspace) = user_workspaces.current_workspace() else {
             return;
         };
-        let joinable_team_count = if workspace.is_native_workspaces_enabled() {
-            workspace.joinable_teams().count()
-        } else {
-            0
-        };
-        if !user_workspaces.can_switch_teams() && joinable_team_count == 0 {
+        if !user_workspaces.can_switch_teams() {
             return;
         }
         if user_workspaces.team_for_window(window_id).is_none() {
@@ -5829,19 +5803,6 @@ impl Workspace {
             };
             fields.into_item()
         }));
-        if joinable_team_count > 0 {
-            items.push(MenuItem::Separator);
-            items.push(
-                MenuItemFields::new("Browse teams")
-                    .with_icon(icons::Icon::Search)
-                    .with_right_side_label(
-                        format!("{joinable_team_count} available"),
-                        Properties::default(),
-                    )
-                    .with_on_select_action(WorkspaceAction::BrowseTeams)
-                    .into_item(),
-            );
-        }
         self.team_switcher_menu
             .update(ctx, |menu, ctx| menu.set_items(items, ctx));
         self.show_team_switcher_menu = true;
@@ -5855,47 +5816,23 @@ impl Workspace {
         ctx: &AppContext,
     ) -> Option<Box<dyn Element>> {
         let user_workspaces = UserWorkspaces::as_ref(ctx);
-        let current_team = user_workspaces.team_for_window(self.window_id);
-        let has_joinable_teams = user_workspaces
-            .current_workspace()
-            .is_some_and(|workspace| {
-                workspace.is_native_workspaces_enabled()
-                    && workspace.joinable_teams().next().is_some()
-            });
-        let mode = team_navigation_mode(
-            current_team.is_some(),
-            user_workspaces.has_teams(),
-            user_workspaces.can_switch_teams(),
-            has_joinable_teams,
-        );
+        if !user_workspaces.can_switch_teams() {
+            return None;
+        }
+        let current_team = user_workspaces.team_for_window(self.window_id)?;
         let theme = appearance.theme();
         let text_color = theme.foreground();
         let pill_bg_normal = internal_colors::fg_overlay_1(theme);
         let pill_bg_hover = internal_colors::fg_overlay_2(theme);
-        let (label, dot_color, action) = match mode {
-            TeamNavigationMode::Hidden => return None,
-            TeamNavigationMode::BrowseTeams => (
-                "Browse teams".to_string(),
-                None,
-                WorkspaceAction::BrowseTeams,
-            ),
-            TeamNavigationMode::TeamSwitcher => {
-                let current_team = current_team?;
-                let mut dot_color = current_team
-                    .color
-                    .as_deref()
-                    .and_then(|hex| {
-                        warp_core::ui::color::hex_color::coloru_from_hex_string(hex).ok()
-                    })
-                    .unwrap_or_else(|| internal_colors::neutral_5(theme));
-                dot_color.a = TEAM_SWITCHER_DOT_ALPHA;
-                (
-                    current_team.name.clone(),
-                    Some(dot_color),
-                    WorkspaceAction::ShowTeamSwitcherMenu,
-                )
-            }
-        };
+        let mut dot_color = current_team
+            .color
+            .as_deref()
+            .and_then(|hex| warp_core::ui::color::hex_color::coloru_from_hex_string(hex).ok())
+            .unwrap_or_else(|| internal_colors::neutral_5(theme));
+        dot_color.a = TEAM_SWITCHER_DOT_ALPHA;
+        let label = current_team.name.clone();
+        let dot_color = Some(dot_color);
+        let action = WorkspaceAction::ShowTeamSwitcherMenu;
 
         let pill = Hoverable::new(self.mouse_states.team_switcher_pill.clone(), move |state| {
             let name_text = Text::new_inline(
@@ -17056,32 +16993,6 @@ impl Workspace {
         self.close_all_overlays(ctx);
         self.open_settings_pane(section, Some(search_query), ctx);
     }
-    fn browse_teams(&mut self, ctx: &mut ViewContext<Self>) {
-        let show_join_modal = UserWorkspaces::as_ref(ctx)
-            .team_for_window(self.window_id)
-            .is_some();
-        self.show_settings_with_section(Some(SettingsSection::Teams), ctx);
-        if show_join_modal {
-            self.settings_pane.update(ctx, |view, ctx| {
-                view.open_teams_page_join_modal(ctx);
-            });
-        }
-    }
-
-    /// Opens the team settings page and fills the invite field with the given email. This is used when linking directing to
-    /// settings with the intent of inviting a user.
-    pub fn show_team_settings_page_with_email_invite(
-        &mut self,
-        email_invite: Option<&String>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.show_settings_with_section(Some(SettingsSection::Teams), ctx);
-
-        self.settings_pane.update(ctx, |view, ctx| {
-            view.open_teams_page_email_invite(email_invite, ctx);
-        });
-    }
-
     /// Opens the MCP servers settings page, optionally triggering auto-install of a gallery MCP.
     pub fn open_mcp_servers_page(
         &mut self,
@@ -24054,9 +23965,6 @@ impl TypedActionView for Workspace {
                         );
                     }
                 }
-            }
-            BrowseTeams => {
-                self.browse_teams(ctx);
             }
             ShowTeamSwitcherMenu => {
                 self.show_team_switcher_dropdown(ctx);

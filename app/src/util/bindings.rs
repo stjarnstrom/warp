@@ -103,7 +103,6 @@ pub enum CustomAction {
     CloseCurrentSession,
     CloseWindow,
     SearchDrive,
-    OpenTeamSettings,
     ShareCurrentSession,
     #[cfg(windows)]
     WindowsPaste,
@@ -443,7 +442,6 @@ pub fn custom_tag_to_keystroke(custom: CustomTag) -> Option<Keystroke> {
         | CustomAction::DisableSyncTerminalInputs
         | CustomAction::ToggleSyncAllTerminalInputsInAllTabs
         | CustomAction::SearchDrive
-        | CustomAction::OpenTeamSettings
         | CustomAction::ShareCurrentSession
         | CustomAction::OpenAIFactCollection
         | CustomAction::OpenMCPServerCollection
