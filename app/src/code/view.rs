@@ -381,7 +381,6 @@ impl CodeView {
                         )
                     })
                 },
-                false,
                 ctx,
             );
             if is_local {
@@ -425,7 +424,7 @@ impl CodeView {
         });
 
         ctx.add_typed_action_view(|ctx| {
-            let mut local_editor = LocalCodeEditorView::new(editor, None, false, ctx);
+            let mut local_editor = LocalCodeEditorView::new(editor, ctx);
             if FeatureFlag::HoaCodeReview.is_enabled() {
                 local_editor = local_editor
                     .with_selection_as_context(Box::new(get_context_target_terminal_view));

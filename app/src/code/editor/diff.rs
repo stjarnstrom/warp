@@ -24,6 +24,30 @@ use crate::appearance::Appearance;
 use crate::code::editor::line::EditorLineLocation;
 use crate::code::editor::line_iterator::LineIterator;
 
+/// Visual representation of a single diff hunk.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DiffDelta {
+    pub replacement_line_range: Range<usize>,
+    pub insertion: String,
+}
+
+impl std::fmt::Debug for DiffDelta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if cfg!(debug_assertions) {
+            write!(
+                f,
+                "DiffDelta {{\nreplacement_line_range: {:?},",
+                &self.replacement_line_range
+            )?;
+            f.write_str("\n--insertion--\n")?;
+            f.write_str(&self.insertion)?;
+            f.write_str("\n}")
+        } else {
+            Ok(())
+        }
+    }
+}
+
 const OVERLAY_ALPHA: u8 = 56;
 const INLINE_OVERLAY_ALPHA: u8 = 71;
 

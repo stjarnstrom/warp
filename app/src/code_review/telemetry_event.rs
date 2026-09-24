@@ -299,14 +299,6 @@ pub enum CodeReviewTelemetryEvent {
         /// Number of comments that could not be matched to an exact line and had to fall back.
         fallback_count: usize,
     },
-    /// Emitted after newly-imported comments are relocated against editor lines.
-    CommentsAttached {
-        is_local: Option<bool>,
-        /// Number of non-outdated imported comments after relocation.
-        active_count: usize,
-        /// Number of outdated imported comments after relocation.
-        outdated_count: usize,
-    },
     /// Emitted when a user clicks a git operation button in the code review
     /// header (primary button or dropdown item).
     GitButtonTriggered {
@@ -459,15 +451,6 @@ impl TelemetryEvent for CodeReviewTelemetryEvent {
                 is_local,
                 fallback_count,
             } => Some(json!({ "is_local": is_local, "fallback_count": fallback_count })),
-            CodeReviewTelemetryEvent::CommentsAttached {
-                is_local,
-                active_count,
-                outdated_count,
-            } => Some(json!({
-                "is_local": is_local,
-                "active_count": active_count,
-                "outdated_count": outdated_count,
-            })),
             CodeReviewTelemetryEvent::GitButtonTriggered { is_local, button } => {
                 Some(json!({ "is_local": is_local, "button": button }))
             }
@@ -531,7 +514,6 @@ impl TelemetryEventDesc for CodeReviewTelemetryEventDiscriminants {
             Self::ReviewSubmitted => "CodeReview.ReviewSubmitted",
             Self::CommentListItemClicked => "CodeReview.CommentListItemClicked",
             Self::CommentRelocationFailed => "CodeReview.CommentRelocationFailed",
-            Self::CommentsAttached => "CodeReview.CommentsAttached",
             Self::GitButtonTriggered => "CodeReview.GitButtonTriggered",
             Self::GitDialogCompleted => "CodeReview.GitDialogCompleted",
         }
@@ -561,7 +543,6 @@ impl TelemetryEventDesc for CodeReviewTelemetryEventDiscriminants {
             Self::CommentRelocationFailed => {
                 "Inline code review comment relocation fell back to approximate line"
             }
-            Self::CommentsAttached => "Newly-imported comments relocated against editor lines",
             Self::GitButtonTriggered => {
                 "User clicked a git operation button in the code review header"
             }

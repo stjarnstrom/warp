@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use std::ops::Range;
 use std::path::Path;
 
-use ai::diff_validation::DiffDelta;
 use lazy_static::lazy_static;
 use num_traits::SaturatingSub;
 use pathfinder_geometry::vector::vec2f;
@@ -52,6 +51,7 @@ use warpui::{
     SingletonEntity, View, ViewContext, ViewHandle, WeakViewHandle, WindowId,
 };
 
+use super::diff::DiffDelta;
 use crate::appearance::Appearance;
 use crate::code::editor::EditorReviewComment;
 use crate::code::editor::comment_editor::{CommentEditor, CommentEditorEvent};

@@ -21,7 +21,6 @@ use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 
-use ai::workspace::WorkspaceMetadata as CodeWorkspaceMetadata;
 use chrono::{DateTime, Local, Utc};
 use instant::Instant;
 use lsp::supported_servers::LSPServerType;
@@ -45,7 +44,7 @@ use crate::cloud_object::{
 };
 use crate::drive::folders::CloudFolder;
 use crate::notebooks::CloudNotebook;
-use crate::persisted_workspace::EnablementState;
+use crate::persisted_workspace::{EnablementState, WorkspaceMetadata as CodeWorkspaceMetadata};
 use crate::server::experiments::ServerExperiment;
 use crate::server::ids::SyncId;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;

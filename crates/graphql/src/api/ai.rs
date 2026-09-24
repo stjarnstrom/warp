@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::object::ObjectMetadata;
 use crate::object_permissions::ObjectPermissions;
-use crate::queries::get_conversation_usage::{TokenUsage, ToolUsageMetadata, convert_token_usage};
+use crate::queries::get_conversation_usage::{TokenUsage, ToolUsageMetadata};
 use crate::scalars::Time;
 use crate::schema;
 use crate::user::PublicUserProfile;
@@ -238,26 +238,6 @@ pub struct ConversationUsageMetadata {
     pub tool_usage_metadata: ToolUsageMetadata,
 }
 
-impl From<&ConversationUsageMetadata> for persistence::model::ConversationUsageMetadata {
-    fn from(gql: &ConversationUsageMetadata) -> Self {
-        Self {
-            was_summarized: gql.summarized,
-            context_window_usage: gql.context_window_usage as f32,
-            credits_spent: gql.credits_spent as f32,
-            platform_credits_spent: gql.platform_credits_spent as f32,
-            total_provider_cost_in_cents: gql.total_provider_cost_in_cents.map(|cost| cost as f32),
-            credits_spent_for_last_block: None,
-            // Not yet fetched by this GraphQL query (persisted-history
-            // vertical, milestone 3) -- left `None` rather than fabricated.
-            charged_usage_for_last_block: None,
-            total_charged_usage: None,
-            token_usage: convert_token_usage(&gql.warp_token_usage, &gql.byok_token_usage),
-            tool_usage_metadata: (&gql.tool_usage_metadata).into(),
-            context_window_segments: gql.context_window_segments.iter().map(Into::into).collect(),
-        }
-    }
-}
-
 #[derive(cynic::Enum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContextWindowSegmentType {
     Unknown,
@@ -274,30 +254,3 @@ pub struct ContextWindowSegment {
     pub segment_type: ContextWindowSegmentType,
     pub token_count: i32,
 }
-
-impl From<ContextWindowSegmentType> for persistence::model::ContextWindowSegmentType {
-    fn from(value: ContextWindowSegmentType) -> Self {
-        match value {
-            ContextWindowSegmentType::Unknown => Self::Unknown,
-            ContextWindowSegmentType::SystemPrompt => Self::SystemPrompt,
-            ContextWindowSegmentType::ToolDefinitions => Self::ToolDefinitions,
-            ContextWindowSegmentType::ConversationHistory => Self::ConversationHistory,
-            ContextWindowSegmentType::LatestInput => Self::LatestInput,
-            ContextWindowSegmentType::Images => Self::Images,
-            ContextWindowSegmentType::Other => Self::Other,
-        }
-    }
-}
-
-impl From<&ContextWindowSegment> for persistence::model::ContextWindowSegment {
-    fn from(gql: &ContextWindowSegment) -> Self {
-        Self {
-            segment_type: gql.segment_type.into(),
-            token_count: u32::try_from(gql.token_count).unwrap_or_default(),
-        }
-    }
-}
-
-#[cfg(test)]
-#[path = "ai_tests.rs"]
-mod tests;

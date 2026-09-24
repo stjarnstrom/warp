@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use ai::workspace::WorkspaceMetadata;
 use chrono::Utc;
 use cloud_object_persistence::to_cloud_object_permissions;
 use warp_core::features::FeatureFlag;
@@ -11,6 +10,7 @@ use super::{
     encode_path, get_all_codebase_index_metadata, setup_database, start_writer,
 };
 use crate::cloud_object::{CloudObjectPermissions, Owner};
+use crate::persisted_workspace::WorkspaceMetadata;
 use crate::persistence::model::ObjectPermissions;
 use crate::persistence::{BlockCompleted, ModelEvent, PersistenceScope};
 

@@ -2,7 +2,7 @@
 
 pub(crate) mod comment_editor;
 mod comments;
-pub(super) mod diff;
+pub mod diff;
 mod element;
 pub mod embedded_comment;
 pub mod find;

@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fs::File;
 use std::path::PathBuf;
 
-use ai::workspace::WorkspaceMetadata;
 use csv::Writer;
 use enclose::enclose;
 use itertools::Itertools;
@@ -22,7 +21,7 @@ use crate::auth;
 use crate::auth::AuthStateProvider;
 use crate::default_terminal::DefaultTerminal;
 use crate::features::{FeatureFlag, runtime_flags_menu_items};
-use crate::persisted_workspace::PersistedWorkspace;
+use crate::persisted_workspace::{PersistedWorkspace, WorkspaceMetadata};
 use crate::root_view::OpenLaunchConfigArg;
 use crate::server::telemetry::LaunchConfigUiLocation;
 use crate::settings::{BlockVisibilitySettings, DebugSettings, SelectionSettings};
