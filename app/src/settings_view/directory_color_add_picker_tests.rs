@@ -24,7 +24,8 @@ fn test_union_dedupes_across_sources() {
     let persisted = vec![PathBuf::from("/nonexistent/repo_a")];
     let existing = DirectoryTabColors::default();
 
-    let candidates = compute_candidate_paths(indexed, persisted, &existing, all_exist);
+    let candidates =
+        compute_candidate_paths(indexed.into_iter().chain(persisted), &existing, all_exist);
 
     assert_eq!(candidates, vec![PathBuf::from("/nonexistent/repo_a")]);
 }
@@ -44,7 +45,7 @@ fn test_filters_out_existing_non_suppressed_entries() {
         ),
     ]);
 
-    let candidates = compute_candidate_paths(indexed, Vec::<PathBuf>::new(), &existing, all_exist);
+    let candidates = compute_candidate_paths(indexed, &existing, all_exist);
 
     assert_eq!(candidates, vec![PathBuf::from("/nonexistent/fresh")]);
 }
@@ -57,7 +58,7 @@ fn test_retains_suppressed_entries_as_candidates() {
         DirectoryTabColor::Suppressed,
     )]);
 
-    let candidates = compute_candidate_paths(indexed, Vec::<PathBuf>::new(), &existing, all_exist);
+    let candidates = compute_candidate_paths(indexed, &existing, all_exist);
 
     assert_eq!(
         candidates,
@@ -73,9 +74,8 @@ fn test_non_existent_paths_are_dropped() {
     ];
     let existing = DirectoryTabColors::default();
 
-    let candidates = compute_candidate_paths(indexed, Vec::<PathBuf>::new(), &existing, |p| {
-        p == Path::new("/nonexistent/b")
-    });
+    let candidates =
+        compute_candidate_paths(indexed, &existing, |p| p == Path::new("/nonexistent/b"));
 
     assert_eq!(candidates, vec![PathBuf::from("/nonexistent/b")]);
 }
@@ -89,7 +89,7 @@ fn test_worktree_paths_are_kept() {
     ];
     let existing = DirectoryTabColors::default();
 
-    let candidates = compute_candidate_paths(indexed, Vec::<PathBuf>::new(), &existing, all_exist);
+    let candidates = compute_candidate_paths(indexed, &existing, all_exist);
 
     assert_eq!(
         candidates,
@@ -110,7 +110,8 @@ fn test_results_are_sorted_alphabetically_by_canonical_key() {
     let persisted = vec![PathBuf::from("/nonexistent/mango")];
     let existing = DirectoryTabColors::default();
 
-    let candidates = compute_candidate_paths(indexed, persisted, &existing, all_exist);
+    let candidates =
+        compute_candidate_paths(indexed.into_iter().chain(persisted), &existing, all_exist);
 
     assert_eq!(
         candidates,
@@ -126,12 +127,7 @@ fn test_results_are_sorted_alphabetically_by_canonical_key() {
 fn test_empty_inputs_produce_empty_output() {
     let existing = DirectoryTabColors::default();
 
-    let candidates = compute_candidate_paths(
-        Vec::<PathBuf>::new(),
-        Vec::<PathBuf>::new(),
-        &existing,
-        all_exist,
-    );
+    let candidates = compute_candidate_paths(Vec::<PathBuf>::new(), &existing, all_exist);
 
     assert!(candidates.is_empty());
 }
