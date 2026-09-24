@@ -1,4 +1,4 @@
-use std::slice;
+use std::ffi::CStr;
 
 use cocoa::base::{BOOL, id};
 use cocoa::foundation::NSUInteger;
@@ -34,10 +34,13 @@ impl Keycode {
             }
 
             let key = &*key.cast::<NSString>();
-            let cstr = key.UTF8String() as *const u8;
-            std::str::from_utf8(slice::from_raw_parts(cstr, key.len()))
-                .ok()
-                .map(|s| s.to_string())
+            // `UTF8String` returns null when the key's string can't be encoded (e.g. some dead
+            // keys), and `len` counts UTF-16 units rather than bytes, so read it as a C string.
+            let cstr = key.UTF8String();
+            if cstr.is_null() {
+                return None;
+            }
+            CStr::from_ptr(cstr).to_str().ok().map(str::to_owned)
         }
     }
 
