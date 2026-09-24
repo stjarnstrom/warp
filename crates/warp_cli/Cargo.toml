@@ -7,18 +7,14 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
-chrono.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 cfg-if = { workspace = true }
-humantime.workspace = true
-jaq-all.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 url = { workspace = true, features = ["serde"] }
-uuid = { workspace = true }
 warp_core = { path = "../warp_core" }
-color-print = "0.3"
 warp_util = { path = "../warp_util" }
+color-print = "0.3"
 clap_complete = "4.5.58"
 anyhow.workspace = true
 local_control.workspace = true
@@ -36,5 +32,4 @@ integration_tests = []
 
 
 [dev-dependencies]
-serial_test = "0.8.0"
 warp_core = { workspace = true, features = ["test-util"] }

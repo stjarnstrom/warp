@@ -4,7 +4,7 @@ use warpui::App;
 #[cfg(test)]
 pub fn initialize_settings_for_tests(app: &mut App) {
     use warp_core::execution_mode::ExecutionMode;
-    initialize_settings_for_tests_with_mode(app, ExecutionMode::App, false);
+    initialize_settings_for_tests_with_mode(app, ExecutionMode::App);
 }
 
 #[cfg(test)]
@@ -21,7 +21,6 @@ pub fn initialize_history_persistence_for_tests(app: &mut App) {
 pub fn initialize_settings_for_tests_with_mode(
     app: &mut App,
     mode: warp_core::execution_mode::ExecutionMode,
-    is_sandboxed: bool,
 ) {
     use warp_core::execution_mode::AppExecutionMode;
     use warp_core::semantic_selection::SemanticSelection;
@@ -51,7 +50,7 @@ pub fn initialize_settings_for_tests_with_mode(
     use crate::user_config::WarpConfig;
     use crate::window_settings::WindowSettings;
     use crate::workspace::tab_settings::TabSettings;
-    app.add_singleton_model(|ctx| AppExecutionMode::new(mode, is_sandboxed, ctx));
+    app.add_singleton_model(|_| AppExecutionMode::new(mode));
 
     app.update(init_and_register_user_preferences);
     app.add_singleton_model(|_ctx| SettingsManager::default());

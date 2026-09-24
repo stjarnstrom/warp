@@ -43,10 +43,6 @@ pub struct SettingSchemaEntry {
     /// this setting's value in the settings file. Mirrors `Setting::max_table_depth`.
     /// `None` means unlimited depth.
     pub max_table_depth: Option<u32>,
-
-    /// Returns which surfaces (GUI, TUI, ...) this setting applies to. Used to
-    /// filter which settings are emitted into a given surface's default file.
-    pub surfaces_fn: fn() -> crate::SettingSurfaces,
 }
 
 inventory::collect!(SettingSchemaEntry);
@@ -64,7 +60,6 @@ macro_rules! submit_schema_entry {
         max_table_depth: $mtd:expr,
         default: $default:tt,
         value_type: $type:ty,
-        surface: $surface:expr $(,)?
     ) => {
         $crate::_inventory::submit! {
             $crate::schema::SettingSchemaEntry {
@@ -98,7 +93,6 @@ macro_rules! submit_schema_entry {
                     serde_json::to_string(&file_value).expect("default file value should serialize")
                 },
                 max_table_depth: $mtd,
-                surfaces_fn: || $surface,
             }
         }
     };

@@ -541,11 +541,6 @@ pub fn run() -> Result<()> {
             warp_cli::Command::Completions { shell } => {
                 return warp_cli::completions::generate_to_stdout(*shell);
             }
-            warp_cli::Command::CommandLine(_) => {
-                return Err(anyhow!(
-                    "The Warp command-line SDK is not available in this build"
-                ));
-            }
             warp_cli::Command::DumpDebugInfo => {
                 return debug_dump::run();
             }
@@ -955,9 +950,7 @@ fn run_internal(mut launch_mode: LaunchMode) -> Result<()> {
             .spawn(warp_logging::rotate_log_files())
             .detach();
 
-        ctx.add_singleton_model(|ctx| {
-            AppExecutionMode::new(launch_mode.execution_mode(), false, ctx)
-        });
+        ctx.add_singleton_model(|_| AppExecutionMode::new(launch_mode.execution_mode()));
         #[cfg(feature = "crash_reporting")]
         crate::crash_reporting::set_client_type_tag(launch_mode.execution_mode().client_id());
 

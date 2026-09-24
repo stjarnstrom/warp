@@ -11,7 +11,7 @@ use markdown_parser::parse_markdown;
 use pathfinder_color::ColorU;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
-use warp_cli::agent::Harness;
+use warp_cli::harness::Harness;
 use warp_completer::parsers::simple::top_level_command;
 use warp_core::ui::color::CLAUDE_ORANGE;
 use warp_editor::content::buffer::Buffer;
@@ -161,8 +161,6 @@ pub enum CLIAgent {
     Vibe,
     Antigravity,
     Grok,
-    /// Warp's own headless TUI.
-    WarpTui,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
@@ -186,14 +184,6 @@ impl CLIAgent {
             CLIAgent::Hermes => &["hermes"],
             CLIAgent::Vibe => &["vibe", "vibe-acp"],
             CLIAgent::Antigravity => &["agy"],
-            CLIAgent::WarpTui => &[
-                "warp",
-                "warp-preview",
-                "warp-dev",
-                "warp-tui",
-                "warp-tui-oss",
-                "run-tui",
-            ],
             CLIAgent::Grok => &["grok"],
             CLIAgent::Unknown => &[],
         }
@@ -251,7 +241,6 @@ impl CLIAgent {
             CLIAgent::Vibe => "Mistral Vibe",
             CLIAgent::Antigravity => "Antigravity",
             CLIAgent::Grok => "Grok Build",
-            CLIAgent::WarpTui => "Warp TUI",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -278,7 +267,6 @@ impl CLIAgent {
             CLIAgent::Vibe => None,
             CLIAgent::Antigravity => Some(Icon::AntigravityLogo),
             CLIAgent::Grok => Some(Icon::GrokLogo),
-            CLIAgent::WarpTui => Some(Icon::Warp),
             CLIAgent::Unknown => None,
         }
     }
@@ -309,11 +297,6 @@ impl CLIAgent {
         )
     }
 
-    /// Whether Warp should show its CLI-agent footer for this agent.
-    pub(crate) fn supports_cli_agent_footer(&self) -> bool {
-        !matches!(self, CLIAgent::WarpTui)
-    }
-
     /// Returns the brand color for this CLI agent, or `None` for unknown/custom agents.
     pub fn brand_color(&self) -> Option<ColorU> {
         match self {
@@ -333,7 +316,6 @@ impl CLIAgent {
             CLIAgent::Vibe => Some(MISTRAL_ORANGE),
             CLIAgent::Antigravity => Some(ANTIGRAVITY_COLOR),
             CLIAgent::Grok => Some(GROK_COLOR),
-            CLIAgent::WarpTui => Some(ColorU::black()),
             CLIAgent::Unknown => None,
         }
     }
@@ -610,7 +592,6 @@ impl From<CLIAgent> for CLIAgentType {
             CLIAgent::Vibe => CLIAgentType::Vibe,
             CLIAgent::Antigravity => CLIAgentType::Antigravity,
             CLIAgent::Grok => CLIAgentType::Grok,
-            CLIAgent::WarpTui => CLIAgentType::WarpTui,
             CLIAgent::Unknown => CLIAgentType::Unknown,
         }
     }

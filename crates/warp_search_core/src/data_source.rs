@@ -40,10 +40,6 @@ lazy_static! {
         primary_text: "sessions:",
         aliases: vec![]
     };
-    static ref CONVERSATIONS_FILTER_ATOM: FilterAtom = FilterAtom {
-        primary_text: "conversations:",
-        aliases: vec![]
-    };
     static ref LAUNCH_CONFIG_FILTER_ATOM: FilterAtom = FilterAtom {
         primary_text: "launch_configs:",
         aliases: vec![]
@@ -140,9 +136,6 @@ pub enum QueryFilter {
     /// Filter results for open tabs.
     Tabs,
 
-    /// Filter results for all conversations.
-    Conversations,
-
     /// Filter results for launch configurations.
     LaunchConfigurations,
 
@@ -198,7 +191,6 @@ impl QueryFilter {
             QueryFilter::Actions => "Search actions",
             QueryFilter::Sessions => "Search sessions",
             QueryFilter::Tabs => "Search tabs",
-            QueryFilter::Conversations => "Search conversations",
             QueryFilter::LaunchConfigurations => "Search launch configurations",
             QueryFilter::PromptHistory => "Search prompt history",
             QueryFilter::Files => "Search files",
@@ -226,7 +218,6 @@ impl QueryFilter {
             QueryFilter::Actions => &ACTIONS_FILTER_ATOM,
             QueryFilter::Sessions => &SESSIONS_FILTER_ATOM,
             QueryFilter::Tabs => &NO_FILTER_ATOM,
-            QueryFilter::Conversations => &CONVERSATIONS_FILTER_ATOM,
             QueryFilter::LaunchConfigurations => &LAUNCH_CONFIG_FILTER_ATOM,
             QueryFilter::PromptHistory => &AI_PROMPTS_FILTER_ATOM,
             QueryFilter::Files => &FILES_FILTER_ATOM,
@@ -252,7 +243,6 @@ impl QueryFilter {
             QueryFilter::Actions => "actions",
             QueryFilter::Sessions => "sessions",
             QueryFilter::Tabs => "tabs",
-            QueryFilter::Conversations => "conversations",
             QueryFilter::LaunchConfigurations => "launch configurations",
             QueryFilter::PromptHistory => "prompt history",
             QueryFilter::Files => "files",
@@ -284,7 +274,6 @@ impl QueryFilter {
             QueryFilter::Actions => None,
             QueryFilter::Sessions => Some("bundled/svg/terminal-input.svg"),
             QueryFilter::Tabs => Some("bundled/svg/terminal-input.svg"),
-            QueryFilter::Conversations => Some("bundled/svg/conversation.svg"),
             QueryFilter::LaunchConfigurations => Some("bundled/svg/navigation.svg"),
             QueryFilter::PromptHistory => Some(Icon::Prompt.into()),
             QueryFilter::Files => Some("bundled/svg/completion-file.svg"),

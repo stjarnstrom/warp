@@ -775,11 +775,6 @@ impl ServerModel {
                     Some(host_scoped_request::Message::GitCreatePr(m)) => {
                         self.handle_create_pr(m, &request_id, conn_id, ctx)
                     }
-                    Some(host_scoped_request::Message::GitGenerateCommitMessage(_)) => {
-                        invalid_request_response(
-                            "commit message generation is not supported".to_string(),
-                        )
-                    }
                     Some(host_scoped_request::Message::GitGetCommittedBranchFiles(m)) => {
                         self.handle_get_committed_branch_files(m, &request_id, conn_id, ctx)
                     }

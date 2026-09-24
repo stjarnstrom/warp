@@ -128,7 +128,6 @@ fn rich_input_submit_strategy(agent: CLIAgent) -> RichInputSubmitStrategy {
         | CLIAgent::Goose
         | CLIAgent::Vibe
         | CLIAgent::Antigravity
-        | CLIAgent::WarpTui
         | CLIAgent::Unknown => RichInputSubmitStrategy::Inline,
     }
 }
@@ -206,10 +205,7 @@ impl TerminalView {
             .session(self.view_id)
             .map(|s| s.agent);
 
-        cli_agent.is_some_and(|cli_agent| {
-            cli_agent.supports_cli_agent_footer()
-                && *CLIAgentSettings::as_ref(app).should_render_cli_agent_footer
-        })
+        cli_agent.is_some() && *CLIAgentSettings::as_ref(app).should_render_cli_agent_footer
     }
 
     /// Returns the detected CLI agent for the active block's command, if any.
@@ -255,25 +251,6 @@ impl TerminalView {
             let prefix = command.split_whitespace().next().map(str::to_owned);
             (agent, prefix)
         })
-    }
-
-    /// Returns whether the active long-running command in this terminal is
-    /// Warp's own headless TUI (`warp_tui`).
-    pub(super) fn is_running_warp_tui(&self, model: &TerminalModel, ctx: &AppContext) -> bool {
-        let active_block = model.block_list().active_block();
-        if !active_block.is_active_and_long_running() {
-            return false;
-        }
-
-        let command = active_block.command_with_secrets_obfuscated(false);
-        let escape_char = self.active_block_session_id().and_then(|session_id| {
-            self.sessions.read(ctx, |sessions, _| {
-                sessions
-                    .get(session_id)
-                    .map(|session| session.shell_family().escape_char())
-            })
-        });
-        CLIAgent::WarpTui.matches_command(&command, escape_char)
     }
 
     pub(super) fn maybe_show_use_agent_footer_in_blocklist(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1015,10 +992,7 @@ impl View for UseAgentToolbar {
             return Empty::new().finish();
         }
 
-        let Some(cli_agent) = self.cli_agent(app) else {
-            return Empty::new().finish();
-        };
-        if !cli_agent.supports_cli_agent_footer() || !FeatureFlag::CLIAgentRichInput.is_enabled() {
+        if self.cli_agent(app).is_none() || !FeatureFlag::CLIAgentRichInput.is_enabled() {
             return Empty::new().finish();
         }
 

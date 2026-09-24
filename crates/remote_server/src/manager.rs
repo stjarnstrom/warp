@@ -137,7 +137,6 @@ pub enum RemoteServerOperation {
     CommitChain,
     Push,
     CreatePr,
-    GenerateCommitMessage,
 }
 
 /// Successful result of a commit chain: the final delta plus an optional PR.
@@ -576,13 +575,6 @@ pub enum RemoteServerManagerEvent {
         repo_path: StandardizedPath,
         result: Result<PrInfo, String>,
     },
-    /// Response to a commit-message generation request (AI runs on the
-    /// daemon). `Ok` carries the generated message; `Err` the error string.
-    GenerateCommitMessageResponse {
-        host_id: HostId,
-        repo_path: StandardizedPath,
-        result: Result<String, String>,
-    },
     /// Response to a committed-branch-files request (backs the Create PR
     /// dialog's Changes box). Carries the committed per-file entries
     /// (`merge_base(HEAD, main)..HEAD`) on success.
@@ -713,7 +705,6 @@ impl RemoteServerManagerEvent {
             | RemoteServerManagerEvent::CommitChainResponse { .. }
             | RemoteServerManagerEvent::GitPushResponse { .. }
             | RemoteServerManagerEvent::CreatePrResponse { .. }
-            | RemoteServerManagerEvent::GenerateCommitMessageResponse { .. }
             | RemoteServerManagerEvent::GetCommittedBranchFilesResponse { .. }
             | RemoteServerManagerEvent::GitStatusPushReceived { .. }
             | RemoteServerManagerEvent::GitHubPrInfoPushReceived { .. }
@@ -1224,45 +1215,6 @@ impl HostRequestHandle {
             other => {
                 log::error!("Unexpected response variant for GetCommittedBranchFiles: {other:?}");
                 report_error!("Unexpected response variant for GetCommittedBranchFiles");
-                Err(HostRequestError::UnexpectedResponse)
-            }
-        }
-    }
-
-    /// Generates a commit message via AI on the remote host (the daemon
-    /// computes the diff locally and calls the Warp content endpoint).
-    pub async fn git_generate_commit_message(
-        &self,
-        repo_path: &StandardizedPath,
-        include_unstaged: bool,
-        branch_name: String,
-    ) -> Result<String, HostRequestError> {
-        let msg = self
-            .send(
-                crate::proto::host_scoped_request::Message::GitGenerateCommitMessage(
-                    crate::proto::GitGenerateCommitMessageRequest {
-                        repo_path: repo_path.to_string(),
-                        include_unstaged,
-                        branch_name,
-                    },
-                ),
-            )
-            .await?;
-        match msg.message {
-            Some(crate::proto::server_message::Message::GitGenerateCommitMessageResponse(resp)) => {
-                match resp.result {
-                    Some(crate::proto::git_generate_commit_message_response::Result::Message(
-                        m,
-                    )) => Ok(m),
-                    Some(crate::proto::git_generate_commit_message_response::Result::Error(e)) => {
-                        Err(HostRequestError::OperationFailed(e.message))
-                    }
-                    None => Err(HostRequestError::UnexpectedResponse),
-                }
-            }
-            other => {
-                log::error!("Unexpected response variant for GenerateCommitMessage: {other:?}");
-                report_error!("Unexpected response variant for GenerateCommitMessage");
                 Err(HostRequestError::UnexpectedResponse)
             }
         }
@@ -3311,40 +3263,6 @@ impl RemoteServerManager {
                 let _ = spawner
                     .spawn(move |_me, ctx| {
                         ctx.emit(RemoteServerManagerEvent::CreatePrResponse {
-                            host_id: host_id_for_event,
-                            repo_path: repo_path_for_event,
-                            result,
-                        });
-                    })
-                    .await;
-            })
-            .detach();
-    }
-
-    /// Generates a commit message via AI on the remote host and emits
-    /// `GenerateCommitMessageResponse` with the result.
-    pub fn git_generate_commit_message(
-        &mut self,
-        host_id: HostId,
-        repo_path: StandardizedPath,
-        include_unstaged: bool,
-        branch_name: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let handle = self.host_request_handle(&host_id);
-
-        let repo_path_for_event = repo_path.clone();
-        let host_id_for_event = host_id.clone();
-        let spawner = self.spawner.clone();
-        ctx.background_executor()
-            .spawn(async move {
-                let result = handle
-                    .git_generate_commit_message(&repo_path, include_unstaged, branch_name)
-                    .await
-                    .map_err(|e| e.to_string());
-                let _ = spawner
-                    .spawn(move |_me, ctx| {
-                        ctx.emit(RemoteServerManagerEvent::GenerateCommitMessageResponse {
                             host_id: host_id_for_event,
                             repo_path: repo_path_for_event,
                             result,

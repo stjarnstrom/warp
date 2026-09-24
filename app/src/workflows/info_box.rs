@@ -7,9 +7,8 @@ use warp_errors::report_error;
 use warpui::color::ColorU;
 use warpui::elements::{
     self, Align, Border, Clipped, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
-    Container, CornerRadius, CrossAxisAlignment, DropShadow, Flex, Highlight, Icon,
-    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Rect, Shrinkable,
-    Stack, Text,
+    Container, CornerRadius, CrossAxisAlignment, DropShadow, Flex, Highlight, MainAxisAlignment,
+    MainAxisSize, MouseStateHandle, ParentElement, Radius, Rect, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::geometry::vector::Vector2F;
@@ -695,9 +694,8 @@ impl WorkflowsMoreInfoView {
 
         let mut children = vec![workflow_container];
 
-        if self.workflow.should_show_env_var_selection()
-            && let Some(environment_variables_selection) =
-                self.render_environment_variables_selection(appearance, app)
+        if let Some(environment_variables_selection) =
+            self.render_environment_variables_selection(appearance, app)
         {
             children.push(Clipped::new(environment_variables_selection).finish());
         }
@@ -831,77 +829,26 @@ impl WorkflowsMoreInfoView {
         wrap_text: WrapText,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        match &self.workflow {
-            WorkflowType::AIGenerated { workflow, .. } => {
-                let icon = Icon::new(
-                    icons::Icon::AiAssistant.into(),
+        appearance
+            .ui_builder()
+            .wrappable_text(
+                self.workflow.as_workflow().name().to_owned(),
+                matches!(wrap_text, WrapText::Yes),
+            )
+            .with_style(UiComponentStyles {
+                font_family_id: Some(appearance.ui_font_family()),
+                font_color: Some(
                     appearance
                         .theme()
-                        .main_text_color(appearance.theme().background()),
-                )
-                .finish();
-
-                let ai_icon = Container::new(
-                    ConstrainedBox::new(icon)
-                        .with_width(16.)
-                        .with_height(16.)
-                        .finish(),
-                )
-                .with_margin_right(8.)
-                .finish();
-
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_children([
-                        ai_icon,
-                        appearance
-                            .ui_builder()
-                            .wrappable_text(
-                                workflow.name().to_owned(),
-                                matches!(wrap_text, WrapText::Yes),
-                            )
-                            .with_style(UiComponentStyles {
-                                font_family_id: Some(appearance.ui_font_family()),
-                                font_color: Some(
-                                    appearance
-                                        .theme()
-                                        .main_text_color(appearance.theme().background())
-                                        .into(),
-                                ),
-                                font_size: Some(
-                                    appearance.monospace_font_size() * TITLE_FONT_SIZE_SCALE_FACTOR,
-                                ),
-                                font_weight: Some(Weight::Bold),
-                                ..Default::default()
-                            })
-                            .build()
-                            .finish(),
-                    ])
-                    .finish()
-            }
-            _ => appearance
-                .ui_builder()
-                .wrappable_text(
-                    self.workflow.as_workflow().name().to_owned(),
-                    matches!(wrap_text, WrapText::Yes),
-                )
-                .with_style(UiComponentStyles {
-                    font_family_id: Some(appearance.ui_font_family()),
-                    font_color: Some(
-                        appearance
-                            .theme()
-                            .main_text_color(appearance.theme().background())
-                            .into(),
-                    ),
-                    font_size: Some(
-                        appearance.monospace_font_size() * TITLE_FONT_SIZE_SCALE_FACTOR,
-                    ),
-                    font_weight: Some(Weight::Bold),
-                    ..Default::default()
-                })
-                .build()
-                .finish(),
-        }
+                        .main_text_color(appearance.theme().background())
+                        .into(),
+                ),
+                font_size: Some(appearance.monospace_font_size() * TITLE_FONT_SIZE_SCALE_FACTOR),
+                font_weight: Some(Weight::Bold),
+                ..Default::default()
+            })
+            .build()
+            .finish()
     }
 
     fn render_workflow_source(

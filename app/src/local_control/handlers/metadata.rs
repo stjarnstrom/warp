@@ -132,7 +132,6 @@ pub(crate) enum SurfaceDestination {
     ThemePicker,
     Keybindings,
     ResourceCenter,
-    AiAssistant,
     CodeReview,
     ProjectExplorer,
     GlobalSearch,
@@ -151,7 +150,6 @@ impl SurfaceDestination {
         Self::ThemePicker,
         Self::Keybindings,
         Self::ResourceCenter,
-        Self::AiAssistant,
         Self::CodeReview,
         Self::ProjectExplorer,
         Self::GlobalSearch,
@@ -170,7 +168,6 @@ impl SurfaceDestination {
             Self::ThemePicker => "theme_picker",
             Self::Keybindings => "keybindings",
             Self::ResourceCenter => "resource_center",
-            Self::AiAssistant => "ai_assistant",
             Self::CodeReview => "code_review",
             Self::ProjectExplorer => "project_explorer",
             Self::GlobalSearch => "global_search",
@@ -305,7 +302,6 @@ pub(crate) fn surface_unavailable_reason(
         | SurfaceDestination::ThemePicker
         | SurfaceDestination::Keybindings
         | SurfaceDestination::ResourceCenter => None,
-        SurfaceDestination::AiAssistant => Some("AI features are unavailable"),
         SurfaceDestination::CodeReview | SurfaceDestination::RightPanel
             if !cfg!(feature = "local_fs") =>
         {

@@ -320,6 +320,44 @@ cloud_action_confirmation_dialog}`. `folders` is a cloud object type: goes with 
 - **protoc still required**: `crates/remote_server/build.rs` uses prost-build. Earlier claim was wrong.
 - Kept for Drive/account slice: graphql AI types (server schema union, managed_secrets harness),
   `ai_execution_profile` cloud object, `notebook.ai_document_id`, FeatureFlags full_source_code_embedding etc.
-- Remaining item-1 follow-ups: ExecutionMode::Tui, CLIAgent::WarpTui, release-tui, warp_cli CliCommand/AiAssistant,
+- Item-1 follow-ups (completed in the entry below): ExecutionMode::Tui, CLIAgent::WarpTui, release-tui, warp_cli CliCommand/AiAssistant,
   WorkflowType::AIGenerated, QueryFilter::Conversations, git_generate_commit_message, TerminalAgentText.conversation_*,
   SettingsMode/SettingSurfaces, is_sandboxed, wasm crate::ai refs.
+
+
+## Item-1 follow-ups — Remove remaining AI and TUI scaffolding (2026-09-24)
+
+- Removed `ExecutionMode::Tui`, `AppExecutionMode::is_sandboxed` and unused AI capability methods;
+  `CLIAgent::WarpTui`, its listeners/tests and nested-TUI input/footer exceptions. Other CLI-agent
+  detection, rich input, status, and code-review destinations remain.
+- Removed `SettingsMode` / `SettingSurfaces`, per-setting `surface:` declarations, schema surface
+  annotations, TUI config paths/watchers, and the redundant cloud-sync surface switch. GUI config
+  paths, native-store migration, and settings sync behavior remain. The default-settings generator
+  no longer accepts `--surface`.
+- Removed Warp/Oz `CliCommand` / `Command::CommandLine`, their command modules and parser tests.
+  Desktop URLs, worker subprocesses, completions, settings-schema output, and `warpctrl` remain.
+  Shared `Harness` and `OutputFormat` moved to small modules in `warp_cli`; cloud-object harness
+  serialization remains for the account/Drive slice. Removed `surface.ai_assistant.toggle` from
+  the CLI, action catalog, bridge and surface metadata.
+- Removed `WorkflowType::AIGenerated`, `QueryFilter::Conversations`, unused Warp-conversation tab
+  title fields/fallbacks, and WASM transcript details/tests that referenced deleted `app::ai`.
+  This does not restore the unsupported WASM build.
+- Removed the remote commit-message-generation RPC end to end; request field 18 and response field
+  31 (and names) are reserved. Manual git commit/push/PR and editor operations remain.
+- Removed `release-tui` profiles and TUI branches from all three platform bundlers; removed the six
+  TUI build/release jobs and TUI release-result/changelog plumbing. Surviving build/release jobs are
+  unchanged. Existing standalone CLI packaging remains outside this TUI packaging cleanup.
+- Validation: workspace/all-targets/gui check clean. Nextest exercised 2,821 tests (5 skipped);
+  fixed the local-control catalog count and four cloud-sync fixtures that used random client IDs
+  despite fixed mock response IDs. All affected CLI/local-control tests and all 17 cloud-sync tests
+  pass on rerun. Targeted all-targets Clippy passes with `-D warnings`;
+  `cargo check -p integration --all-targets` passes. Finished with `./script/format`;
+  `git diff --check` is clean.
+- Release YAML parses with all `needs` resolved; a semantic comparison confirms that surviving jobs
+  are unchanged except result collection and changelog generation. macOS/Linux bundlers pass `bash -n`.
+- `./script/run --dont-open` builds and bundles successfully on macOS. Launched the rebuilt app
+  without a panic and visually checked the terminal, file tree, code-review diff panel, and rendered
+  Markdown viewer. Editor save and live CLI-agent/Conn sessions were not exercised. `crates/warpui`
+  is untouched.
+- Validation above was local; no cloud runners were used. Linux/Windows runtime packaging and
+  WASM are not verified.

@@ -33,7 +33,7 @@ pub struct UpdateManagerStruct {
 }
 
 pub fn initialize_app(app: &mut App) {
-    app.add_singleton_model(|ctx| AppExecutionMode::new(ExecutionMode::App, false, ctx));
+    app.add_singleton_model(|_| AppExecutionMode::new(ExecutionMode::App));
 
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SettingsManager::default());

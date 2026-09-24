@@ -332,7 +332,6 @@ pub enum CLIAgentType {
     Antigravity,
     Grok,
     /// Warp's own headless TUI, targeted by the code review panel as a CLI-agent-equivalent destination.
-    WarpTui,
     Unknown,
 }
 

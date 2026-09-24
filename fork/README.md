@@ -10,11 +10,14 @@ in the same commit as the change they describe.
 
 ## Status (2026-09-24)
 
-Tree at `5bfd16338` "Remove the ai crate and the multi-agent API", pushed. The app has not been
-launched since; first check code review comments and file edit/save by hand.
+AI removal base: `5bfd16338` "Remove the ai crate and the multi-agent API".
+
+Item-1 follow-up cleanup is complete: TUI execution/packaging, obsolete
+Warp/Oz CLI commands, settings surfaces, AI workflow/search/tab remnants, commit-message RPC, and
+WASM AI references. Workspace/all-targets check, targeted tests, Clippy, and macOS build/launch
+verification pass. See the final entry in `deletion-log.md` for coverage and platform limits.
 
 Candidate next slices (the user picks):
-- AI follow-ups (end of `deletion-log.md`)
 - Drive remnants ("Still standing in this slice")
 - Account gate, then `server` / `auth` / `cloud_object`
 - Conn slice 2 (`conn-plan.md` §7): SQLite persistence, cross-window overview, read-watermark
