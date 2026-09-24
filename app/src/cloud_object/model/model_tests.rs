@@ -4,12 +4,12 @@ use settings::{RespectUserSyncSetting, SyncToCloud};
 use warpui::{App, ModelHandle};
 
 use super::*;
+use crate::cloud_object::folder::{CloudFolderModel, FolderId};
 use crate::cloud_object::model::generic_string_model::GenericStringModel;
 use crate::cloud_object::{
     CloudObjectMetadata, CloudObjectPermissions, CloudObjectStatuses, CloudObjectSyncStatus,
     NumInFlightRequests, ObjectIdType, Owner, ServerMetadata, ServerPermissions,
 };
-use crate::drive::folders::{CloudFolderModel, FolderId};
 use crate::notebooks::{CloudNotebookModel, NotebookId};
 use crate::server::ids::{ServerId, ServerIdAndType};
 use crate::settings::Preference;

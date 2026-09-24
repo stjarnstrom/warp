@@ -102,6 +102,7 @@ use warp::integration_testing::find::{Find, FindWithinBlockState};
 use warp::integration_testing::input::{
     input_contains_string, input_is_empty, open_input_context_menu,
 };
+use warp::integration_testing::left_panel::assert_is_left_panel_open;
 use warp::integration_testing::navigation_palette::{
     RecentSession, check_recency, navigate_to_other_session_step, open_navigation_palette_step,
 };
@@ -138,7 +139,6 @@ use warp::integration_testing::view_getters::{
     single_input_suggestions_view_for_tab, single_input_view_for_tab,
     single_terminal_pane_view_for_tab, single_terminal_view, single_terminal_view_for_tab,
 };
-use warp::integration_testing::warp_drive::assert_is_left_panel_open;
 use warp::integration_testing::window::{
     add_and_save_window, add_window, add_window_and_check_bounds, close_window,
     save_active_window_id,
@@ -570,7 +570,7 @@ pub fn test_suggestions_menu_positioning() -> Builder {
                 ),
         )
         .with_step(
-            new_step_with_default_assertions("Open Warp Drive")
+            new_step_with_default_assertions("Open left panel")
                 .with_click_on_saved_position("workspace:toggle_left_panel")
                 .add_assertion(assert_is_left_panel_open()),
         )

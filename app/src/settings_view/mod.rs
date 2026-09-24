@@ -1446,8 +1446,8 @@ impl SettingsView {
         event: &MainSettingsPageEvent,
         ctx: &mut ViewContext<Self>,
     ) {
-        if let MainSettingsPageEvent::CheckForUpdate = event {
-            ctx.emit(SettingsViewEvent::CheckForUpdate)
+        match event {
+            MainSettingsPageEvent::CheckForUpdate => ctx.emit(SettingsViewEvent::CheckForUpdate),
         }
     }
 

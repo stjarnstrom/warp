@@ -4,13 +4,7 @@ use handlebars::parser::{ParsedArgumentResult, ParsedArgumentsIterator};
 
 use crate::workflows::workflow::Argument;
 
-/// Represents arguments for workflow to be viewed and edited in ArgumentsEditorView.
-///
-/// ArgumentsState contains the current state of arguments, and a constructor `::from_string`
-/// which will use the remaining ArgumentsState data to connect at some state "k" to next
-/// state "k + 1", generated from the next edit. This is necessary to identify how arguments shift
-/// and retain existing description and default values; previous arguments are matched either by a
-/// query by word index or query by name. (See constructor method for further discusssion.)
+/// Tracks command argument metadata as the command text changes.
 #[derive(Debug, Default)]
 pub struct ArgumentsState {
     pub arguments: Vec<Argument>,
@@ -26,30 +20,8 @@ pub struct ArgumentsState {
 }
 
 impl ArgumentsState {
-    /// The `::from_string` constructor connects the previous arguments state to the new state and
-    /// to retain some descriptions and default values. This is needed because the command string is
-    /// regex-ed every edit in `ArgumentsEditorView.update_command`; with default `None` values,
-    /// the descriptions and default values are cleared.
-    ///
-    /// Reasonably, a user expects data from arguments that they did not directly edit to remain intact.
-    /// This approach improves handling by indexing each word (as defined by whitespace, `{{`, or `}}`).
-    /// If the number of words is the same, an argument in the new formed string will query for an argument
-    /// with the same word index in the previous state. If the number of words is not the same, an argument
-    /// in the new formed string will query for an argument with the same argument name in the previous state.
-    /// In both cases, if an argument is found, the new argument will retain the previous description and
-    /// default value. Otherwise, both values default to None.
-    ///
-    /// Arguments are shown, if valid (see `ParsedArgumentsIterator`), in order of first occurrence with no duplicates.
-    /// The word index points to the first occurrence of the argument. For insertion/deletion (+/- number of words),
-    /// arguments' descriptions and default values will re-arrange with argument names. For edits (no word delta),
-    /// the modified occurrence will retain its description and default value, its former duplicates will not.
-    ///
-    /// eg. Given workflow `ls {{argument_1}} {{argument_2}} {{argument_3}}` which is then edited to
-    /// `ls {{argument_1}} {{argument_1}} {{argument_2}} {{argument_3}}`. The number of words has changed
-    /// so we connect arguments to previous values using a by_name search.
-    ///
-    /// If the edited result is instead `ls {{argument_10}} {{argument_2}} {{argument_3}}`, the number of
-    /// words did not change, and so we use a by_word_index search (which will argument_10 to argument_1, etc.).
+    /// Retains argument metadata by word position when the word count is unchanged, or by name
+    /// after insertions and deletions. Arguments are ordered by their first occurrence.
     pub fn for_command_workflow(prev_state: &ArgumentsState, input_string: String) -> Self {
         let mut arg_name_word_index_pairs: Vec<(String, usize)> = Vec::new();
         let mut arg_names = HashSet::new();

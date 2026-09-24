@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use derivative::Derivative;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -18,7 +19,6 @@ use self::model::actions::ObjectActions;
 use self::model::persistence::CloudModel;
 use crate::auth::UserUid;
 use crate::channel::ChannelState;
-use crate::drive::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId};
@@ -30,6 +30,7 @@ use crate::workspaces::user_profiles::UserProfiles;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub mod breadcrumbs;
+pub mod folder;
 pub mod model;
 pub mod toast_message;
 
@@ -352,9 +353,6 @@ pub trait CloudObject: Debug {
             .content_sync_status = pending_content_changes_status;
     }
 
-    /// Whether or not this object can be exported.
-    fn can_export(&self) -> bool;
-
     /// Returns this object as a ref to the Any type.  Needed for typecasts.
     fn as_any(&self) -> &dyn Any;
 
@@ -510,11 +508,6 @@ pub trait CloudModelType: Debug + Clone + Send + Sync {
     /// For other types we typically just want to replace the local object with the server
     /// revision, which doesn't go through this code path.
     fn should_update_after_server_conflict(&self) -> bool;
-
-    /// Whether this model type can be exported.
-    fn can_export(&self) -> bool {
-        false
-    }
 }
 
 lazy_static! {
@@ -708,10 +701,6 @@ where
 
     fn renders_in_warp_drive(&self) -> bool {
         self.model().renders_in_warp_drive()
-    }
-
-    fn can_export(&self) -> bool {
-        self.model().can_export()
     }
 
     fn as_any(&self) -> &dyn Any {

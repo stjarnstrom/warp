@@ -140,10 +140,6 @@ impl StringModel for EnvVarCollection {
         true
     }
 
-    fn can_export(&self) -> bool {
-        true
-    }
-
     fn supports_linking(&self) -> bool {
         true
     }

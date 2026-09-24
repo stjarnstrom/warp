@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use cloud_objects::drive::CloudObjectTypeAndId;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use session_sharing_protocol::common::{ParticipantId, Role, SessionId as SharedSessionId};
@@ -21,7 +22,6 @@ use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::{GenericStringObjectFormat, Space};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
-use crate::drive::CloudObjectTypeAndId;
 use crate::features::FeatureFlag;
 use crate::launch_configs::save_modal::SaveState;
 use crate::notebooks::telemetry::NotebookTelemetryAction;
@@ -153,22 +153,6 @@ impl From<Space> for TelemetrySpace {
             Space::Shared => Self::Shared,
         }
     }
-}
-
-/// Common metadata to include in all Warp Drive telemetry events that act on a specific object.
-/// Events that only apply to a single object type may use specific metadata like [`WorkflowTelemetryMetadata`],
-/// [`NotebookTelemetryMetadata`], or [`EnvVarTelemetryMetadata`] instead.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CloudObjectTelemetryMetadata {
-    pub object_type: TelemetryCloudObjectType,
-    /// The server UID of the object. This only exists for objects that have been synced to the
-    /// server.
-    pub object_uid: Option<ServerId>,
-    /// The space through which the user has access to the object.
-    pub space: Option<TelemetrySpace>,
-    /// If the object is owned by a team, this is the owning team's UID. For shared objects, the
-    /// user might not be on the team.
-    pub team_uid: Option<ServerId>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -365,13 +349,6 @@ pub enum PluginChipTelemetryAction {
     InstallInstructions,
     /// User clicked the manual update instructions button.
     UpdateInstructions,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum WarpDriveSource {
-    Legacy,
-    LeftPanelToolbelt,
-    ForceOpened,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1178,10 +1155,6 @@ pub enum TelemetryEvent {
     AnonymousUserExpirationLockout,
     AnonymousUserLinkedFromBrowser,
     NeedsReauth,
-    WarpDriveOpened {
-        source: WarpDriveSource,
-        is_code_mode_v2: bool,
-    },
     // Toggled the legacy Warp AI side panel.
     ToggleWarpAI {
         opened: bool,
@@ -1208,8 +1181,6 @@ pub enum TelemetryEvent {
         max_bytes_per_second: usize,
     },
     DuplicateObject(TelemetryCloudObjectType),
-    ExportObject(TelemetryCloudObjectType),
-    DriveSharingOnboardingBlockShown,
     CommandFileRun,
     PageUpDownInEditorPressed {
         // Key pressed when nothing is in the editor (no-op)
@@ -1246,9 +1217,6 @@ pub enum TelemetryEvent {
     },
     WebSessionOpenedOnDesktop {
         source: SharedSessionActionSource,
-    },
-    WebCloudObjectOpenedOnDesktop {
-        object_metadata: CloudObjectTelemetryMetadata,
     },
     UnsupportedShell {
         shell: String,
@@ -2169,9 +2137,6 @@ impl TelemetryEvent {
             TelemetryEvent::DuplicateObject(object_type) => {
                 Some(json!({ "object_type": object_type }))
             }
-            TelemetryEvent::ExportObject(object_type) => {
-                Some(json!({ "object_type": object_type }))
-            }
             TelemetryEvent::GenerateBlockSharingLink {
                 share_type,
                 display_setting,
@@ -2242,9 +2207,6 @@ impl TelemetryEvent {
             TelemetryEvent::WebSessionOpenedOnDesktop { source } => {
                 Some(json!({ "source": source}))
             }
-            TelemetryEvent::WebCloudObjectOpenedOnDesktop { object_metadata } => Some(json!({
-                "object": object_metadata,
-            })),
             TelemetryEvent::ToggleSnackbarInActivePane { show_snackbar } => {
                 Some(json!({ "show_snackbar": show_snackbar }))
             }
@@ -2545,7 +2507,6 @@ impl TelemetryEvent {
             )
             | TelemetryEvent::SettingsImportResetButtonClicked
             | TelemetryEvent::ITermMultipleHotkeys
-            | TelemetryEvent::DriveSharingOnboardingBlockShown
             | TelemetryEvent::SettingsImportInitiated
             | TelemetryEvent::FileTreeItemCreated
             | TelemetryEvent::ConversationListItemDeleted
@@ -2755,13 +2716,6 @@ impl TelemetryEvent {
             })),
             TelemetryEvent::OpenRepoFolderSubmitted { is_ftux } => Some(json!({
                 "is_ftux": is_ftux,
-            })),
-            TelemetryEvent::WarpDriveOpened {
-                source,
-                is_code_mode_v2,
-            } => Some(json!({
-                "source": source,
-                "is_code_mode_v2": is_code_mode_v2,
             })),
             TelemetryEvent::DetectedIsolationPlatform { platform } => Some(json!({
                 "platform": platform,
@@ -3037,7 +2991,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AnonymousUserExpirationLockout
             | TelemetryEvent::AnonymousUserLinkedFromBrowser
             | TelemetryEvent::NeedsReauth
-            | TelemetryEvent::WarpDriveOpened { .. }
             | TelemetryEvent::ToggleWarpAI { .. }
             | TelemetryEvent::ToggleSecretRedaction { .. }
             | TelemetryEvent::CustomSecretRegexAdded
@@ -3048,8 +3001,6 @@ impl TelemetryEvent {
             | TelemetryEvent::UndoClose { .. }
             | TelemetryEvent::PtyThroughput { .. }
             | TelemetryEvent::DuplicateObject(_)
-            | TelemetryEvent::ExportObject(_)
-            | TelemetryEvent::DriveSharingOnboardingBlockShown
             | TelemetryEvent::CommandFileRun
             | TelemetryEvent::PageUpDownInEditorPressed { .. }
             | TelemetryEvent::StartedSharingCurrentSession { .. }
@@ -3060,7 +3011,6 @@ impl TelemetryEvent {
             | TelemetryEvent::JumpToSharedSessionParticipant { .. }
             | TelemetryEvent::CopiedSharedSessionLink { .. }
             | TelemetryEvent::WebSessionOpenedOnDesktop { .. }
-            | TelemetryEvent::WebCloudObjectOpenedOnDesktop { .. }
             | TelemetryEvent::UnsupportedShell { .. }
             | TelemetryEvent::LogOut
             | TelemetryEvent::InviteTeammates { .. }
@@ -3417,7 +3367,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::DismissVimKeybindingsBanner => EnablementState::Always,
             Self::InitiateReauth => EnablementState::Always,
             Self::NeedsReauth => EnablementState::Always,
-            Self::WarpDriveOpened => EnablementState::Always,
             Self::ToggleWarpAI => EnablementState::Always,
             Self::ToggleSecretRedaction => EnablementState::Always,
             Self::CustomSecretRegexAdded => EnablementState::Always,
@@ -3427,7 +3376,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AutoGenerateMetadataError => EnablementState::Always,
             Self::UndoClose => EnablementState::Always,
             Self::DuplicateObject => EnablementState::Always,
-            Self::ExportObject => EnablementState::Always,
             Self::CommandFileRun => EnablementState::Always,
             Self::PageUpDownInEditorPressed => EnablementState::Always,
             Self::UnsupportedShell => EnablementState::Always,
@@ -3452,9 +3400,7 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JumpToSharedSessionParticipant => EnablementState::Always,
             Self::CopiedSharedSessionLink => EnablementState::Always,
             Self::WebSessionOpenedOnDesktop => EnablementState::Always,
-            Self::WebCloudObjectOpenedOnDesktop => EnablementState::Always,
             Self::ToggleShowBlockDividers => EnablementState::Flag(FeatureFlag::MinimalistUI),
-            Self::DriveSharingOnboardingBlockShown => EnablementState::Always,
             Self::ResourceUsageStats => EnablementState::Always,
             Self::MemoryUsageStats => EnablementState::ChannelSpecific {
                 channels: vec![Channel::Local, Channel::Dev],
@@ -3760,7 +3706,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::EnableAliasExpansionFromBanner => "Enable Alias Expansion From Banner",
             Self::InitiateReauth => "Initiate Reauth",
             Self::NeedsReauth => "Needs Reauth",
-            Self::WarpDriveOpened => "Warp Drive Opened",
             Self::ToggleWarpAI => "Toggle Warp AI",
             Self::ToggleSecretRedaction => "Toggle Secret Redaction",
             Self::CustomSecretRegexAdded => "Custom Secret Regex Added",
@@ -3773,7 +3718,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::PromptEdited => "Prompt Edited",
             Self::PtyThroughput => "PTY Throughput",
             Self::DuplicateObject => "Duplicate Object",
-            Self::ExportObject => "Export Object",
             Self::CommandFileRun => "Command File Run",
             Self::PageUpDownInEditorPressed => "Page Up/Down In Editor Pressed",
             Self::StartedSharingCurrentSession => "Started Sharing Current Session",
@@ -3784,8 +3728,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::JumpToSharedSessionParticipant { .. } => "Jumped to Shared Session Participant",
             Self::CopiedSharedSessionLink { .. } => "Copied Shared Session Link",
             Self::WebSessionOpenedOnDesktop { .. } => "Web session opened on desktop",
-            Self::WebCloudObjectOpenedOnDesktop { .. } => "Warp Drive object opened on desktop",
-            Self::DriveSharingOnboardingBlockShown => "Warp Drive Sharing onboarding block shown",
             Self::UnsupportedShell => "Unsupported Shell",
             Self::SettingsImportInitiated => "Settings Import Initiated",
             Self::InviteTeammates => "Invited Teammates",
@@ -4250,7 +4192,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::InitiateReauth => "Started the flow to re-authenticate the client",
             Self::NeedsReauth => "User needs to re-authenticate",
-            Self::WarpDriveOpened => "Opened Warp Drive panel",
             Self::ToggleWarpAI => {
                 "Toggled Warp AI--an AI assistant to help you debug errors, look up forgotten commands and more"
             }
@@ -4269,7 +4210,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::UndoClose => "Re-opened a closed tab or window (undo closing a tab or window)",
             Self::PtyThroughput => "A sample of the max PTY throughput in bytes/sec",
             Self::DuplicateObject => "Cloned a Warp Drive object",
-            Self::ExportObject => "Exported a Warp Drive object",
             Self::CommandFileRun => {
                 "Opened a .cmd or unix executable file and ran it directly in Warp"
             }
@@ -4293,12 +4233,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CopiedSharedSessionLink => "Copied a shared session link",
             Self::WebSessionOpenedOnDesktop => {
                 "Shared session viewed on the web was opened on the desktop"
-            }
-            Self::WebCloudObjectOpenedOnDesktop => {
-                "Warp Drive object on the web was opened on the desktop"
-            }
-            Self::DriveSharingOnboardingBlockShown => {
-                "Showed onboarding block for Warp Drive sharing"
             }
             Self::UnsupportedShell => "Booted Warp with a shell that isn't supported",
             Self::LogOut => "Logged out of the Warp client",

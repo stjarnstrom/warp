@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use cloud_object_client::MockObjectClient;
 use cloud_object_models::JsonSerializer;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use futures_lite::future;
 use settings::{RespectUserSyncSetting, SyncToCloud};
 use warp_core::features::FeatureFlag;
@@ -11,6 +12,7 @@ use warpui::{App, ModelHandle, SingletonEntity};
 
 use super::{GetCloudObjectResponse, InitialLoadResponse, UpdateManager};
 use crate::ASSETS;
+use crate::cloud_object::folder::{CloudFolderModel, FolderId};
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType, ObjectActions,
 };
@@ -23,8 +25,6 @@ use crate::cloud_object::{
     ServerCloudObject, ServerNotebook, ServerObject, ServerWorkflow, Space,
     UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::{CloudFolderModel, FolderId};
 use crate::notebooks::{CloudNotebook, CloudNotebookModel, NotebookId};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::listener::ObjectUpdateMessage;

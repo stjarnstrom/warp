@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::SyncSender;
 
 use chrono::{DateTime, Duration, Utc};
+use cloud_objects::drive::CloudObjectTypeAndId;
 use itertools::Itertools;
 use rand::Rng;
 use warp_core::features::FeatureFlag;
@@ -11,16 +12,12 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use super::generic_string_model::GenericStringObjectId;
 use crate::auth::AuthStateProvider;
+use crate::cloud_object::folder::{CloudFolder, CloudFolderModel};
 use crate::cloud_object::{
     CloudModelType, CloudObject, CloudObjectLocation, CloudObjectPermissions, GenericCloudObject,
     GenericServerObject, GenericStringObjectFormat, JsonObjectType, ObjectIdType, ObjectType,
     ObjectsToUpdate, Owner, Revision, RevisionAndLastEditor, ServerCloudObject, ServerCreationInfo,
     ServerFolder, ServerMetadata, ServerNotebook, ServerPermissions, ServerWorkflow, Space,
-};
-use crate::drive::folders::{CloudFolder, CloudFolderModel};
-use crate::drive::{
-    CloudObjectTypeAndId, should_auto_open_welcome_folder,
-    write_has_auto_opened_welcome_folder_to_user_defaults,
 };
 use crate::env_vars::{CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVarCollection};
 use crate::notebooks::CloudNotebook;
@@ -1039,14 +1036,6 @@ impl CloudModel {
             .and_then(|object| object.into())
     }
 
-    pub fn get_all_exportable_object_ids(&self) -> Vec<CloudObjectTypeAndId> {
-        self.objects_by_id
-            .values()
-            .filter(|object| object.can_export())
-            .map(|object| object.cloud_object_type_and_id())
-            .collect()
-    }
-
     #[allow(unused)]
     /// Returns only active (not trashed) folders in cloud model.
     pub fn get_all_active_folders(&self) -> impl Iterator<Item = &CloudFolder> {
@@ -1601,29 +1590,12 @@ impl CloudModel {
                     ctx,
                 );
                 self.update_object_permissions_internal(&sync_id.uid(), permissions);
-                self.maybe_open_welcome_folder(&sync_id, ctx);
                 self.get_object_of_type(&sync_id).cloned()
             })
             .collect();
 
         ctx.notify();
         updated_objects
-    }
-
-    // If the object is a folder and a welcome object, open it if we haven't opened a welcome folder before.
-    fn maybe_open_welcome_folder(&mut self, object_id: &SyncId, ctx: &mut ModelContext<Self>) {
-        if let Some(object) = self.get_by_uid(&object_id.uid()) {
-            let folder: Option<&CloudFolder> = object.into();
-            if let Some(folder) = folder
-                && folder.metadata().is_welcome_object
-            {
-                // Doing this as a nested check as a slight optimization
-                if should_auto_open_welcome_folder(ctx) {
-                    self.set_folder_open_state(folder.id, FolderOpenState::Open, ctx);
-                    write_has_auto_opened_welcome_folder_to_user_defaults(ctx);
-                }
-            }
-        }
     }
 
     #[cfg(test)]

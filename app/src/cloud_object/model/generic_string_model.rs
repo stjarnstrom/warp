@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use cloud_objects::cloud_object::CloudObjectUpsertParams;
 // Re-exported from cloud_objects.
 pub use cloud_objects::cloud_object::{GenericStringModel, Serializer};
+use cloud_objects::drive::CloudObjectTypeAndId;
 pub use warp_server_client::ids::GenericStringObjectId;
 
 use crate::cloud_object::{
@@ -13,7 +14,6 @@ use crate::cloud_object::{
     CreateObjectRequest, GenericCloudObject, GenericServerObject, GenericStringObjectFormat,
     GenericStringObjectUniqueKey, ObjectType, Revision, UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{ServerId, SyncId};
@@ -71,11 +71,6 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
 
     /// Returns whether to render this model as a WarpDriveItem.
     fn renders_in_warp_drive(&self) -> bool {
-        false
-    }
-
-    /// Returns whether this model can be exported to a file
-    fn can_export(&self) -> bool {
         false
     }
 
@@ -189,10 +184,6 @@ where
 
     fn warn_if_unsaved_at_quit(&self) -> bool {
         M::warn_if_unsaved_at_quit()
-    }
-
-    fn can_export(&self) -> bool {
-        self.string_model.can_export()
     }
 
     fn bulk_upsert_event(objects: Vec<CloudObjectUpsertParams<Self>>) -> ModelEvent {

@@ -25,7 +25,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 #[cfg(target_os = "macos")]
 use std::process;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, mpsc};
 use std::time::Duration;
 #[cfg(target_os = "macos")]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -34,6 +34,7 @@ use ::settings::{Setting, ToggleableSetting};
 #[cfg(target_os = "macos")]
 use anyhow::Result;
 use autoupdate::AutoupdateStage;
+use cloud_objects::drive::CloudObjectTypeAndId;
 #[cfg(target_os = "macos")]
 use command::blocking::Command;
 use instant::Instant;
@@ -161,7 +162,6 @@ use crate::conn::panel::ConnPanelView;
 use crate::conn::{ConnModel, ConnModelEvent};
 use crate::context_chips::ChipRuntimeCapabilities;
 use crate::default_terminal::DefaultTerminal;
-use crate::drive::CloudObjectTypeAndId;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
@@ -493,7 +493,6 @@ const MAX_WINDOW_TITLE_LENGTH: usize = 80;
 pub const DEFAULT_USER_DISPLAY_NAME: &str = "User";
 
 lazy_static! {
-    static ref OPENING_WARP_DRIVE_ON_START_UP: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
     static ref PANEL_CORNER_RADIUS: CornerRadius = CornerRadius::with_all(Radius::Pixels(8.));
     static ref PANEL_HEADER_CORNER_RADIUS: CornerRadius =
         CornerRadius::with_top(Radius::Pixels(8.));
@@ -1357,7 +1356,6 @@ impl Workspace {
                 self.current_workspace_state.is_auth_override_modal_open = false;
                 ctx.notify();
             }
-            AuthOverrideWarningModalEvent::BulkExport => {}
         }
     }
 
@@ -2827,9 +2825,6 @@ impl Workspace {
             NewWorkspaceSource::NotebookFromFilePath { file_path } => {
                 self.add_tab_for_file_notebook(file_path, ctx);
             }
-            NewWorkspaceSource::WorkflowById { id, .. } => {
-                self.open_workflow_from_intent(id, ctx);
-            }
             #[cfg(feature = "local_fs")]
             NewWorkspaceSource::TransferredTab {
                 tab_color,
@@ -2931,14 +2926,6 @@ impl Workspace {
             | NewWorkspaceSource::Session { .. }
             | NewWorkspaceSource::TeamSwitched { .. }
             | NewWorkspaceSource::NotebookFromFilePath { .. } => should_default_open,
-            #[cfg(not(target_family = "wasm"))]
-            NewWorkspaceSource::WorkflowById { .. } => should_default_open,
-            #[cfg(target_family = "wasm")]
-            NewWorkspaceSource::WorkflowById { .. } => {
-                // Web opens these as single-purpose views without exposed multi-tab UI, so keep
-                // the tabs panel closed even though native windows still expose workspace chrome.
-                false
-            }
         }
     }
 
@@ -6067,23 +6054,6 @@ impl Workspace {
         false
     }
 
-    /// Run a Warp Drive workflow in response to an intent URL.
-    pub fn open_workflow_from_intent(&mut self, workflow_id: SyncId, ctx: &mut ViewContext<Self>) {
-        if !ContextFlag::RunWorkflow.is_enabled() {
-            return;
-        }
-        let Some(workflow) = CloudModel::as_ref(ctx).get_workflow(&workflow_id).cloned() else {
-            log::warn!("Workflow {workflow_id:?} is not available locally");
-            return;
-        };
-        self.run_cloud_workflow_in_active_input(
-            workflow,
-            WorkflowSelectionSource::Undefined,
-            TerminalSessionFallbackBehavior::OpenIfNeeded,
-            ctx,
-        );
-    }
-
     fn open_settings_pane(
         &mut self,
         page: Option<SettingsSection>,
@@ -8686,13 +8656,6 @@ impl Workspace {
                 .size()
         });
 
-        let warp_drive_index_width = modal_sizes.map(|ms| {
-            ms.warp_drive_index_width
-                .lock()
-                .expect("should be able to lock warp drive resizable state handle")
-                .size()
-        });
-
         let left_panel_width = modal_sizes.map(|ms| {
             ms.left_panel_width
                 .lock()
@@ -8716,7 +8679,6 @@ impl Workspace {
             quake_mode,
             universal_search_width,
             voltron_width,
-            warp_drive_index_width,
             left_panel_open: self.left_panel_open,
             vertical_tabs_panel_open: self.vertical_tabs_panel_open,
             left_panel_width,
@@ -10467,16 +10429,10 @@ impl Workspace {
                 ..
             } => match ChannelState::app_version() {
                 Some(version) => {
-                    let opening_warp_drive_on_start_up = OPENING_WARP_DRIVE_ON_START_UP
-                        .lock()
-                        .expect("Should be able to access OPENING_WARP_DRIVE_ON_START_UP");
-
                     request_type = Some(ChangelogRequestType::WindowLaunch);
                     // Do not show changelog on quake mode window or if it has already been shown
-                    // or if we are opening Warp Drive on start up
                     quake_mode_window_id() != Some(ctx.window_id())
                         && !Settings::has_changelog_been_shown(version, ctx)
-                        && !*opening_warp_drive_on_start_up
                 }
                 None => false,
             },

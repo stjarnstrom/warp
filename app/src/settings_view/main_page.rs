@@ -117,8 +117,6 @@ pub enum MainPageAction {
 #[derive(Clone, Copy)]
 pub enum MainSettingsPageEvent {
     CheckForUpdate,
-    #[allow(dead_code)]
-    OpenWarpDrive,
 }
 
 pub struct MainSettingsPageView {

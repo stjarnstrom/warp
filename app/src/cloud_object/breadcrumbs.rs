@@ -1,8 +1,8 @@
+use cloud_objects::drive::CloudObjectTypeAndId;
 use warpui::AppContext;
 
 use super::{CloudObject, Space};
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::CloudFolder;
+use crate::cloud_object::folder::CloudFolder;
 
 // Encapsulates an object that can contain other objects, and keeps
 // information necessary to show breadcrumbs.

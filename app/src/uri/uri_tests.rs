@@ -785,3 +785,19 @@ fn test_decode_uuid_hex_rejects_wrong_length() {
 fn test_decode_uuid_hex_rejects_invalid_chars() {
     assert!(super::decode_uuid_hex("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ").is_none());
 }
+
+#[test]
+fn drive_host_is_not_supported() {
+    assert!(UriHost::from_str("drive").is_err());
+}
+
+#[test]
+fn drive_web_url_is_not_rewritten_to_native_intent() {
+    let url = Url::parse(&format!(
+        "{}/drive/workflow/build-0123456789abcdef?id=0123456789abcdef",
+        ChannelState::server_root_url()
+    ))
+    .unwrap();
+
+    assert!(web_intent_parser::maybe_rewrite_web_url_to_intent(&url).is_none());
+}

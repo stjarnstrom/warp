@@ -22,6 +22,7 @@ use async_channel::Sender;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
+use crate::cloud_object::folder::FolderId;
 use crate::cloud_object::model::actions::{ObjectActionHistory, ObjectActionType};
 use crate::cloud_object::model::generic_string_model::GenericStringObjectId;
 use crate::cloud_object::{
@@ -32,7 +33,6 @@ use crate::cloud_object::{
     RevisionAndLastEditor, ServerFolder, ServerMetadata, ServerNotebook, ServerObject,
     ServerPermissions, ServerPreference, ServerWorkflow, UpdateCloudObjectResult,
 };
-use crate::drive::folders::FolderId;
 use crate::notebooks::NotebookId;
 use crate::server::cloud_objects::listener::ObjectUpdateMessage;
 use crate::server::cloud_objects::update_manager::{GetCloudObjectResponse, InitialLoadResponse};

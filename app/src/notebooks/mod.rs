@@ -10,6 +10,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use cloud_object_models::{CloudNotebook, CloudNotebookModel, NotebookId, SerializedNotebook};
+use cloud_objects::drive::CloudObjectTypeAndId;
 use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 
@@ -17,7 +18,6 @@ use crate::cloud_object::{
     CloudModelType, CloudObjectEventEntrypoint, CloudObjectUpsertParams, CreateCloudObjectResult,
     CreateObjectRequest, GenericServerObject, ObjectType, Owner, Revision, UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
 use crate::server::ids::{ServerId, SyncId};
@@ -145,10 +145,6 @@ impl CloudModelType for CloudNotebookModel {
     fn renders_in_warp_drive(&self) -> bool {
         true
     }
-
-    fn can_export(&self) -> bool {
-        true
-    }
 }
 
 /// A notebook location. Mainly, this lets us distinguish between cloud and file-based notebooks.
@@ -178,27 +174,4 @@ impl From<Owner> for NotebookLocation {
 pub fn init(app: &mut AppContext) {
     self::file::init(app);
     self::editor::view::init(app);
-}
-
-/// Translate a notebook's Markdown content into an external Markdown format.
-///
-/// This:
-/// * Normalizes code block languages
-/// * Includes extra context for embedded objects.
-#[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
-pub fn export_notebook(data: &str, ctx: &AppContext) -> anyhow::Result<String> {
-    use warp_editor::content::buffer::Buffer;
-    use warp_editor::content::markdown::MarkdownStyle;
-
-    // Parse the Markdown directly rather than using [`Buffer::from_markdown`] so that we can
-    // report errors to the exporter.
-    let parsed = markdown_parser::parse_markdown(data)?;
-    Ok(Buffer::export_to_markdown(
-        parsed,
-        Some(editor::notebook_embedded_item_conversion),
-        MarkdownStyle::Export {
-            app_context: Some(ctx),
-            should_not_escape_markdown_punctuation: false,
-        },
-    ))
 }

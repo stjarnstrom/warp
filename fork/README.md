@@ -17,8 +17,11 @@ Warp/Oz CLI commands, settings surfaces, AI workflow/search/tab remnants, commit
 WASM AI references. Workspace/all-targets check, targeted tests, Clippy, and macOS build/launch
 verification pass. See the final entry in `deletion-log.md` for coverage and platform limits.
 
+Drive-remnant cleanup removes `app/src/drive`, export and deep-link entry points, dead panel
+state, and Drive-only styling/flags/telemetry. Local workflow arguments and icon colors remain;
+cloud-folder models now live under `cloud_object`. See the final deletion-log entry for validation.
+
 Candidate next slices (the user picks):
-- Drive remnants ("Still standing in this slice")
 - Account gate, then `server` / `auth` / `cloud_object`
 - Conn slice 2 (`conn-plan.md` §7): SQLite persistence, cross-window overview, read-watermark
 - Small UI fixes: Conn empty state for non-terminal panes, Rendered/Raw overlap

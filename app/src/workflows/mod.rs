@@ -9,9 +9,9 @@ use anyhow::Result;
 use workflow::Workflow;
 
 pub mod aliases;
+pub mod arguments;
 pub mod command_parser;
 pub mod env_var_selector;
-pub mod export_workflow;
 pub mod info_box;
 pub mod local_workflows;
 pub mod workflow;
@@ -19,12 +19,12 @@ pub mod workflow_enum;
 
 use async_trait::async_trait;
 pub use categories::{CategoriesView, CategoriesViewEvent, WorkflowsViewAction};
+use cloud_objects::drive::CloudObjectTypeAndId;
 
 use crate::cloud_object::{
     CloudModelType, CloudObjectEventEntrypoint, CloudObjectUpsertParams, CreateCloudObjectResult,
     CreateObjectRequest, GenericServerObject, ObjectType, Revision, UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::notebooks::{NotebookId, NotebookLocation};
 use crate::persistence::ModelEvent;
 use crate::server::cloud_objects::update_manager::InitiatedBy;
@@ -233,10 +233,6 @@ impl CloudModelType for CloudWorkflowModel {
     }
 
     fn renders_in_warp_drive(&self) -> bool {
-        true
-    }
-
-    fn can_export(&self) -> bool {
         true
     }
 }

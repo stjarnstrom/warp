@@ -12,8 +12,6 @@ use warpui::ui_components::components::UiComponent;
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
-use crate::drive::DriveObjectType;
-use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::features::FeatureFlag;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::render_util::{
@@ -21,6 +19,7 @@ use crate::search::command_palette::render_util::{
 };
 use crate::search::item::SearchItem;
 use crate::search::result_renderer::ItemHighlightState;
+use crate::ui_components::icon_color;
 use crate::ui_components::icons::Icon;
 use crate::util::bindings::{BindingGroup, CommandBinding};
 
@@ -216,16 +215,18 @@ impl SearchItemIcon for BindingGroup {
                 ColorU::from_u32(colors::WARP_AI)
             }
             Self::WarpAi => appearance.theme().foreground().into_solid(),
-            Self::Workflow => warp_drive_icon_color(appearance, DriveObjectType::Workflow),
-            Self::Notebooks => warp_drive_icon_color(
+            Self::Workflow => icon_color::on_surface(
                 appearance,
-                DriveObjectType::Notebook {
-                    is_ai_document: false,
-                },
+                appearance.theme().terminal_colors().normal.red.into(),
             ),
-            Self::EnvVarCollection => {
-                warp_drive_icon_color(appearance, DriveObjectType::EnvVarCollection)
-            }
+            Self::Notebooks => icon_color::on_surface(
+                appearance,
+                appearance.theme().terminal_colors().normal.blue.into(),
+            ),
+            Self::EnvVarCollection => icon_color::on_surface(
+                appearance,
+                appearance.theme().terminal_colors().normal.magenta.into(),
+            ),
         }
     }
 }

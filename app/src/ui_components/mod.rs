@@ -9,6 +9,7 @@ pub(crate) mod blended_colors;
 pub mod buttons;
 pub(crate) mod color_dot;
 pub(crate) mod dialog;
+pub(crate) mod icon_color;
 pub(crate) mod icon_with_status;
 pub(crate) mod item_highlight;
 pub mod json_tree;

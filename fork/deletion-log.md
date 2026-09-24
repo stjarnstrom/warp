@@ -361,3 +361,38 @@ cloud_action_confirmation_dialog}`. `folders` is a cloud object type: goes with 
   is untouched.
 - Validation above was local; no cloud runners were used. Linux/Windows runtime packaging and
   WASM are not verified.
+
+
+## Drive remnants (2026-09-24)
+
+- Removed `app/src/drive`, its export singleton/registration/tests, empty AI/helper modules,
+  sharing/type re-exports, and the Drive object/icon enum. Removed cloud YAML import/export and the
+  notebook export wrapper, export capabilities, and the account-switch dialog's export action.
+- Removed native Drive deep links, web-to-native Drive URL rewriting, root/workspace workflow
+  intent entry points, unused pane-opening settings, welcome-folder auto-opening, the stale
+  startup guard, and the WASM Drive intent label/context preset. Added regression coverage for
+  rejecting the removed native host and leaving web Drive URLs outside native intent rewriting.
+- Removed unused Drive panel resize state. The historical SQLite column remains and is written as
+  NULL; file-tree/Conn/code-review panel widths and local pane restoration remain unchanged.
+- Kept editor command-block argument handling and its tests under `workflows/arguments`; kept
+  existing local workflow/notebook icon colors through a small UI color helper. Moved cloud-folder
+  model implementations to `cloud_object/folder` for the next account/cloud-object slice.
+- Removed the unused `DriveObjectsAsContext` feature, Drive icon variant and Drive export/open/share
+  onboarding telemetry. Renamed the generic left-panel integration helper and tip action, retaining
+  the old tip's serialized name as a deserialization alias. The duplicate-name helper now compiles
+  only with its remaining cloud-object tests.
+- Next slice still owns server/auth/cloud-object infrastructure, cloud settings sync, cloud-backed
+  workflow/notebook/embedding types, GraphQL schemas, account telemetry and database tables. Local
+  file viewing, Markdown commands, editor/LSP, code review, CLI agents and Conn remain.
+- Validation: nextest ran 2,556 tests across `warp`, `warp_core`, `warp_features` and `conn`
+  (6 skipped). One existing cloud-preference fixture failed on an unmocked background fetch and
+  order-dependent bulk-create expectations. Replaced that test's mock with `FakeObjectClient`,
+  preserving its platform-value assertions and waiting on state instead of a fixed sleep/request
+  count. All 102 affected cloud-preference/cloud-object/URI/workflow-argument tests pass on rerun.
+- All-targets Clippy passes with `-D warnings` for `warp`, `warp_core`, `warp_features` and
+  `integration` with GUI enabled. `./script/run --dont-open` built and bundled the macOS app.
+  Launched that bundle and visually checked restored terminal, file tree, rendered Markdown and
+  code-review diffs. The smoke test used the app's restored workspace; no files there were edited.
+- Finished with `./script/format`. `crates/warpui` is untouched. Verification was local macOS only;
+  Linux/Windows runtime behavior and unsupported WASM were not exercised. The account-switch
+  dialog, editor save, and live CLI-agent/Conn sessions were not exercised.

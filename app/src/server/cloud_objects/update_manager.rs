@@ -9,9 +9,11 @@ use chrono::{DateTime, Utc};
 #[cfg(test)]
 pub use cloud_object_client::GetCloudObjectResponse;
 pub use cloud_object_client::InitialLoadResponse;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use futures::channel::oneshot::{self, Receiver};
 use futures::stream::AbortHandle;
 use lazy_static::lazy_static;
+#[cfg(test)]
 use regex::Regex;
 use warp_errors::report_error;
 use warp_graphql::scalars::time::ServerTimestamp;
@@ -42,7 +44,6 @@ use crate::cloud_object::{
     ServerCloudObject, ServerEnvVarCollection, ServerMetadata, ServerPermissions, ServerPreference,
     ServerWorkflowEnum, Space,
 };
-use crate::drive::CloudObjectTypeAndId;
 use crate::env_vars::CloudEnvVarCollectionModel;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 #[cfg(test)]
@@ -74,6 +75,12 @@ use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
+#[cfg(test)]
+lazy_static! {
+    static ref DUPLICATE_OBJECT_NAME_REGEX: Regex =
+        Regex::new(r" \((\d+)\)$").expect("regex should not fail to compile");
+}
+
 lazy_static! {
     /// For online-only operations, we want to quickly determine if the operation can succeed,
     /// so that if it can't, we can put the user back into the known good state.
@@ -81,7 +88,6 @@ lazy_static! {
     static ref ONLINE_ONLY_OPERATION_RETRY_STRATEGY: RetryOption =
         RetryOption::exponential(Duration::from_millis(500) /* interval */, 2. /* exponential factor */, 3 /* max retry count */);
 
-    static ref DUPLICATE_OBJECT_NAME_REGEX: Regex = Regex::new(r" \((\d+)\)$").expect("regex should not fail to compile");
 }
 
 #[derive(Debug, PartialEq)]
@@ -2344,9 +2350,10 @@ impl UpdateManager {
     }
 }
 
+#[cfg(test)]
 /// Return the newly duplicated object's name based on the original object's name. E.g.:
 /// - "my object name" -> "my object name (1)"
-pub fn get_duplicate_object_name(original_name: &str) -> String {
+fn get_duplicate_object_name(original_name: &str) -> String {
     match DUPLICATE_OBJECT_NAME_REGEX
         .captures(original_name)
         .and_then(|caps| caps.get(1))

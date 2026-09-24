@@ -6,6 +6,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 // Re-exported from cloud_objects.
 pub use cloud_objects::cloud_object::SerializedModel;
+use cloud_objects::drive::CloudObjectTypeAndId;
 use derivative::Derivative;
 use http::StatusCode;
 use lazy_static::lazy_static;
@@ -19,6 +20,7 @@ use super::graphql::GraphQLError;
 use super::ids::{ClientId, HashableId, ObjectUid, ServerId, SyncId, ToServerId};
 use super::server_api::auth::UserAuthenticationError;
 use super::server_api::object::ObjectClient;
+use crate::cloud_object::folder::CloudFolderModel;
 use crate::cloud_object::model::actions::{
     ObjectAction, ObjectActionHistory, ObjectActionSubtype, ObjectActionType,
 };
@@ -30,8 +32,6 @@ use crate::cloud_object::{
     ObjectType, Owner, Revision, RevisionAndLastEditor, ServerCloudObject, ServerCreationInfo,
     UpdateCloudObjectResult,
 };
-use crate::drive::CloudObjectTypeAndId;
-use crate::drive::folders::CloudFolderModel;
 use crate::env_vars::CloudEnvVarCollectionModel;
 use crate::notebooks::CloudNotebookModel;
 use crate::server::cloud_objects::update_manager::InitiatedBy;

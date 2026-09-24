@@ -42,17 +42,13 @@ use crate::auth::web_handoff::{WebHandoffEvent, WebHandoffView};
 use crate::auth::{AuthStateProvider, LoginFailureReason};
 use crate::autoupdate::{AutoupdateState, AutoupdateStateEvent, RequestType, UpdateReady};
 use crate::changelog_model::ChangelogRequestType;
-use crate::cloud_object::ObjectType;
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::drive::export::ExportManager;
-use crate::drive::{OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::ServerId;
 use crate::server::server_api::auth::UserAuthenticationError;
 use crate::server::server_api::{ServerApi, ServerApiProvider, ServerTime};
 use crate::server::telemetry::{LaunchConfigUiLocation, TelemetryEvent};
@@ -248,11 +244,6 @@ pub fn init(app: &mut AppContext) {
         RootView::toggle_maximize_window,
     );
     app.add_action("root_view:toggle_fullscreen", RootView::toggle_fullscreen);
-
-    app.add_global_action(
-        "root_view:open_drive_object_new_window",
-        open_warp_drive_object,
-    );
 
     app.add_global_action(
         "root_view:open_settings_page_in_new_window",
@@ -754,31 +745,6 @@ fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
     });
 }
 
-fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
-    match arg.object_type {
-        ObjectType::Workflow => open_new_workspace_with_workflow_open(
-            SyncId::ServerId(arg.server_id),
-            arg.settings.clone(),
-            ctx,
-        ),
-        _ => log::info!("Open object type {:?} not yet supported", arg.object_type),
-    }
-}
-
-fn open_new_workspace_with_workflow_open(
-    workflow_id: SyncId,
-    settings: OpenWarpDriveObjectSettings,
-    ctx: &mut AppContext,
-) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::WorkflowById {
-            id: workflow_id,
-            settings,
-        },
-        ctx,
-    );
-}
-
 /// Opens a new window with a file-based notebook open.
 fn open_new_with_file_notebook(arg: &PathBuf, ctx: &mut AppContext) {
     open_new_with_workspace_source(
@@ -1161,10 +1127,6 @@ pub enum NewWorkspaceSource {
     NotebookFromFilePath {
         file_path: Option<PathBuf>,
     },
-    WorkflowById {
-        id: SyncId,
-        settings: OpenWarpDriveObjectSettings,
-    },
     /// Opens a new window pre-scoped to a specific team, chosen via the title-bar team switcher.
     TeamSwitched {
         team_uid: ServerId,
@@ -1230,8 +1192,7 @@ impl NewWorkspaceSource {
             } => Some(*source_window_id),
             Self::FromTemplate { .. }
             | Self::Session { .. }
-            | Self::NotebookFromFilePath { .. }
-            | Self::WorkflowById { .. } => None,
+            | Self::NotebookFromFilePath { .. } => None,
             Self::TeamSwitched { team_uid } => return Some(*team_uid),
             Self::Restored {
                 window_snapshot, ..
@@ -1645,35 +1606,6 @@ impl RootView {
         true
     }
 
-    pub fn open_warp_drive_object_in_existing_window(
-        &mut self,
-        arg: &OpenWarpDriveObjectArgs,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            match arg.object_type {
-                ObjectType::Workflow => {
-                    handle.update(ctx, |workspace, ctx| {
-                        workspace.open_workflow_from_intent(SyncId::ServerId(arg.server_id), ctx);
-                    });
-                }
-                _ => {
-                    log::info!(
-                        "Object type {:?} not support yet for opening via link",
-                        arg.object_type
-                    )
-                }
-            }
-
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-            ctx.notify();
-        } else {
-            log::warn!("Auth not complete before trying to open warp drive object");
-        }
-        true
-    }
-
     pub fn add_file_pane(&mut self, path: &PathBuf, ctx: &mut ViewContext<Self>) -> bool {
         if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
             handle.update(ctx, |workspace, ctx| {
@@ -1864,9 +1796,6 @@ impl RootView {
                     self.log_out(&(), ctx);
                 }
             }
-            AuthOverrideWarningModalEvent::BulkExport => {
-                self.export_all_warp_drive_objects(ctx);
-            }
         }
     }
 
@@ -1883,15 +1812,6 @@ impl RootView {
         ctx.emit(RootViewEvent::AuthOnboardingStateChanged);
         self.focus(ctx);
         ctx.notify();
-    }
-
-    fn export_all_warp_drive_objects(&mut self, ctx: &mut ViewContext<Self>) {
-        let window_id = ctx.window_id();
-        let cloud_model = CloudModel::as_ref(ctx);
-        let exportable_objects = cloud_model.get_all_exportable_object_ids();
-        ExportManager::handle(ctx).update(ctx, move |export_manager, ctx| {
-            export_manager.export(window_id, &exportable_objects, ctx);
-        });
     }
 
     /// This is called when importing authentication state from the host app completes.

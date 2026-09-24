@@ -687,43 +687,18 @@ fn test_sync_cloud_pref_to_local_on_initial_load_or_collab_update() {
     App::test(ASSETS, |mut app| async move {
         initialize_settings(&mut app);
 
-        let mut server_api = mock_object_client_with_base_expectations();
-        let mut all_client_ids = expect_sync_preferences_setting(&mut server_api);
-        all_client_ids.append(&mut expect_sync_server_stored_privacy_settings(
-            &mut server_api,
-        ));
-
-        let generic_object_id_1: GenericStringObjectId = 123.into();
-        let generic_object_id_2: GenericStringObjectId = 345.into();
-        let generic_object_id_3: GenericStringObjectId = 456.into();
-        let generic_object_id_4: GenericStringObjectId = 567.into();
-
+        let fake = FakeObjectClient::default();
+        fake.seed_preference("AllPlatforms", "true", Platform::Global);
+        fake.seed_preference("MacOnly", "true", Platform::Mac);
+        fake.seed_preference("LinuxOnly", "true", Platform::Linux);
+        fake.seed_preference("PlatformSpecific", "true", Platform::Linux);
+        let initial_load = fake.snapshot_as_initial_load_response();
         let UpdateManagerStruct { update_manager, .. } =
-            create_update_manager_struct(&mut app, Arc::new(server_api));
+            create_update_manager_struct(&mut app, Arc::new(fake));
 
         app.update(|ctx| {
             update_manager.update(ctx, |update_manager, ctx| {
-                update_manager.mock_initial_load(
-                    initial_load_response_with_cloud_settings(vec![
-                        SettingToLoad {
-                            id: generic_object_id_1,
-                            serialized_preference: "{\"storage_key\":\"AllPlatforms\",\"value\":true,\"platform\":\"Global\"}".to_owned(),
-                        },
-                        SettingToLoad {
-                            id: generic_object_id_2,
-                            serialized_preference: "{\"storage_key\":\"MacOnly\",\"value\":true,\"platform\":\"Mac\"}".to_owned(),
-                        },
-                        SettingToLoad {
-                            id: generic_object_id_3,
-                            serialized_preference: "{\"storage_key\":\"LinuxOnly\",\"value\":true,\"platform\":\"Linux\"}".to_owned(),
-                        },
-                        SettingToLoad {
-                            id: generic_object_id_4,
-                            serialized_preference: "{\"storage_key\":\"PlatformSpecific\",\"value\":true,\"platform\":\"Linux\"}".to_owned(),
-                        },
-                    ]),
-                    ctx,
-                );
+                update_manager.mock_initial_load(initial_load, ctx);
             });
         });
 
@@ -738,25 +713,16 @@ fn test_sync_cloud_pref_to_local_on_initial_load_or_collab_update() {
         enable_settings_sync(&mut app);
 
         app.add_singleton_model(|ctx| {
-            let syncer = CloudPreferencesSyncer::new_for_test(
-                ctx,
-                Arc::new(TestClientIdProvider::new(all_client_ids)),
-            );
+            let syncer = CloudPreferencesSyncer::new(false, Default::default(), ctx);
             // This should sync the cloud preferences at this point
             syncer.sync(ForceCloudToMatchLocal::No, ctx);
             syncer
         });
 
-        // Spend time waiting for the initial load to finish etc.
-        warpui::r#async::Timer::after(Duration::from_secs(1)).await;
-
-        // complete the create request for the cloud settings and the telemetry/crash reporting settings
-        await_spawned_futures(
-            &mut app,
-            3,
-            "expect the syncer to create the initial settings",
-        )
-        .await;
+        assert_eventually!(
+            1000 => app.read(|ctx| TestSettings::as_ref(ctx).all_platforms_cloud_setting.inner),
+            "cloud preference should be applied locally after initial load"
+        );
 
         let is_mac = cfg!(all(not(target_family = "wasm"), target_os = "macos"));
         let is_linux = cfg!(all(
