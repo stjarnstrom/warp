@@ -87,18 +87,19 @@ fn hide_title_bar_search_bar_in_vertical_tabs_uses_vertical_tabs_path() {
 }
 
 #[test]
-fn header_toolbar_chip_selection_default_contains_code_review() {
+fn header_toolbar_chip_selection_default_contains_code_review_and_conn() {
     let config = HeaderToolbarChipSelection::Default;
+    assert!(config.contains_item(&HeaderToolbarItemKind::CodeReview));
     assert!(config.contains_item(&HeaderToolbarItemKind::Conn));
 }
 
 #[test]
 fn header_toolbar_chip_selection_custom_with_code_review_on_left_reports_present() {
     let config = HeaderToolbarChipSelection::Custom {
-        left: vec![HeaderToolbarItemKind::Conn],
+        left: vec![HeaderToolbarItemKind::CodeReview],
         right: vec![],
     };
-    assert!(config.contains_item(&HeaderToolbarItemKind::Conn));
+    assert!(config.contains_item(&HeaderToolbarItemKind::CodeReview));
 }
 
 #[test]

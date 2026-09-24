@@ -25,10 +25,7 @@ use crate::workspace::tab_settings::TabSettings;
 pub enum HeaderToolbarItemKind {
     TabsPanel,
     ToolsPanel,
-    /// Conn took over this slot from the code review panel. The alias keeps
-    /// existing `settings.toml` files, which persist this as `code_review`,
-    /// deserializing instead of silently dropping the toolbar item.
-    #[serde(alias = "code_review", alias = "CodeReview")]
+    CodeReview,
     Conn,
 }
 
@@ -37,6 +34,7 @@ impl HeaderToolbarItemKind {
         match self {
             Self::TabsPanel => "Tabs Panel",
             Self::ToolsPanel => "Tools Panel",
+            Self::CodeReview => "Code Review",
             Self::Conn => "Conn",
         }
     }
@@ -45,6 +43,7 @@ impl HeaderToolbarItemKind {
         match self {
             Self::TabsPanel => Icon::Menu,
             Self::ToolsPanel => Icon::Tool2,
+            Self::CodeReview => Icon::Diff,
             Self::Conn => Icon::ClockRewind,
         }
     }
@@ -59,6 +58,7 @@ impl HeaderToolbarItemKind {
                     && *TabSettings::as_ref(app).use_vertical_tabs
             }
             Self::ToolsPanel => true,
+            Self::CodeReview => cfg!(feature = "local_fs"),
             Self::Conn => true,
         }
     }
@@ -72,7 +72,10 @@ impl HeaderToolbarItemKind {
     /// Whether this item opens a side panel (as opposed to replacing the content
     /// area or opening a popover).
     pub fn is_panel(&self) -> bool {
-        matches!(self, Self::TabsPanel | Self::ToolsPanel | Self::Conn)
+        matches!(
+            self,
+            Self::TabsPanel | Self::ToolsPanel | Self::CodeReview | Self::Conn
+        )
     }
 
     pub fn default_left() -> Vec<Self> {
@@ -80,11 +83,16 @@ impl HeaderToolbarItemKind {
     }
 
     pub fn default_right() -> Vec<Self> {
-        vec![Self::Conn]
+        vec![Self::CodeReview, Self::Conn]
     }
 
     /// All toolbar item variants (availability filtering is done at the call site).
     pub fn all_items() -> Vec<Self> {
-        vec![Self::TabsPanel, Self::ToolsPanel, Self::Conn]
+        vec![
+            Self::TabsPanel,
+            Self::ToolsPanel,
+            Self::CodeReview,
+            Self::Conn,
+        ]
     }
 }

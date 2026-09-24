@@ -718,6 +718,12 @@ enum TabBarSlot {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RightPanelContent {
+    CodeReview,
+    Conn,
+}
+
 pub struct Workspace {
     window_id: WindowId,
     pub(crate) tabs: Vec<TabData>,
@@ -825,10 +831,11 @@ pub struct Workspace {
     left_panel_view: ViewHandle<LeftPanelView>,
     left_panel_views: Vec<ToolPanelView>,
     right_panel_view: ViewHandle<RightPanelView>,
-    /// Conn occupies the right-hand panel slot. `right_panel_view` is still
-    /// built and still receives code-review actions, but is no longer
-    /// rendered; it goes away with the code_review trim.
     conn_panel_view: ViewHandle<ConnPanelView>,
+    /// What the right panel shows, shared by every tab so switching tabs changes the panel's
+    /// content but not the layout. Code review's open state also lives on each pane group, which
+    /// `reconcile_right_panel_for_active_tab` keeps in line with this.
+    right_panel_content: Option<RightPanelContent>,
     working_directories_model: ModelHandle<pane_group::WorkingDirectoriesModel>,
     lightbox_view: Option<ViewHandle<LightboxView>>,
     hoa_onboarding_flow: Option<ViewHandle<HoaOnboardingFlow>>,
@@ -2312,6 +2319,7 @@ impl Workspace {
             left_panel_views,
             right_panel_view,
             conn_panel_view,
+            right_panel_content: Some(RightPanelContent::Conn),
             working_directories_model,
             shown_staging_banner_count: 0,
 
@@ -2976,6 +2984,7 @@ impl Workspace {
             pg.right_panel_open = true;
             pg.is_right_panel_maximized = right_panel_snapshot.is_maximized;
         });
+        self.right_panel_content = Some(RightPanelContent::CodeReview);
 
         let resizable = ResizableData::handle(ctx);
         if let Some(modal_sizes) = resizable.as_ref(ctx).get_all_handles(self.window_id)
@@ -3581,6 +3590,30 @@ impl Workspace {
         });
     }
 
+    fn reconcile_right_panel_for_active_tab(&mut self, ctx: &mut ViewContext<Self>) {
+        let pane_group = self.active_tab_pane_group().clone();
+        let code_review_open = pane_group.as_ref(ctx).right_panel_open;
+        let code_review_wanted = self.right_panel_content == Some(RightPanelContent::CodeReview);
+        if code_review_wanted && !code_review_open {
+            self.toggle_right_panel(&pane_group, ctx);
+        } else if !code_review_wanted && code_review_open {
+            self.close_right_panel(&pane_group, ctx);
+        }
+    }
+
+    fn toggle_conn_panel(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.right_panel_content == Some(RightPanelContent::Conn) {
+            self.right_panel_content = None;
+        } else {
+            let pane_group = self.active_tab_pane_group().clone();
+            if pane_group.as_ref(ctx).right_panel_open {
+                self.close_right_panel(&pane_group, ctx);
+            }
+            self.right_panel_content = Some(RightPanelContent::Conn);
+        }
+        ctx.notify();
+    }
+
     /// Change the active tab index. This must be used instead of setting `self.active_tab_index`
     /// directly, as it updates related state.
     pub(crate) fn set_active_tab_index(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
@@ -3641,6 +3674,7 @@ impl Workspace {
         self.conn_panel_view.update(ctx, |panel, ctx| {
             panel.set_active_pane_group(conn_active_pane_group, ctx);
         });
+        self.reconcile_right_panel_for_active_tab(ctx);
 
         self.update_active_session(ctx);
     }
@@ -4180,7 +4214,7 @@ impl Workspace {
         } else {
             PanelPosition::Right
         };
-        let code_review_position = if left_items.contains(&HeaderToolbarItemKind::Conn) {
+        let code_review_position = if left_items.contains(&HeaderToolbarItemKind::CodeReview) {
             PanelPosition::Left
         } else {
             PanelPosition::Right
@@ -6769,6 +6803,11 @@ impl Workspace {
             pane_group.right_panel_open = should_open;
             pane_group.is_right_panel_maximized
         });
+        if should_open {
+            self.right_panel_content = Some(RightPanelContent::CodeReview);
+        } else if self.right_panel_content == Some(RightPanelContent::CodeReview) {
+            self.right_panel_content = None;
+        }
 
         self.right_panel_view.update(ctx, |view, ctx| {
             view.set_maximized(new_is_maximized, ctx);
@@ -13439,6 +13478,30 @@ impl Workspace {
             .any(|id| id.is_terminal_pane() || id.is_file_pane() || id.is_code_pane())
     }
 
+    fn render_conn_panel_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+        SavePosition::new(
+            Container::new(
+                Align::new(
+                    self.render_tab_bar_icon_button(
+                        appearance,
+                        icons::Icon::ClockRewind,
+                        &self.mouse_states.conn_panel_icon,
+                        WorkspaceAction::ToggleConnPanel,
+                        "Conn".to_string(),
+                        None,
+                        self.right_panel_content == Some(RightPanelContent::Conn),
+                        false,
+                    )
+                    .finish(),
+                )
+                .finish(),
+            )
+            .finish(),
+            "workspace:toggle_conn_panel",
+        )
+        .finish()
+    }
+
     fn render_right_panel_button(
         &self,
         appearance: &Appearance,
@@ -13459,17 +13522,13 @@ impl Workspace {
             theme.sub_text_color(theme.background())
         };
 
-        // Conn reads session history, so the button carries a history glyph
-        // rather than the diff icon this slot used for code review.
-        let icon =
-            ConstrainedBox::new(icons::Icon::ClockRewind.to_warpui_icon(font_color).finish())
-                .with_width(16.)
-                .with_height(16.)
-                .finish();
+        // Build the button content: Diff icon + optional diff stats
+        let icon = ConstrainedBox::new(icons::Icon::Diff.to_warpui_icon(font_color).finish())
+            .with_width(16.)
+            .with_height(16.)
+            .finish();
 
-        // Diff stats describe a code review, not a session history. The
-        // setting stays until the code_review trim removes it.
-        let show_diff_stats = false;
+        let show_diff_stats = *TabSettings::as_ref(ctx).show_code_review_diff_stats;
 
         let line_changes = if show_diff_stats {
             self.active_tab_pane_group()
@@ -14000,7 +14059,8 @@ impl Workspace {
                     self.render_left_toggle_button(appearance, ctx)
                 }
             }
-            HeaderToolbarItemKind::Conn => self.render_right_panel_button(appearance, ctx),
+            HeaderToolbarItemKind::CodeReview => self.render_right_panel_button(appearance, ctx),
+            HeaderToolbarItemKind::Conn => self.render_conn_panel_button(appearance),
         };
         Some(
             Container::new(
@@ -14748,12 +14808,12 @@ impl Workspace {
                     self.render_config_panel_maximized(pane_group, &config, app),
                     app,
                 );
-            } else if !config.contains_item(&HeaderToolbarItemKind::Conn) {
+            } else if !config.contains_item(&HeaderToolbarItemKind::CodeReview) {
                 Self::add_panel_with_separator(
                     &mut main_content,
                     &mut prev_panel_added,
                     self.render_config_panel(
-                        &HeaderToolbarItemKind::Conn,
+                        &HeaderToolbarItemKind::CodeReview,
                         pane_group,
                         &config,
                         app,
@@ -15378,12 +15438,12 @@ impl Workspace {
                     self.render_config_panel_maximized(pane_group, &config, app),
                     app,
                 );
-            } else if !config.contains_item(&HeaderToolbarItemKind::Conn) {
+            } else if !config.contains_item(&HeaderToolbarItemKind::CodeReview) {
                 Self::add_panel_with_separator(
                     &mut panels_view,
                     &mut prev_panel_added,
                     self.render_config_panel(
-                        &HeaderToolbarItemKind::Conn,
+                        &HeaderToolbarItemKind::CodeReview,
                         pane_group,
                         &config,
                         app,
@@ -15449,11 +15509,17 @@ impl Workspace {
                 }
                 Some(ChildView::new(&self.left_panel_view).finish())
             }
-            HeaderToolbarItemKind::Conn => {
+            HeaderToolbarItemKind::CodeReview => {
                 if !pane_group.right_panel_open {
                     return None;
                 }
                 if pane_group.is_right_panel_maximized {
+                    return None;
+                }
+                Some(ChildView::new(&self.right_panel_view).finish())
+            }
+            HeaderToolbarItemKind::Conn => {
+                if self.right_panel_content != Some(RightPanelContent::Conn) {
                     return None;
                 }
                 Some(ChildView::new(&self.conn_panel_view).finish())
@@ -15471,10 +15537,10 @@ impl Workspace {
         if !pane_group.right_panel_open || !pane_group.is_right_panel_maximized {
             return None;
         }
-        if !HeaderToolbarItemKind::Conn.is_supported(app) {
+        if !HeaderToolbarItemKind::CodeReview.is_supported(app) {
             return None;
         }
-        Some(Shrinkable::new(1.0, ChildView::new(&self.conn_panel_view).finish()).finish())
+        Some(Shrinkable::new(1.0, ChildView::new(&self.right_panel_view).finish()).finish())
     }
 
     fn agent_toast_positioning(&self) -> OffsetPositioning {
@@ -16617,6 +16683,7 @@ impl TypedActionView for Workspace {
                 let pane_group_handle = self.active_tab_pane_group().clone();
                 self.toggle_right_panel(&pane_group_handle, ctx);
             }
+            ToggleConnPanel => self.toggle_conn_panel(ctx),
             #[cfg(feature = "local_fs")]
             OpenCodeReviewPanel(locator) => {
                 let pane_group_handle = self
