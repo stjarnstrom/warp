@@ -76,7 +76,6 @@ cfg-if.workspace = true
 channel_versions.workspace = true
 chrono.workspace = true
 clap.workspace = true
-cloud_object_client.workspace = true
 cloud_object_models.workspace = true
 cloud_objects.workspace = true
 command = { workspace = true }
@@ -231,9 +230,7 @@ warp_completer.workspace = true
 warp_core.workspace = true
 warp_errors = { workspace = true, features = ["reqwest-errors"] }
 warp_editor.workspace = true
-warp_graphql.workspace = true
 warp_search_core.workspace = true
-warp_server_auth.workspace = true
 warp_server_client.workspace = true
 warp_util.workspace = true
 warpui = { workspace = true, features = ["schema_gen", "settings_value"] }
@@ -262,7 +259,6 @@ vim.workspace = true
 rmcp.workspace = true
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
-warp_managed_secrets.workspace = true
 local_control.workspace = true
 hashbrown.workspace = true
 rustc-hash.workspace = true
@@ -419,7 +415,6 @@ jsonschema = { workspace = true, default-features = false }
 async-executor = "1.5.1"
 command = { workspace = true, features = ["test-util"] }
 ctor = "0.1.18"
-cloud_object_client = { workspace = true, features = ["test-util"] }
 http_client = { workspace = true, features = ["test-util"] }
 mockall.workspace = true
 mockito.workspace = true
@@ -430,7 +425,6 @@ warp_completer = { workspace = true, features = ["test-util"] }
 warp_core = { workspace = true, features = ["test-util"] }
 warp_editor = { workspace = true, features = ["test-util"] }
 warp_server_client = { workspace = true, features = ["test-util"] }
-warp_server_auth = { workspace = true, features = ["test-util"] }
 warp_terminal = { workspace = true, features = ["test-util"] }
 warpui = { workspace = true, features = ["test-util"] }
 warpui_core = { workspace = true, features = ["test-util"] }
@@ -585,7 +579,6 @@ default = [
     "ambient_agents_command_line",
     "ambient_agents_image_upload",
     "scheduled_ambient_agents",
-    "warp_managed_secrets",
     "v4a_file_diffs",
     "classic_completions",
     "force_classic_completions",
@@ -827,8 +820,6 @@ prompt_suggestions_via_maa = []
 voice_input = ["dep:voice_input"]
 tab_close_button_on_left = []
 test-util = [
-    "cloud_object_client/test-util",
-    "warp_server_auth/test-util",
     "http_client/test-util",
     "warp_core/test-util",
     "warp_terminal/test-util",
@@ -938,7 +929,6 @@ revert_to_checkpoints = []
 rewind_slash_command = []
 agent_view = []
 agent_view_block_context = ["agent_view"]
-warp_managed_secrets = []
 v4a_file_diffs = []
 agent_tips = []
 agent_toolbar_editor = ["agent_view"]

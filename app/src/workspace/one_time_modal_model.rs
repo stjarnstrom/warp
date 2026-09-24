@@ -3,12 +3,7 @@ use warp_core::features::FeatureFlag;
 use warpui::{Entity, ModelContext, SingletonEntity, WindowId};
 
 use super::hoa_onboarding;
-use crate::auth::AuthManager;
-use crate::auth::auth_manager::AuthManagerEvent;
 use crate::settings::CodeSettings;
-use crate::settings::cloud_preferences_syncer::{
-    CloudPreferencesSyncer, CloudPreferencesSyncerEvent,
-};
 
 /// A generic model for managing one-time modals that should be shown to users only once.
 ///
@@ -18,40 +13,17 @@ use crate::settings::cloud_preferences_syncer::{
 pub struct OneTimeModalModel {
     /// Whether the HOA onboarding flow is currently being shown.
     is_hoa_onboarding_open: bool,
+    should_check_modals: bool,
     /// The window ID where the currently open one-time modal should be displayed.
     /// This is captured when a modal is first opened and ensures the modal stays on that window.
     target_window_id: Option<WindowId>,
 }
 
 impl OneTimeModalModel {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        // Subscribe to auth manager events to automatically trigger modal when user becomes onboarded
-        ctx.subscribe_to_model(&AuthManager::handle(ctx), |_, _, event, ctx| {
-            let AuthManagerEvent::AuthComplete = event else {
-                return;
-            };
-
-            let auth_state = crate::auth::AuthStateProvider::as_ref(ctx).get().clone();
-            let is_existing_user = auth_state.is_onboarded().unwrap_or_default();
-            if is_existing_user {
-                // Settings modals settings are synced to the cloud, not respecting the user's sync setting, so they
-                // must all await initial load to be triggered, else we risk reading a stale triggered value.
-                ctx.subscribe_to_model(
-                    &CloudPreferencesSyncer::handle(ctx),
-                    move |me, _, event, ctx| {
-                        if let CloudPreferencesSyncerEvent::InitialLoadCompleted = event {
-                            ctx.unsubscribe_from_model(&CloudPreferencesSyncer::handle(ctx));
-                            me.check_and_trigger_all_modals(ctx);
-                        }
-                    },
-                );
-            } else {
-                hoa_onboarding::mark_hoa_onboarding_completed(ctx);
-            }
-        });
-
+    pub fn new(is_existing_install: bool) -> Self {
         Self {
             is_hoa_onboarding_open: false,
+            should_check_modals: is_existing_install,
             target_window_id: None,
         }
     }
@@ -76,13 +48,9 @@ impl OneTimeModalModel {
     }
 
     pub fn update_target_window_id(&mut self, window_id: WindowId, ctx: &mut ModelContext<Self>) {
-        let was_any_modal_visible = self.is_any_modal_open();
         self.target_window_id = Some(window_id);
-        let is_any_modal_visible = self.is_any_modal_open();
-        if was_any_modal_visible != is_any_modal_visible {
-            ctx.emit(OneTimeModalEvent::VisibilityChanged {
-                is_open: is_any_modal_visible,
-            });
+        if std::mem::take(&mut self.should_check_modals) {
+            self.check_and_trigger_all_modals(ctx);
         }
     }
 

@@ -191,8 +191,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_session_restoration_with_multiple_shells);
     register_test!(test_restore_snapshot_with_background_output);
     register_test!(test_restore_snapshot_with_workflows);
-    register_test!(test_restore_snapshot_with_test_json_object);
-    register_test!(test_restore_snapshot_with_common_shareable_metadata_ids);
     register_test!(test_restore_snapshot_with_markdown_file);
     register_test!(test_restore_snapshot_with_code_file);
     register_test!(test_restore_snapshot_with_settings_page);
@@ -338,11 +336,6 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_histfile_left_joined_with_persisted_history);
     register_test!(test_history_command_is_linked_to_local_workflow);
     register_test!(test_up_arrow_history_enters_shift_tab_for_workflow);
-
-    register_test!(test_websocket_does_not_begin_on_startup);
-    register_test!(test_websocket_begins_on_startup);
-    register_test!(test_websocket_begins_after_joining_a_team);
-    register_test!(test_websocket_begins_after_creating_an_object);
 
     register_test!(test_secret_is_obfuscated_on_copy);
     register_test!(test_secret_tooltip_shows_on_click);

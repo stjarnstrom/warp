@@ -19,18 +19,23 @@ verification pass. See the final entry in `deletion-log.md` for coverage and pla
 
 Drive-remnant cleanup removes `app/src/drive`, export and deep-link entry points, dead panel
 state, and Drive-only styling/flags/telemetry. Local workflow arguments and icon colors remain;
-cloud-folder models now live under `cloud_object`. See the final deletion-log entry for validation.
+the subsequent backend slice also deletes the cloud-folder models. See the deletion log for validation.
 
 Account-gate removal makes every root window own a workspace directly, independent of login,
 SSO or account status. Login/logout/account UI, browser auth callbacks and logout database-reset
 plumbing are gone. Settings opens Appearance; legacy Account settings targets resolve there.
-Auth credential refresh, cloud sync and server-backed surfaces remain for the backend slice.
-See the final deletion-log entry for validation.
+The backend slice now removes account credential refresh, cloud sync, team services, cloud-backed
+workflows/embeds, hosted block sharing and shared-session transport. Local preferences and first-run
+defaults no longer depend on an account. SSH file/editor/LSP connections carry an installation ID
+and privacy preferences, without Warp credentials. Public update/time/telemetry clients remain.
+See the final deletion-log entry for validation and retained compatibility types.
 
 Candidate next slices (the user picks):
-- `server` / `auth` / `cloud_object`
+- Lower-level cleanup: dormant cloud/shared-session types and crates, settings sync metadata,
+  obsolete protocol fields and account-era database tables (preserve local snapshot/history reads)
 - Conn slice 2 (`conn-plan.md` §7): SQLite persistence, cross-window overview, read-watermark
-- Small UI fixes: Conn empty state for non-terminal panes, Rendered/Raw overlap
+- Small UI fixes: Conn empty state for non-terminal panes, Rendered/Raw overlap, Settings content
+  clipping beside a wide restored Conn panel
 
 ## Decisions
 

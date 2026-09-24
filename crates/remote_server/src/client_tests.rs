@@ -8,7 +8,7 @@ use crate::proto::{
     ClientMessage, CodebaseIndexStatus, CodebaseIndexStatusState, CodebaseIndexStatusUpdated,
     CodebaseIndexStatusesSnapshot, ErrorCode, GetDiffStateResponse, InitializeResponse,
     OpenBufferResponse, RemoteAgentContextSnapshot, RemoteContextFileProto, RunCommandResponse,
-    RunCommandSuccess, ServerMessage, WriteFile, client_message, host_scoped_request, notification,
+    RunCommandSuccess, ServerMessage, WriteFile, client_message, host_scoped_request,
     run_command_response, server_message, session_scoped_request,
 };
 use crate::protocol;
@@ -75,14 +75,6 @@ fn unwrap_host_scoped(msg: &ClientMessage) -> &host_scoped_request::Message {
     match &msg.message {
         Some(client_message::Message::HostScoped(w)) => w.message.as_ref().unwrap(),
         other => panic!("Expected HostScoped, got {other:?}"),
-    }
-}
-
-/// Extract the notification inner message from a ClientMessage wrapper.
-fn unwrap_notification(msg: &ClientMessage) -> &notification::Message {
-    match &msg.message {
-        Some(client_message::Message::Notification(w)) => w.message.as_ref().unwrap(),
-        other => panic!("Expected Notification, got {other:?}"),
     }
 }
 
@@ -218,15 +210,10 @@ async fn initialize_round_trip() {
     });
 
     let resp = client
-        .initialize(
-            None,
-            InitializeParams {
-                user_id: String::new(),
-                user_email: String::new(),
-                crash_reporting_enabled: true,
-                codebase_index_limits: None,
-            },
-        )
+        .initialize(InitializeParams {
+            crash_reporting_enabled: true,
+            codebase_index_limits: None,
+        })
         .await
         .unwrap();
     assert_eq!(resp.server_version, "test-0.1.0");
@@ -234,12 +221,14 @@ async fn initialize_round_trip() {
 }
 
 #[tokio::test]
-async fn initialize_sends_empty_auth_token_when_none() {
+async fn initialize_omits_account_credentials() {
     let (client, _disconnect_rx, _executor) = setup_mock_client(|msg| {
         let session_scoped_request::Message::Initialize(init) = unwrap_session_scoped(msg) else {
             panic!("Expected Initialize");
         };
         assert!(init.auth_token.is_empty());
+        assert!(init.user_id.is_empty());
+        assert!(init.user_email.is_empty());
         server_message::Message::InitializeResponse(InitializeResponse {
             server_version: "test-0.1.0".to_string(),
             host_id: "test-host-id".to_string(),
@@ -247,64 +236,12 @@ async fn initialize_sends_empty_auth_token_when_none() {
     });
 
     client
-        .initialize(
-            None,
-            InitializeParams {
-                user_id: String::new(),
-                user_email: String::new(),
-                crash_reporting_enabled: true,
-                codebase_index_limits: None,
-            },
-        )
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn initialize_sends_auth_token_when_provided() {
-    let (client, _disconnect_rx, _executor) = setup_mock_client(|msg| {
-        let session_scoped_request::Message::Initialize(init) = unwrap_session_scoped(msg) else {
-            panic!("Expected Initialize");
-        };
-        assert_eq!(init.auth_token, "secret-token");
-        server_message::Message::InitializeResponse(InitializeResponse {
-            server_version: "test-0.1.0".to_string(),
-            host_id: "test-host-id".to_string(),
+        .initialize(InitializeParams {
+            crash_reporting_enabled: true,
+            codebase_index_limits: None,
         })
-    });
-
-    client
-        .initialize(
-            Some("secret-token"),
-            InitializeParams {
-                user_id: String::new(),
-                user_email: String::new(),
-                crash_reporting_enabled: true,
-                codebase_index_limits: None,
-            },
-        )
         .await
         .unwrap();
-}
-
-#[tokio::test]
-async fn authenticate_sends_fire_and_forget_message() {
-    let (client_stream, server_stream) = tokio::io::duplex(4096);
-    let (server_read, _server_write) = tokio::io::split(server_stream);
-    let (client_read, client_write) = tokio::io::split(client_stream);
-    let executor = executor::Background::default();
-    let (client, _event_rx, _failure_rx, _host_rx) =
-        RemoteServerClient::new(client_read.compat(), client_write.compat_write(), &executor);
-
-    client.authenticate("rotated-secret");
-
-    let msg = protocol::read_client_message(&mut server_read.compat())
-        .await
-        .unwrap();
-    let notification::Message::Authenticate(auth) = unwrap_notification(&msg) else {
-        panic!("Expected Authenticate");
-    };
-    assert_eq!(auth.auth_token, "rotated-secret");
 }
 
 #[tokio::test]
@@ -352,15 +289,10 @@ async fn disconnected_on_closed_stream() {
 
     // An initialize call on a dead stream must complete with an error rather than hang.
     let result = client
-        .initialize(
-            None,
-            InitializeParams {
-                user_id: String::new(),
-                user_email: String::new(),
-                crash_reporting_enabled: true,
-                codebase_index_limits: None,
-            },
-        )
+        .initialize(InitializeParams {
+            crash_reporting_enabled: true,
+            codebase_index_limits: None,
+        })
         .await;
     assert!(result.is_err());
 
@@ -435,15 +367,10 @@ async fn concurrent_in_flight_requests() {
     for _ in 0..10 {
         let c = std::sync::Arc::clone(&client);
         handles.push(tokio::spawn(async move {
-            c.initialize(
-                None,
-                InitializeParams {
-                    user_id: String::new(),
-                    user_email: String::new(),
-                    crash_reporting_enabled: true,
-                    codebase_index_limits: None,
-                },
-            )
+            c.initialize(InitializeParams {
+                crash_reporting_enabled: true,
+                codebase_index_limits: None,
+            })
             .await
             .expect("concurrent initialize failed")
         }));

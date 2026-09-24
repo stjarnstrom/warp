@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use session_sharing_protocol::common::{Scrollback, ScrollbackBlock};
 use url::Url;
 use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
 use warpui::r#async::executor::Background;
 
-use super::decode_scrollback;
 use crate::channel::ChannelState;
 use crate::terminal::TerminalModel;
 use crate::terminal::color::List;
@@ -18,23 +16,6 @@ use crate::themes::default_themes::dark_theme;
 use crate::uri::web_intent_parser::maybe_rewrite_web_url_to_intent;
 
 pub const MAX_BYTES_SHAREABLE: usize = 5000;
-
-#[test]
-fn maybe_rewrite_web_url_to_shared_session_intent_rewrites_matching_web_url() {
-    let server_root = ChannelState::server_root_url();
-    let web_url = Url::parse(&format!(
-        "{server_root}/session/00000000-0000-0000-0000-000000000000?pwd=secret&preview=true"
-    ))
-    .expect("valid shared session web URL");
-
-    let maybe_intent = maybe_rewrite_web_url_to_intent(&web_url)
-        .expect("expected shared session web URL to rewrite to an intent URL");
-
-    assert_eq!(maybe_intent.scheme(), ChannelState::url_scheme());
-    assert_eq!(maybe_intent.host_str(), Some("shared_session"));
-    assert_eq!(maybe_intent.path(), "/00000000-0000-0000-0000-000000000000");
-    assert_eq!(maybe_intent.query(), Some("pwd=secret&preview=true"));
-}
 
 #[test]
 fn maybe_rewrite_web_url_to_shared_session_intent_ignores_non_matching_host() {
@@ -109,40 +90,11 @@ fn shared_session_viewer_recovers_from_raw_precmd_with_completion_metadata_witho
 }
 
 #[test]
-fn test_scrollback_deserialization() {
-    let raw = serde_json::json!({
-        "id": "00000000-0000-0000-0000-000000000000",
-        "stylized_command": [104, 101, 108, 108, 111],
-        "stylized_output": [119, 111, 114, 108, 100],
-        "pwd": null,
-        "git_head": null,
-        "virtual_env": null,
-        "conda_env": null,
-        "node_version": null,
-        "exit_code": 0,
-        "did_execute": true,
-        "completed_ts": null,
-        "start_ts": null,
-        "ps1": null,
-        "rprompt": null,
-        "honor_ps1": false,
-        "is_background": false,
-        "session_id": null,
-        "shell_host": null,
-        "prompt_snapshot": null,
-        "ai_metadata": null
-    });
-
-    let scrollback = Scrollback {
-        blocks: vec![ScrollbackBlock {
-            raw: serde_json::to_vec(&raw).expect("serialize scrollback json"),
-        }],
-        is_alt_screen_active: false,
-    };
-
-    let decoded = decode_scrollback(&scrollback);
-
-    assert_eq!(decoded.len(), 1);
-    assert_eq!(decoded[0].stylized_command, b"hello");
-    assert_eq!(decoded[0].stylized_output, b"world");
+fn hosted_shared_session_urls_are_not_native_intents() {
+    let url = Url::parse(&format!(
+        "{}/session/00000000-0000-0000-0000-000000000000?pwd=secret",
+        ChannelState::server_root_url()
+    ))
+    .unwrap();
+    assert!(maybe_rewrite_web_url_to_intent(&url).is_none());
 }

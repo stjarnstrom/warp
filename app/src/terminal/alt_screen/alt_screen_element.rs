@@ -158,14 +158,6 @@ impl AltScreenElement {
         self
     }
 
-    pub fn with_shared_session_presence(
-        mut self,
-        presence_manager: Option<ModelHandle<PresenceManager>>,
-    ) -> Self {
-        self.presence_manager = presence_manager;
-        self
-    }
-
     fn key_down(&mut self, chars: &str, ctx: &mut EventContext) -> bool {
         if self.is_terminal_focused && !chars.is_empty() && chars.chars().all(|c| c.is_control()) {
             ctx.dispatch_typed_action(TerminalAction::KeyDown(chars.to_string()));

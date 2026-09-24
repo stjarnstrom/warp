@@ -405,16 +405,6 @@ pub trait PaneContent: 'static {
     /// Focus this pane's contents.
     fn focus(&self, ctx: &mut ViewContext<PaneGroup>);
 
-    /// Get the shareable link for the pane.
-    ///
-    /// This is called when the focused pane changes. It is used to get the link to the
-    /// for the active pane (if there is one). This link is used to update the browser's
-    /// url bar.
-    fn shareable_link(
-        &self,
-        ctx: &mut ViewContext<PaneGroup>,
-    ) -> Result<ShareableLink, ShareableLinkError>;
-
     /// Pane-agnostic state that all panes have.
     fn pane_configuration(&self) -> ModelHandle<PaneConfiguration>;
 

@@ -59,27 +59,11 @@ pub struct RemoteServerIdentityArgs {
     pub identity_key: String,
 }
 
-/// Global options that apply to all CLI commands.
-#[derive(Debug, Default, Clone, clap::Args)]
-pub struct GlobalOptions {
-    /// API key for server authentication.
-    #[arg(
-        long = "api-key",
-        global = true,
-        env = "WARP_API_KEY",
-        hide_env_values = true
-    )]
-    pub api_key: Option<String>,
-}
-
 /// Argument parser for the desktop app and its worker processes.
 #[derive(Debug, Default, Parser, Clone)]
 #[command(name = "warp", display_name = "Warp", about = "Terminal application")]
 #[clap(subcommand_precedence_over_arg = true)]
 pub struct Args {
-    #[clap(flatten)]
-    global_options: GlobalOptions,
-
     /// Override the server root URL.
     #[arg(
         long = "server-root-url",
@@ -182,16 +166,6 @@ impl Args {
     /// Extract the main Warp application args.
     pub fn into_app_args(self) -> AppArgs {
         self.args
-    }
-
-    /// Returns the global options.
-    pub fn global_options(&self) -> &GlobalOptions {
-        &self.global_options
-    }
-
-    /// Returns the API key if provided.
-    pub fn api_key(&self) -> Option<&String> {
-        self.global_options.api_key.as_ref()
     }
 
     pub fn server_root_url(&self) -> Option<&str> {

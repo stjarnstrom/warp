@@ -18,7 +18,6 @@ use sentry::{ClientInitGuard, IntoDsn, SessionMode};
 #[cfg(linux_or_windows)]
 pub use sentry_minidump::run_server as run_minidump_server;
 use warp_core::channel::Channel;
-use warp_server_auth::anonymous_id::get_or_create_anonymous_id;
 use warpui::r#async::block_on;
 use warpui::rendering::GPUDeviceInfo;
 use warpui::windowing::state::ApplicationStage;
@@ -26,9 +25,9 @@ use warpui::windowing::{self, StateEvent, WindowManager};
 use warpui::{AppContext, SingletonEntity};
 
 use crate::antivirus::{AntivirusInfo, AntivirusInfoEvent};
-use crate::auth::{AuthStateProvider, UserUid};
 use crate::channel::ChannelState;
 use crate::features::FeatureFlag;
+use crate::local_identity::get_or_create_anonymous_id;
 use crate::settings::{PrivacySettings, PrivacySettingsChangedEvent};
 
 lazy_static! {
@@ -206,13 +205,7 @@ pub(crate) fn init(ctx: &mut AppContext) -> bool {
     let is_crash_reporting_enabled = is_crash_reporting_enabled(ctx);
 
     if is_crash_reporting_enabled {
-        AuthStateProvider::handle(ctx).update(ctx, |auth_state_provider, ctx| {
-            init_sentry(
-                auth_state_provider.get().user_id(),
-                auth_state_provider.get().user_email(),
-                ctx,
-            );
-        });
+        init_sentry(ctx);
     } else {
         log::info!("Crash reporting setting is disabled; not initializing sentry.");
     }
@@ -224,13 +217,7 @@ pub(crate) fn init(ctx: &mut AppContext) -> bool {
         if let &PrivacySettingsChangedEvent::UpdateIsCrashReportingEnabled { new_value, .. } = event
         {
             if new_value {
-                AuthStateProvider::handle(ctx).update(ctx, |auth_state_provider, ctx| {
-                    init_sentry(
-                        auth_state_provider.get().user_id(),
-                        auth_state_provider.get().user_email(),
-                        ctx,
-                    );
-                });
+                init_sentry(ctx);
             } else {
                 uninit_sentry();
             }
@@ -293,7 +280,7 @@ fn get_environment() -> Cow<'static, str> {
 ///
 /// This must be called from the main thread to capture panics/crashes across the entire
 /// application.
-fn init_sentry(user_id: Option<UserUid>, email: Option<String>, ctx: &mut AppContext) {
+fn init_sentry(ctx: &mut AppContext) {
     let key = release_version();
 
     let environment = Some(get_environment());
@@ -370,11 +357,7 @@ fn init_sentry(user_id: Option<UserUid>, email: Option<String>, ctx: &mut AppCon
                     log::info!("Initializing Sentry native");
                     sentry_minidump::init();
 
-                    let auth_state_provider = crate::AuthStateProvider::handle(ctx).as_ref(ctx);
-                    let auth_state = auth_state_provider.get();
-                    let user_id = auth_state.user_id();
-                    let email = auth_state.user_email();
-                    set_optional_user_information(user_id, email, ctx);
+                    set_installation_identity(ctx);
                 }
             });
         } else {
@@ -387,7 +370,7 @@ fn init_sentry(user_id: Option<UserUid>, email: Option<String>, ctx: &mut AppCon
         init_cocoa_sentry();
     }
 
-    set_optional_user_information(user_id, email, ctx);
+    set_installation_identity(ctx);
 }
 
 /// Baseline Sentry client options.
@@ -460,30 +443,13 @@ pub fn crash() {
 
 /// Sets the user id if `Some`, otherwise sets the current user ID to be an anonymous ID indicating
 /// the user hasn't logged in yet.
-fn set_optional_user_information(
-    user_id: Option<UserUid>,
-    email: Option<String>,
-    ctx: &mut AppContext,
-) {
-    let user_id = user_id.map(|uid| uid.as_string()).unwrap_or_else(|| {
-        // If the user isn't signed in, set an anonymous ID.  This allows us to
-        // compute more accurate crash-free user metrics.
-        let anonymous_id = get_or_create_anonymous_id(ctx);
-        format!("anon.{anonymous_id}")
-    });
-    // Only send along emails if we're on WarpDev.
-    // We try to keep PII out of Sentry as much as possible.
-    let email = if ChannelState::channel() == Channel::Dev {
-        email
-    } else {
-        None
-    };
-
+fn set_installation_identity(ctx: &mut AppContext) {
+    let user_id = format!("anon.{}", get_or_create_anonymous_id(ctx));
     // Set user for Rust sentry.
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
             id: Some(user_id.clone()),
-            email,
+            email: None,
             ip_address: None,
             username: None,
             other: BTreeMap::new(),
@@ -494,19 +460,6 @@ fn set_optional_user_information(
     sentry_minidump::set_user_id(user_id.as_str());
     #[cfg(all(target_os = "macos", feature = "cocoa_sentry"))]
     mac::set_user_id(user_id.as_str());
-}
-
-pub fn set_user_id(user_id: UserUid, email: Option<String>, ctx: &mut AppContext) {
-    // On macOS, Sentry will error if we try to set a user without initializing the SDK.
-    // If crash reporting was disabled, but the user enables it later, we'll set user info as part of initialization.
-    if matches!(
-        &*RUST_SENTRY_CLIENT_GUARD.lock(),
-        RustSentryClientGuard::Initialized { .. }
-    ) {
-        set_optional_user_information(Some(user_id), email, ctx);
-    } else {
-        log::info!("Sentry is not initialized; not setting Sentry user info");
-    }
 }
 
 fn release_version() -> &'static str {

@@ -50,7 +50,7 @@ pub fn update_command_history(
     if let Some(sender) = model_event_sender {
         let sender_clone = sender.clone();
         let insert_command_event = ModelEvent::InsertCommand {
-            metadata: StartedCommandMetadata {
+            metadata: Box::new(StartedCommandMetadata {
                 command: event.command.to_owned(),
                 start_ts: active_block.start_ts().copied(),
                 pwd: active_block.pwd().map(|pwd| pwd.to_owned()),
@@ -63,7 +63,7 @@ pub fn update_command_history(
                 git_branch: active_block
                     .git_branch()
                     .map(|git_branch| git_branch.to_owned()),
-            },
+            }),
         };
         ctx.background_executor()
             .spawn(async move {

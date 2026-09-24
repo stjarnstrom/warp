@@ -10,17 +10,14 @@ use warpui_extras::user_preferences;
 
 use super::app_icon::AppIconSettings;
 use super::app_installation_detection::UserAppInstallDetectionSettings;
-use super::cloud_preferences::CloudPreferencesSettings;
-use super::initializer::SettingsInitializer;
 use super::native_preference::NativePreferenceSettings;
 use super::{
     AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
     CLIAgentSettings, ChangelogSettings, CodeSettings, CompiledCommandsForCodingAgentToolbar,
     DebugSettings, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent, GPUSettings,
-    InputBoxType, InputModeSettings, InputSettings, LocalControlSettings, PaneSettings,
-    SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
+    InputBoxType, InputModeSettings, InputSettings, LocalControlSettings, LocalPrivacySettings,
+    PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
     SharedObjectLimitBannerSettings, SshSettings, ThemeSettings, VimBannerSettings,
-    WarpDrivePrivacySettings,
 };
 use crate::appearance;
 use crate::banner::BannerState;
@@ -38,7 +35,6 @@ use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::warpify::settings::WarpifySettings;
 use crate::undo_close::UndoCloseSettings;
 use crate::window_settings::{WindowSettings, stage_legacy_background_backdrop};
-use crate::workflows::aliases::WorkflowAliases;
 use crate::workspace::tab_settings::TabSettings;
 
 pub struct UserDefaultsOnStartup {
@@ -80,8 +76,7 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     ThemeSettings::register(ctx);
     AccessibilitySettings::register(ctx);
     NativePreferenceSettings::register(ctx);
-    CloudPreferencesSettings::register(ctx);
-    WarpDrivePrivacySettings::register(ctx);
+    LocalPrivacySettings::register(ctx);
     UserAppInstallDetectionSettings::register(ctx);
     AppIconSettings::register(ctx);
     AppEditorSettings::register(ctx);
@@ -93,7 +88,6 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     VimBannerSettings::register(ctx);
     SharedObjectLimitBannerSettings::register(ctx);
     SharedSessionSettings::register(ctx);
-    WorkflowAliases::register(ctx);
     EmacsBindingsSettings::register(ctx);
     SameLinePromptBlockSettings::register(ctx);
     SemanticSelection::register(ctx);
@@ -117,8 +111,6 @@ pub fn init(
     startup_toml_parse_error: Option<user_preferences::Error>,
     ctx: &mut AppContext,
 ) -> UserDefaultsOnStartup {
-    ctx.add_singleton_model(|_| SettingsInitializer::new());
-
     register_all_settings(ctx);
 
     // One-time migration: copy public settings from the platform-native store

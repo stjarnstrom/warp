@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use command_corrections::Correction;
 pub use onboarding::OnboardingIntention;
 use pathfinder_geometry::vector::Vector2F;
-use session_sharing_protocol::common::Role;
 use warp_util::user_input::UserInput;
 use warpui::elements::HyperlinkUrl;
 use warpui::event::ModifiersState;
@@ -29,7 +28,6 @@ use crate::terminal::model::index::Point;
 use crate::terminal::model::mouse::MouseState;
 use crate::terminal::model::selection::{SelectAction, SelectionDirection};
 use crate::terminal::model::terminal_model::{BlockIndex, WithinModel};
-use crate::terminal::shared_session::SharedSessionActionSource;
 
 /// This represents whether entering a subshell for a particular command should become automatic in
 /// the future, or to ask again.
@@ -128,7 +126,6 @@ pub enum TerminalAction {
     CopyOutputs,
     CopyCommands,
     CopyGitBranch,
-    OpenShareModal,
     ReinputCommands,
     ReinputCommandsWithSudo,
     ClearBuffer,
@@ -213,17 +210,11 @@ pub enum TerminalAction {
     OpenInWarpBanner(OpenInWarpBannerAction),
     OpenBlockFilterEditor(BlockIndex),
     ImportSettings,
-    OpenSharedSessionOnDesktop {
-        source: SharedSessionActionSource,
-    },
+
     ToggleBlockFilterOnSelectedOrLastBlock(ToggleBlockFilterSource),
-    CopySharedSessionLink {
-        source: SharedSessionActionSource,
-    },
+
     VimModeBanner(VimModeBannerAction),
     ToggleSnackbarInActivePane,
-    OpenSharedSessionViewerRoleMenu,
-    RequestSharedSessionRole(Role),
     DragAndDropFiles(Vec<String>),
 
     HyperlinkClick(HyperlinkUrl),
@@ -321,7 +312,6 @@ impl fmt::Debug for TerminalAction {
             CopyOutputs => f.write_str("CopyOutputs"),
             CopyCommands => f.write_str("CopyCommands"),
             CopyGitBranch => f.write_str("CopyGitBranch"),
-            OpenShareModal => f.write_str("OpenShareModal"),
             ReinputCommands => f.write_str("ReinputCommands"),
             ReinputCommandsWithSudo => f.write_str("ReinputCommandsWithSudo"),
             ClearBuffer => f.write_str("ClearBuffer"),
@@ -398,17 +388,11 @@ impl fmt::Debug for TerminalAction {
                 write!(f, "OpenBlockFilterEditor({block_index:?})")
             }
             ImportSettings => write!(f, "ImportSettings"),
-            OpenSharedSessionOnDesktop { source } => {
-                write!(f, "OpenSharedSessionOnDesktop({source:?})")
-            }
             ToggleBlockFilterOnSelectedOrLastBlock(_) => {
                 f.write_str("ToggleBlockFilterOnSelectedOrLastBlock")
             }
-            CopySharedSessionLink { .. } => f.write_str("CopySharedSessionLink"),
             VimModeBanner(action) => write!(f, "VimModeBanner({action:?})"),
             ToggleSnackbarInActivePane => write!(f, "ToggleSnackbarInActivePane"),
-            OpenSharedSessionViewerRoleMenu => write!(f, "OpenSharedSessionViewerRoleMenu"),
-            RequestSharedSessionRole(role) => write!(f, "RequestSharedSessionRole({role:?})"),
             MiddleClickOnGrid { position } => {
                 write!(f, "MiddleClickonGrid {{ position: {position:?} }}")
             }

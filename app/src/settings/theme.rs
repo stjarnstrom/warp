@@ -14,7 +14,7 @@ use crate::themes::theme::{RespectSystemTheme, SelectedSystemThemes, ThemeKind};
 define_settings_group!(ThemeSettings, settings: [
     theme_kind: Theme {
         type: ThemeKind,
-        // Note that for new users, we now override this default value in SettingsInitializer
+        // Note that for new users, we now override this default value in initialize_local_defaults
         // to set the default theme to Phenomenon.
         default: ThemeKind::default(),
         supported_platforms: SupportedPlatforms::ALL,

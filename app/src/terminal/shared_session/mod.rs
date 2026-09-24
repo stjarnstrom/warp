@@ -1,41 +1,26 @@
-use byte_unit::Byte;
-use instant::Duration;
+pub(crate) mod history_model;
 use serde::{Deserialize, Serialize};
-use session_sharing_protocol::common::{Role, Scrollback, SessionId};
+use session_sharing_protocol::common::{Role, SessionId};
 use session_sharing_protocol::sharer::SessionSourceType;
+use warpui::id;
 use warpui::keymap::ContextPredicate;
-use warpui::{AppContext, WindowId, id};
 
-use super::model::block::SerializedBlock;
 use super::model::terminal_model::BlockIndex;
 use super::{GridType, TerminalModel};
 use crate::channel::{Channel, ChannelState};
 use crate::editor::{InteractionState, ReplicaId};
 use crate::features::FeatureFlag;
 
-pub mod manager;
-pub mod network;
-pub mod participant_avatar_view;
-pub mod permissions_manager;
 pub mod presence_manager;
 pub mod render_util;
-pub mod role_change_modal;
 mod selections;
 pub mod settings;
-pub(super) mod shared_handlers;
-pub mod viewer;
 
 #[cfg(test)]
 pub use tests::MAX_BYTES_SHAREABLE;
 
 /// The toast copy when copying a shared session link.
 pub const COPY_LINK_TEXT: &str = "Sharing link copied";
-
-/// Throttle period for selection updates. We throttle instead of debounce because we want
-/// to send selections even when it updates fast, so it appears live.
-/// Our throttle implementation throttles on the trailing edge (does not drop messages at the end, so the
-/// most up to date will always be sent after some delay)
-const SELECTION_THROTTLE_PERIOD: Duration = Duration::from_millis(20);
 
 /// `SessionSourceType` paired with the orchestrator `task_id` that rides
 /// on the `source_task_id` sidecar.
@@ -214,23 +199,6 @@ impl SharedSessionScrollbackType {
     }
 }
 
-#[cfg(not(test))]
-pub fn max_session_size(window_id: WindowId, app: &AppContext) -> Byte {
-    use warpui::SingletonEntity;
-
-    use crate::workspaces::user_workspaces::UserWorkspaces;
-    UserWorkspaces::as_ref(app)
-        .team_for_window(window_id)
-        .and_then(|team| team.billing_metadata.tier.session_sharing_policy)
-        .map(|policy| Byte::from_u64(policy.max_session_size))
-        .unwrap_or(Byte::from_u64_with_unit(100, byte_unit::Unit::MB).unwrap())
-}
-
-#[cfg(test)]
-pub fn max_session_size(_window_id: WindowId, _app: &AppContext) -> Byte {
-    Byte::from_u64(MAX_BYTES_SHAREABLE as u64)
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum SharedSessionActionSource {
     /// From right-click menu in blocklist
@@ -301,33 +269,6 @@ pub fn connect_endpoint(path: String) -> Option<String> {
     Some(format!("{base}{path}"))
 }
 
-/// The event number for events sent to the server. The newtype
-/// ensures that events are incremented correctly.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct EventNumber(usize);
-
-impl EventNumber {
-    fn new() -> Self {
-        Self(0)
-    }
-
-    /// Returns the current event number and increments
-    /// it for the next usage. The event number returned
-    /// is the event number that should be used for the next
-    /// event to send to the server.
-    pub fn advance(&mut self) -> usize {
-        let next = self.0;
-        self.0 += 1;
-        next
-    }
-}
-
-impl From<EventNumber> for usize {
-    fn from(value: EventNumber) -> Self {
-        value.0
-    }
-}
-
 impl From<GridType> for session_sharing_protocol::common::GridType {
     fn from(val: GridType) -> Self {
         match val {
@@ -372,17 +313,6 @@ impl From<&Role> for InteractionState {
             Role::Full => InteractionState::Editable,
         }
     }
-}
-
-/// Decode scrollback blocks from their JSON wire format into [`SerializedBlock`]s.
-///
-/// Blocks that fail to deserialize are silently dropped.
-pub(crate) fn decode_scrollback(scrollback: &Scrollback) -> Vec<SerializedBlock> {
-    scrollback
-        .blocks
-        .iter()
-        .filter_map(|block| serde_json::from_slice(&block.raw).ok())
-        .collect()
 }
 
 #[cfg(test)]

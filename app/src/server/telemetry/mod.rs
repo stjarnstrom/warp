@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use chrono::Utc;
+use cloud_objects::auth::UserUid;
 pub use collector::*;
 pub use context::telemetry_context;
 pub use events::*;
@@ -27,7 +28,6 @@ use warp_errors::report_error;
 use warpui::telemetry::Event;
 
 use crate::ChannelState;
-use crate::auth::UserUid;
 use crate::features::FeatureFlag;
 use crate::server::telemetry::context::AttachContext;
 use crate::server::telemetry_ext::TelemetryExt;

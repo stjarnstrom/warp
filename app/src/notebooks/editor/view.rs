@@ -3312,13 +3312,10 @@ impl warp_editor::editor::EditorView for RichTextEditorView {
 
     fn embedded_item_at<'a>(
         &self,
-        block_offset: CharOffset,
-        ctx: &'a AppContext,
+        _block_offset: CharOffset,
+        _ctx: &'a AppContext,
     ) -> Option<&'a dyn EmbeddedItemModel> {
-        self.model
-            .as_ref(ctx)
-            .notebook_embed_for_block(block_offset)
-            .map(|model| model.as_ref(ctx) as &'a dyn EmbeddedItemModel)
+        None
     }
 
     fn text_decorations<'a>(

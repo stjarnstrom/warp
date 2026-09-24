@@ -17,12 +17,11 @@ use warp_completer::completer::{
 use warp_completer::signatures::CommandRegistry;
 use warp_core::features::FeatureFlag;
 use warp_util::path::{EscapeChar, ShellFamily};
-use warpui::{AppContext, SingletonEntity};
+use warpui::AppContext;
 
 use crate::safe_warn;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session, SessionType};
 use crate::util::AsciiDebug;
-use crate::workflows::aliases::WorkflowAliases;
 
 lazy_static! {
     pub static ref CURR_DIRECTORY_ENTRY: EngineDirEntry = EngineDirEntry {
@@ -322,13 +321,9 @@ impl SessionContext {
         session: impl Into<Arc<Session>>,
         command_registry: Arc<CommandRegistry>,
         current_working_directory: TypedPathBuf,
-        ctx: &AppContext,
+        _ctx: &AppContext,
     ) -> Self {
-        let workflow_aliases = if FeatureFlag::WorkflowAliases.is_enabled() {
-            WorkflowAliases::as_ref(ctx).autocomplete_data(ctx)
-        } else {
-            Default::default()
-        };
+        let workflow_aliases = Default::default();
 
         Self {
             session: session.into(),

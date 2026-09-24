@@ -1,32 +1,10 @@
-pub use cloud_object_models::{
-    CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVar, EnvVarCollection, EnvVarValue,
-};
+pub use cloud_object_models::{EnvVar, EnvVarValue};
 use itertools::Itertools;
 use warp_util::path::ShellFamily;
 
 pub mod env_var_collection_block;
 
-use crate::cloud_object::model::generic_string_model::StringModel;
-use crate::cloud_object::model::json_model::JsonModel;
-use crate::cloud_object::{
-    GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision,
-};
-use crate::server::sync_queue::QueueItem;
 use crate::terminal::shell::ShellType;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum EnvVarCollectionType {
-    /// Saved env vars, saved using cloud-sync. Today, we only support cloud
-    Cloud(Box<CloudEnvVarCollection>),
-}
-
-impl EnvVarCollectionType {
-    pub fn as_cloud_env_var_collection(&self) -> &CloudEnvVarCollection {
-        match self {
-            EnvVarCollectionType::Cloud(cloud_env_var) => cloud_env_var,
-        }
-    }
-}
 
 pub trait EnvVarExt {
     fn get_initialization_string(&self, shell_type: ShellType) -> String;
@@ -62,92 +40,6 @@ fn get_init_command_for_env_var(value: &EnvVarValue, shell_family: ShellFamily) 
         EnvVarValue::Secret(secret) => {
             format!("$({})", secret.get_secret_extraction_command(shell_family))
         }
-    }
-}
-
-pub trait EnvVarCollectionExt {
-    fn export_variables_for_shell(&self, shell_type: ShellType) -> String;
-}
-
-impl EnvVarCollectionExt for EnvVarCollection {
-    fn export_variables_for_shell(&self, shell_type: ShellType) -> String {
-        serialize_variables_for_shell(self.key_value_iter(), shell_type)
-    }
-}
-
-trait EnvVarCollectionKeyValueIter {
-    fn key_value_iter(&self) -> impl Iterator<Item = (&str, &EnvVarValue)>;
-}
-
-impl EnvVarCollectionKeyValueIter for EnvVarCollection {
-    fn key_value_iter(&self) -> impl Iterator<Item = (&str, &EnvVarValue)> {
-        self.vars.iter().map(|var| (var.name.as_str(), &var.value))
-    }
-}
-
-impl StringModel for EnvVarCollection {
-    type CloudObjectType = CloudEnvVarCollection;
-
-    fn model_type_name(&self) -> &'static str {
-        "Environment variables"
-    }
-
-    fn should_enforce_revisions() -> bool {
-        true
-    }
-
-    fn model_format() -> GenericStringObjectFormat {
-        GenericStringObjectFormat::Json(Self::json_object_type())
-    }
-
-    fn display_name(&self) -> String {
-        self.title.clone().unwrap_or_default()
-    }
-
-    fn set_display_name(&mut self, name: &str) {
-        self.title = if name.is_empty() {
-            None
-        } else {
-            Some(name.to_owned())
-        }
-    }
-
-    fn update_object_queue_item(
-        &self,
-        revision_ts: Option<Revision>,
-        object: &CloudEnvVarCollection,
-    ) -> QueueItem {
-        QueueItem::UpdateEnvVarCollection {
-            model: object.model().clone().into(),
-            id: object.id,
-            revision: revision_ts.or(object.metadata.revision),
-        }
-    }
-
-    fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {
-        None
-    }
-
-    fn should_show_activity_toasts() -> bool {
-        true
-    }
-
-    fn warn_if_unsaved_at_quit() -> bool {
-        true
-    }
-
-    fn renders_in_warp_drive(&self) -> bool {
-        true
-    }
-
-    fn supports_linking(&self) -> bool {
-        true
-    }
-}
-
-impl JsonModel for EnvVarCollection {
-    fn json_object_type() -> JsonObjectType {
-        JsonObjectType::EnvVarCollection
     }
 }
 

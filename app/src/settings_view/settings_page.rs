@@ -1,12 +1,10 @@
 use core::fmt::{self, Display};
 use std::borrow::Cow;
-use std::collections::HashMap;
 
 use itertools::Itertools as _;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use settings::Setting;
-use warp_core::settings::SyncToCloud;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::new_scrollable::{
     ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig,
@@ -34,10 +32,8 @@ use super::features_page::FeaturesPageView;
 use super::keybindings::KeybindingsView;
 use super::privacy_page::PrivacyPageView;
 use super::scripting_page::ScriptingSettingsPageView;
-use super::show_blocks_view::ShowBlocksView;
 use super::warpify_page::WarpifyPageView;
 use crate::appearance::Appearance;
-use crate::settings::CloudPreferencesSettings;
 use crate::themes::theme::Fill;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
@@ -93,11 +89,9 @@ pub trait SettingsPageMeta {
 pub enum SettingsPageViewHandle {
     Appearance(ViewHandle<AppearanceSettingsPageView>),
     Features(ViewHandle<FeaturesPageView>),
-    SharedBlocks(ViewHandle<ShowBlocksView>),
     Keybindings(ViewHandle<KeybindingsView>),
     About(ViewHandle<AboutPageView>),
     EditorAndCodeReview(ViewHandle<EditorAndCodeReviewPageView>),
-    WarpCloudAgentAPIKeys(ViewHandle<super::platform_page::PlatformPageView>),
     Privacy(ViewHandle<PrivacyPageView>),
     Warpify(ViewHandle<WarpifyPageView>),
     Scripting(ViewHandle<ScriptingSettingsPageView>),
@@ -110,11 +104,9 @@ impl SettingsPageViewHandle {
         match self {
             Appearance(view_handle) => ChildView::new(view_handle).finish(),
             Features(view_handle) => ChildView::new(view_handle).finish(),
-            SharedBlocks(view_handle) => ChildView::new(view_handle).finish(),
             Keybindings(view_handle) => ChildView::new(view_handle).finish(),
             About(view_handle) => ChildView::new(view_handle).finish(),
             EditorAndCodeReview(view_handle) => ChildView::new(view_handle).finish(),
-            WarpCloudAgentAPIKeys(view_handle) => ChildView::new(view_handle).finish(),
             Privacy(view_handle) => ChildView::new(view_handle).finish(),
             Warpify(view_handle) => ChildView::new(view_handle).finish(),
             Scripting(view_handle) => ChildView::new(view_handle).finish(),
@@ -319,49 +311,7 @@ pub enum LocalOnlyIconState {
     },
 }
 
-impl LocalOnlyIconState {
-    /// Creates a `LocalOnlyIconState` for a given setting.
-    ///
-    /// This function determines whether to show an icon indicating that a setting
-    /// is not cloud-synced based on the `SyncToCloud` value of the setting.
-    ///
-    /// # Arguments
-    ///
-    /// * `storage_key` - A string slice that holds the storage key for the setting.
-    /// * `sync_to_cloud` - The `SyncToCloud` value for the setting.
-    /// * `mouse_states` - A mutable reference to a `HashMap` storing `MouseStateHandle`s.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `LocalOnlyIconState` enum variant:
-    /// - `LocalOnlyIconState::Visible` with a `MouseStateHandle` if the setting is never synced to cloud.
-    /// - `LocalOnlyIconState::Hidden` if the setting is synced to cloud.
-    pub fn for_setting(
-        storage_key: &str,
-        sync_to_cloud: SyncToCloud,
-        mouse_states: &mut HashMap<String, MouseStateHandle>,
-        app: &AppContext,
-    ) -> Self {
-        if !*CloudPreferencesSettings::as_ref(app).settings_sync_enabled {
-            // Only show the local-only icon if settings sync is enabled.
-            return Self::Hidden;
-        }
-
-        match sync_to_cloud {
-            SyncToCloud::Never => {
-                let mouse_state = mouse_states
-                    .entry(storage_key.to_string())
-                    .or_default()
-                    .clone();
-                Self::Visible {
-                    mouse_state,
-                    custom_tooltip: None,
-                }
-            }
-            _ => Self::Hidden,
-        }
-    }
-}
+impl LocalOnlyIconState {}
 
 pub fn render_info_icon<T: Clone + Action>(
     appearance: &Appearance,

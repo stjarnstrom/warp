@@ -55,7 +55,6 @@ use crate::view_components::action_button::{
     SecondaryTheme,
 };
 use crate::workspace::view::right_panel::ReviewDestination;
-use crate::workspaces::user_workspaces::UserWorkspaces;
 
 /// Header text for the outdated section when there is exactly one outdated comment.
 const OUTDATED_SECTION_HEADER_SINGULAR: &str = "1 comment will be omitted because it is outdated.";
@@ -169,7 +168,6 @@ impl CommentDisplayState {
 }
 
 pub struct CommentListView {
-    view_handle: WeakViewHandle<Self>,
     parent: WeakViewHandle<CodeReviewView>,
 
     comment_model: Option<ModelHandle<ReviewCommentBatch>>,
@@ -232,7 +230,6 @@ impl CommentListView {
         });
 
         Self {
-            view_handle: ctx.handle(),
             parent,
             comment_model: None,
             comments_by_id: IndexMap::new(),
@@ -292,10 +289,7 @@ impl CommentListView {
         self.repo_path.as_ref().map(LocalOrRemotePath::is_local)
     }
 
-    pub fn debug_state(&self, ctx: &AppContext) -> CommentListDebugState {
-        let user_workspaces = UserWorkspaces::as_ref(ctx);
-        let scope = user_workspaces.team_context(&self.view_handle, ctx);
-        let _ = &scope;
+    pub fn debug_state(&self) -> CommentListDebugState {
         let sendable_comments = self
             .comments_by_id
             .values()

@@ -38,8 +38,6 @@ use crate::pane_group::{PaneGroup, PaneId};
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
-use crate::terminal::shared_session::SharedSessionStatus;
-use crate::terminal::shared_session::manager::Manager;
 use crate::terminal::view::TerminalViewState;
 use crate::themes::theme::{AnsiColorIdentifier, Fill as ThemeFill, VerticalGradient};
 use crate::ui_components::agent_status::{
@@ -478,42 +476,10 @@ impl TabData {
 
     fn session_sharing_menu_items(
         &self,
-        index: usize,
-        ctx: &AppContext,
+        _index: usize,
+        _ctx: &AppContext,
     ) -> Vec<MenuItem<WorkspaceAction>> {
-        let mut menu_items = vec![];
-
-        // Add "Copy link" option if the focused session in this tab is being shared or viewed.
-        // Disable the item (rather than silently no-op) when the Manager does not yet have a
-        // session id (e.g. during ViewPending / SharePending while the session is still setting up).
-        let focused_session_view = self.pane_group.as_ref(ctx).focused_session_view(ctx);
-        let focused_session_status = focused_session_view.as_ref().map(|view| {
-            view.as_ref(ctx)
-                .model
-                .lock()
-                .shared_session_status()
-                .clone()
-        });
-
-        if focused_session_status
-            .as_ref()
-            .is_some_and(SharedSessionStatus::is_sharer_or_viewer)
-        {
-            let has_session_link = focused_session_view
-                .as_ref()
-                .zip(focused_session_status.as_ref())
-                .is_some_and(|(view, status)| {
-                    Manager::as_ref(ctx).has_session_link(&view.id(), status)
-                });
-            menu_items.push(
-                MenuItemFields::new("Copy link")
-                    .with_on_select_action(WorkspaceAction::CopySharedSessionLinkFromTab {
-                        tab_index: index,
-                    })
-                    .with_disabled(!has_session_link)
-                    .into_item(),
-            );
-        }
+        let menu_items = vec![];
 
         menu_items
     }

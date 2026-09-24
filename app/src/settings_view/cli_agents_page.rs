@@ -4,9 +4,6 @@
 //! Codex, Gemini CLI) rather than Warp's own AI, so its settings are always
 //! interactive regardless of the global AI toggle.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
 use enum_iterator::all;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use regex::Regex;
@@ -36,11 +33,7 @@ use super::settings_page::{
 use super::{SettingsAction, SettingsSection, ToggleSettingActionPair, flags};
 use crate::appearance::Appearance;
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::settings::{
-    AutoDismissRichInputAfterSubmit, AutoOpenRichInputOnCLIAgentStart, AutoToggleRichInput,
-    CLIAgentSettings, CLIAgentSettingsChangedEvent, ShouldRenderCLIAgentToolbar,
-    SubmitRichInputOnCtrlEnter,
-};
+use crate::settings::{CLIAgentSettings, CLIAgentSettingsChangedEvent};
 use crate::terminal::CLIAgent;
 use crate::util::bindings;
 use crate::view_components::dropdown::DropdownAction;
@@ -51,7 +44,6 @@ const PAGE_TITLE: &str = "Third party CLI agents";
 
 pub struct CLIAgentsPageView {
     page: PageType<Self>,
-    local_only_icon_tooltip_states: RefCell<HashMap<String, MouseStateHandle>>,
     cli_agent_footer_command_editor: ViewHandle<SubmittableTextInput>,
     cli_agent_footer_command_mouse_state_handles: Vec<MouseStateHandle>,
     cli_agent_footer_command_agent_dropdowns: Vec<ViewHandle<Dropdown<CLIAgentsPageAction>>>,
@@ -107,7 +99,6 @@ impl CLIAgentsPageView {
 
         Self {
             page: Self::build_page(),
-            local_only_icon_tooltip_states: Default::default(),
             cli_agent_footer_command_editor,
             cli_agent_footer_command_mouse_state_handles,
             cli_agent_footer_command_agent_dropdowns: Self::create_cli_agent_dropdowns(ctx),
@@ -411,19 +402,18 @@ impl SettingsWidget for CLIAgentWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let cli_agent_settings = CLIAgentSettings::as_ref(app);
 
-        let cli_agent_footer_toggle = render_ai_setting_toggle::<ShouldRenderCLIAgentToolbar>(
+        let cli_agent_footer_toggle = render_ai_setting_toggle(
             "Show coding agent toolbar",
             CLIAgentsPageAction::ToggleCLIAgentToolbar,
             *cli_agent_settings.should_render_cli_agent_footer,
             true,
             self.cli_agent_footer_toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         );
 
@@ -488,7 +478,7 @@ impl SettingsWidget for CLIAgentAutoToggleRichInputWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -507,12 +497,7 @@ impl SettingsWidget for CLIAgentAutoToggleRichInputWidget {
                     "Requires the Warp plugin for your coding agent".to_owned(),
                 ),
             }),
-            LocalOnlyIconState::for_setting(
-                AutoToggleRichInput::storage_key(),
-                AutoToggleRichInput::sync_to_cloud(),
-                &mut view.local_only_icon_tooltip_states.borrow_mut(),
-                app,
-            ),
+            LocalOnlyIconState::Hidden,
             ToggleState::Enabled,
             appearance,
         );
@@ -550,7 +535,7 @@ impl SettingsWidget for CLIAgentAutoOpenRichInputWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         _appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -558,13 +543,12 @@ impl SettingsWidget for CLIAgentAutoOpenRichInputWidget {
             return Empty::new().finish();
         }
 
-        render_ai_setting_toggle::<AutoOpenRichInputOnCLIAgentStart>(
+        render_ai_setting_toggle(
             "Auto open Rich Input when a coding agent session starts",
             CLIAgentsPageAction::ToggleAutoOpenRichInputOnCLIAgentStart,
             *CLIAgentSettings::as_ref(app).auto_open_rich_input_on_cli_agent_start,
             true,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -588,7 +572,7 @@ impl SettingsWidget for CLIAgentAutoDismissRichInputWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         _appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -596,13 +580,12 @@ impl SettingsWidget for CLIAgentAutoDismissRichInputWidget {
             return Empty::new().finish();
         }
 
-        render_ai_setting_toggle::<AutoDismissRichInputAfterSubmit>(
+        render_ai_setting_toggle(
             "Auto dismiss Rich Input after prompt submission",
             CLIAgentsPageAction::ToggleAutoDismissRichInputAfterSubmit,
             *CLIAgentSettings::as_ref(app).auto_dismiss_rich_input_after_submit,
             true,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }
@@ -626,7 +609,7 @@ impl SettingsWidget for CLIAgentSubmitRichInputWidget {
 
     fn render(
         &self,
-        view: &Self::View,
+        _view: &Self::View,
         _appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
@@ -634,13 +617,12 @@ impl SettingsWidget for CLIAgentSubmitRichInputWidget {
             return Empty::new().finish();
         }
 
-        render_ai_setting_toggle::<SubmitRichInputOnCtrlEnter>(
+        render_ai_setting_toggle(
             "Submit Rich Input with Ctrl+Enter",
             CLIAgentsPageAction::ToggleSubmitRichInputOnCtrlEnter,
             *CLIAgentSettings::as_ref(app).submit_on_ctrl_enter,
             true,
             self.toggle.clone(),
-            &view.local_only_icon_tooltip_states,
             app,
         )
     }

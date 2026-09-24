@@ -9,7 +9,6 @@ use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
 #[cfg(feature = "local_fs")]
 use tempfile::TempDir;
-use terminal::shared_session::permissions_manager::SessionPermissionsManager;
 use terminal::view::ActiveSessionState;
 use warp_editor::editor::NavigationKey;
 #[cfg(feature = "local_fs")]
@@ -19,8 +18,6 @@ use warpui::{AddSingletonModel, App, ViewHandle};
 use watcher::HomeDirectoryWatcher;
 
 use super::*;
-use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::model::view::CloudViewModel;
 use crate::context_chips::prompt::Prompt;
 use crate::editor::Event;
 use crate::gpu_state::GPUState;
@@ -28,14 +25,9 @@ use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::pane_group::{Direction, PaneGroupAction, PaneId};
 use crate::persisted_workspace::PersistedWorkspace;
-use crate::server::cloud_objects::listener::Listener;
-use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::experiments::ServerExperiments;
 use crate::server::server_api::ServerApiProvider;
-use crate::server::sync_queue::SyncQueue;
 use crate::server::telemetry::context_provider::AppTelemetryContextProvider;
 use crate::settings::PrivacySettings;
-use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 use crate::settings_view::DisplayCount;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
@@ -52,34 +44,23 @@ use crate::user_config::tab_configs_dir;
 use crate::util::traffic_lights::windows::RendererState;
 use crate::warp_managed_paths_watcher::WarpManagedPathsWatcher;
 use crate::workflows::local_workflows::LocalWorkflows;
-use crate::workspaces::team_tester::TeamTesterStatus;
-use crate::workspaces::update_manager::TeamUpdateManager;
-use crate::workspaces::user_profiles::UserProfiles;
-use crate::workspaces::user_workspaces::UserWorkspaces;
-use crate::{GlobalResourceHandlesProvider, ObjectActions, experiments, workspace};
+use crate::{GlobalResourceHandlesProvider, experiments, workspace};
 pub(crate) fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
+    app.update(|ctx| crate::settings::mark_local_onboarding_completed(ctx));
 
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_ctx| ServerApiProvider::new_for_test());
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
-    app.add_singleton_model(AuthManager::new_for_test);
+
     app.add_singleton_model(|_ctx| PtySpawner::new_for_test());
     app.add_singleton_model(|_| Prompt::mock());
     app.add_singleton_model(|ctx| AutoupdateState::new(ServerApiProvider::as_ref(ctx).get()));
     app.add_singleton_model(|_| NetworkStatus::new());
     app.add_singleton_model(|_| SystemStats::new());
     app.add_singleton_model(|_| crate::tab::TabShortcutModifierState::new());
-    app.add_singleton_model(SyncQueue::mock);
-    app.add_singleton_model(CloudModel::mock);
-    app.add_singleton_model(UserWorkspaces::default_mock);
-    app.add_singleton_model(|_ctx| UserProfiles::new(Vec::new()));
-    app.add_singleton_model(TeamTesterStatus::mock);
-    app.add_singleton_model(TeamUpdateManager::mock);
-    app.add_singleton_model(UpdateManager::mock);
-    app.add_singleton_model(|_| CloudViewModel);
-    app.add_singleton_model(Listener::mock);
+
     app.add_singleton_model(|_| Appearance::mock());
     app.add_singleton_model(AppearanceManager::new);
     app.add_singleton_model(|_| DisplayCount::mock());
@@ -91,23 +72,13 @@ pub(crate) fn initialize_app(app: &mut App) {
     app.add_singleton_model(|_| ResizableData::default());
     app.add_singleton_model(LocalWorkflows::new);
     app.add_singleton_model(UndoCloseStack::new);
-    app.add_singleton_model(terminal::shared_session::manager::Manager::new);
     app.add_singleton_model(|_| ActiveSession::default());
     app.add_singleton_model(|_| WorkspaceToastStack);
-    app.add_singleton_model(|_| ObjectActions::new(Vec::new()));
     app.add_singleton_model(NotebookKeybindings::new);
-    app.add_singleton_model(|ctx| {
-        CloudPreferencesSyncer::new(
-            false,                     // force_local_wins_on_startup
-            std::path::PathBuf::new(), // unused in tests that don't exercise the hash path
-            ctx,
-        )
-    });
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
     // ConnPanelView reads this on construction, so a harness that builds a
     // Workspace needs it registered as production does.
     app.add_singleton_model(crate::conn::ConnModel::new);
-    app.add_singleton_model(SessionPermissionsManager::new);
     app.add_singleton_model(|_| SettingsPaneManager::new());
 
     app.add_singleton_model(|_| DetectedRepositories::default());
@@ -117,22 +88,9 @@ pub(crate) fn initialize_app(app: &mut App) {
     #[cfg(feature = "local_fs")]
     app.add_singleton_model(FileModel::new);
     app.add_singleton_model(|_| GPUState::new());
-    // Register IapManager in a disabled state (no IapState). The settings
-    // page's `IapManager::as_ref(ctx).is_enabled()` check panics if the
-    // singleton isn't registered, even though it's a no-op on production.
-    app.add_singleton_model(|ctx| {
-        warp_server_client::iap::IapManager::new(
-            None,
-            Box::new(|_| futures::FutureExt::boxed(futures::future::ready(None::<String>))),
-            None,
-            ctx,
-        )
-    });
-    app.add_singleton_model(OneTimeModalModel::new);
-    // Register GlobalResourceHandlesProvider before ServerExperiments which depends on it
+    app.add_singleton_model(|_| OneTimeModalModel::new(true));
     let global_resource_handles = GlobalResourceHandles::mock(app);
     app.add_singleton_model(|_| GlobalResourceHandlesProvider::new(global_resource_handles));
-    app.add_singleton_model(|ctx| ServerExperiments::new_from_cache(vec![], ctx));
     app.add_singleton_model(DefaultTerminal::new);
     app.add_singleton_model(|_| IgnoredSuggestionsModel::new(vec![]));
     app.add_singleton_model(|_| crate::code_review::git_repo_model::GitRepoModels::new());
@@ -178,188 +136,6 @@ pub(crate) fn mock_workspace(app: &mut App) -> ViewHandle<Workspace> {
         )
     });
     workspace
-}
-
-#[cfg(not(target_family = "wasm"))]
-#[test]
-fn test_open_new_window_for_team_reuses_existing_team_window() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let source_workspace = mock_workspace(&mut app);
-        let existing_team_workspace = mock_workspace(&mut app);
-        let existing_team_window_id =
-            existing_team_workspace.update(&mut app, |_, ctx| ctx.window_id());
-        let team_uid: ServerId = 123.into();
-        app.update(|ctx| {
-            UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-                user_workspaces.register_window(existing_team_window_id, Some(team_uid), ctx);
-            });
-        });
-        let initial_window_count = app.window_ids().len();
-
-        source_workspace.update(&mut app, |workspace, ctx| {
-            workspace.handle_action(&WorkspaceAction::OpenNewWindowForTeam { team_uid }, ctx);
-        });
-
-        assert_eq!(app.window_ids().len(), initial_window_count);
-        app.read(|ctx| {
-            assert_eq!(
-                ctx.windows().last_window_shown_and_focused_for_test(),
-                Some(existing_team_window_id)
-            );
-        });
-    });
-}
-
-#[cfg(not(target_family = "wasm"))]
-#[test]
-fn test_open_new_window_for_team_creates_window_when_team_has_none() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let source_workspace = mock_workspace(&mut app);
-        let team_uid: ServerId = 123.into();
-        let initial_window_count = app.window_ids().len();
-
-        source_workspace.update(&mut app, |workspace, ctx| {
-            workspace.handle_action(&WorkspaceAction::OpenNewWindowForTeam { team_uid }, ctx);
-        });
-
-        assert_eq!(app.window_ids().len(), initial_window_count + 1);
-        app.read(|ctx| {
-            assert_eq!(
-                ctx.window_ids()
-                    .filter(|window_id| {
-                        UserWorkspaces::as_ref(ctx).team_uid_for_window(*window_id)
-                            == Some(team_uid)
-                    })
-                    .count(),
-                1
-            );
-        });
-    });
-}
-
-#[cfg(target_family = "wasm")]
-fn register_window_team(app: &mut App, window_id: WindowId, team_uid: ServerId) {
-    app.update(|ctx| {
-        UserWorkspaces::handle(ctx).update(ctx, |user_workspaces, ctx| {
-            user_workspaces.register_window(window_id, Some(team_uid), ctx);
-        });
-    });
-}
-
-#[cfg(target_family = "wasm")]
-fn pane_group_ids(workspace: &ViewHandle<Workspace>, app: &App) -> Vec<EntityId> {
-    workspace.read(app, |workspace, _| {
-        workspace
-            .tabs
-            .iter()
-            .map(|tab| tab.pane_group.id())
-            .collect()
-    })
-}
-
-#[cfg(target_family = "wasm")]
-#[test]
-fn test_open_new_window_for_team_rebinds_current_window_without_creating() {
-    use std::cell::Cell;
-    use std::rc::Rc;
-
-    use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let workspace = mock_workspace(&mut app);
-        let window_id = workspace.update(&mut app, |_, ctx| ctx.window_id());
-        let current_team_uid: ServerId = 123.into();
-        let next_team_uid: ServerId = 456.into();
-        register_window_team(&mut app, window_id, current_team_uid);
-
-        let team_changes = Rc::new(Cell::new(0));
-        let team_changes_for_subscription = team_changes.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), move |_, event, _| {
-                if matches!(
-                    event,
-                    UserWorkspacesEvent::WindowTeamChanged { window_id: changed }
-                        if *changed == window_id
-                ) {
-                    team_changes_for_subscription.set(team_changes_for_subscription.get() + 1);
-                }
-            });
-        });
-
-        let initial_window_count = app.window_ids().len();
-        let initial_pane_group_ids = pane_group_ids(&workspace, &app);
-        assert!(!initial_pane_group_ids.is_empty());
-
-        workspace.update(&mut app, |workspace, ctx| {
-            workspace.handle_action(
-                &WorkspaceAction::OpenNewWindowForTeam {
-                    team_uid: next_team_uid,
-                },
-                ctx,
-            );
-        });
-
-        assert_eq!(app.window_ids().len(), initial_window_count);
-        assert_eq!(pane_group_ids(&workspace, &app), initial_pane_group_ids);
-        app.read(|ctx| {
-            assert_eq!(
-                UserWorkspaces::as_ref(ctx).team_uid_for_window(window_id),
-                Some(next_team_uid)
-            );
-        });
-        assert_eq!(team_changes.get(), 1);
-    });
-}
-
-#[cfg(target_family = "wasm")]
-#[test]
-fn test_open_new_window_for_team_same_team_is_noop() {
-    use std::cell::Cell;
-    use std::rc::Rc;
-
-    use crate::workspaces::user_workspaces::UserWorkspacesEvent;
-
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let workspace = mock_workspace(&mut app);
-        let window_id = workspace.update(&mut app, |_, ctx| ctx.window_id());
-        let team_uid: ServerId = 123.into();
-        register_window_team(&mut app, window_id, team_uid);
-
-        let team_changes = Rc::new(Cell::new(0));
-        let team_changes_for_subscription = team_changes.clone();
-        app.update(|ctx| {
-            ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), move |_, event, _| {
-                if matches!(event, UserWorkspacesEvent::WindowTeamChanged { .. }) {
-                    team_changes_for_subscription.set(team_changes_for_subscription.get() + 1);
-                }
-            });
-        });
-
-        let initial_window_count = app.window_ids().len();
-        let initial_pane_group_ids = pane_group_ids(&workspace, &app);
-
-        workspace.update(&mut app, |workspace, ctx| {
-            workspace.handle_action(&WorkspaceAction::OpenNewWindowForTeam { team_uid }, ctx);
-        });
-
-        assert_eq!(app.window_ids().len(), initial_window_count);
-        assert_eq!(pane_group_ids(&workspace, &app), initial_pane_group_ids);
-        app.read(|ctx| {
-            assert_eq!(
-                UserWorkspaces::as_ref(ctx).team_uid_for_window(window_id),
-                Some(team_uid)
-            );
-        });
-        assert_eq!(team_changes.get(), 0);
-    });
 }
 
 fn restored_workspace(

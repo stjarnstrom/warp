@@ -21,8 +21,8 @@ use super::diff_state_tracker::{
     DiffModelKey, DiffStateUpdate, RemoteDiffStateManager, SubscribeOutcome,
 };
 use super::proto::{
-    Abort, Authenticate, BranchInfo, BufferEdit, BufferUpdatedPush, ClientMessage, CloseBuffer,
-    DeleteFile, DeleteFileResponse, DeleteFileSuccess, DiscardFilesError, DiscardFilesResponse,
+    Abort, BranchInfo, BufferEdit, BufferUpdatedPush, ClientMessage, CloseBuffer, DeleteFile,
+    DeleteFileResponse, DeleteFileSuccess, DiscardFilesError, DiscardFilesResponse,
     DiscardFilesSuccess, ErrorCode, ErrorResponse, FileOperationError, GetBranchesError,
     GetBranchesResponse, GetBranchesSuccess, GetDiffStateResponse, GitCommitChainRequest,
     GitCommitChainResponse, GitCommitChainSuccess, GitCreatePrRequest, GitCreatePrResponse,
@@ -62,7 +62,6 @@ const MAX_BRANCH_COUNT_CAP: usize = 500;
 /// Unique identifier for a connected proxy session in daemon mode.
 pub type ConnectionId = uuid::Uuid;
 use super::protocol::RequestId;
-use crate::auth::auth_state::{AuthState, AuthStateProvider};
 use crate::code_review::git_actions;
 use crate::terminal::model::session::command_executor::{
     ExecuteCommandOptions, LocalCommandExecutor,
@@ -212,8 +211,6 @@ pub struct ServerModel {
     executors: HashMap<SessionId, Arc<LocalCommandExecutor>>,
     /// Tracks in-flight file write/delete operations and handles cleanup.
     pending_file_ops: PendingFileOps,
-    /// Daemon-wide auth credentials and user identity.
-    auth_state: Arc<AuthState>,
     /// Tracks open buffers, per-buffer connection sets, and pending async
     /// buffer requests (OpenBuffer, SaveBuffer).
     buffers: ServerBufferTracker,
@@ -269,7 +266,6 @@ impl ServerModel {
             remote_agent_context_snapshot_sent: HashSet::new(),
             executors: HashMap::new(),
             pending_file_ops: PendingFileOps::new(),
-            auth_state: AuthStateProvider::as_ref(ctx).get().clone(),
             buffers: ServerBufferTracker::new(),
             diff_states: ctx.add_model(|_| RemoteDiffStateManager::new()),
             host_scoped_requests: HashMap::new(),
@@ -836,9 +832,7 @@ impl ServerModel {
                     Some(notification::Message::Abort(m)) => {
                         self.handle_abort(m, &request_id, ctx);
                     }
-                    Some(notification::Message::Authenticate(m)) => {
-                        self.handle_authenticate(m);
-                    }
+                    Some(notification::Message::Authenticate(_)) => {}
                     Some(notification::Message::UpdatePreferences(m)) => {
                         self.handle_update_preferences(m, ctx);
                     }
@@ -1028,14 +1022,11 @@ impl ServerModel {
         ctx: &mut ModelContext<Self>,
     ) -> HandlerOutcome {
         log::info!("Handling Initialize (request_id={request_id})");
-        self.apply_initialize_auth(&msg);
 
         // Update crash reporting based on client-supplied preferences.
         #[cfg(feature = "crash_reporting")]
         {
-            if msg.crash_reporting_enabled {
-                self.apply_sentry_user_id(ctx);
-            } else {
+            if !msg.crash_reporting_enabled {
                 crate::crash_reporting::uninit_sentry();
             }
         }
@@ -1051,26 +1042,6 @@ impl ServerModel {
                 host_id: self.host_id.clone(),
             },
         ))
-    }
-
-    /// Applies the auth token from an `Initialize` message.
-    /// Extracted so unit tests can call it without a `ModelContext`.
-    fn apply_initialize_auth(&mut self, msg: &Initialize) {
-        self.auth_state.apply_remote_server_auth_context(
-            msg.auth_token.clone(),
-            msg.user_id.clone(),
-            msg.user_email.clone(),
-        );
-    }
-
-    /// Sets the Sentry user identity from the stored `AuthState`.
-    /// Called both during `Initialize` and when re-enabling crash reporting
-    /// via `UpdatePreferences`.
-    #[cfg(feature = "crash_reporting")]
-    fn apply_sentry_user_id(&self, ctx: &mut warpui::AppContext) {
-        if let Some(user_id) = self.auth_state.user_id() {
-            crate::crash_reporting::set_user_id(user_id, self.auth_state.user_email(), ctx);
-        }
     }
 
     /// Handles `UpdatePreferences` by dynamically enabling or disabling
@@ -1089,23 +1060,11 @@ impl ServerModel {
             if msg.crash_reporting_enabled {
                 if !crate::crash_reporting::is_initialized() {
                     crate::crash_reporting::init(ctx);
-                    self.apply_sentry_user_id(ctx);
                 }
             } else {
                 crate::crash_reporting::uninit_sentry();
             }
         }
-    }
-
-    /// Handles `Authenticate` by replacing the daemon-wide credential.
-    /// This is a notification — no response is sent.
-    fn handle_authenticate(&mut self, msg: Authenticate) {
-        self.auth_state
-            .set_remote_server_bearer_token(msg.auth_token);
-    }
-
-    pub fn auth_token(&self) -> Option<String> {
-        self.auth_state.get_access_token_ignoring_validity()
     }
 
     fn handle_abort(&mut self, abort: Abort, request_id: &RequestId, ctx: &mut ModelContext<Self>) {

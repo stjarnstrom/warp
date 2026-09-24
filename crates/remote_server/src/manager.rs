@@ -154,54 +154,6 @@ pub enum RemoteCodebaseIndexUpdateOperation {
     Drop,
 }
 
-impl RemoteCodebaseIndexUpdateOperation {
-    fn operation(self) -> RemoteServerOperation {
-        match self {
-            Self::IndexNewRepo {
-                is_auto_index: true,
-            }
-            | Self::IndexNewRepo {
-                is_auto_index: false,
-            } => RemoteServerOperation::IndexCodebase,
-            Self::Sync { is_full_sync: true }
-            | Self::Sync {
-                is_full_sync: false,
-            } => RemoteServerOperation::ResyncCodebase,
-            Self::Drop => RemoteServerOperation::DropCodebaseIndex,
-        }
-    }
-
-    fn to_proto_message(
-        self,
-        repo_path: String,
-        auth_token: String,
-    ) -> crate::proto::host_scoped_request::Message {
-        use crate::proto::host_scoped_request::Message;
-        match self {
-            Self::IndexNewRepo { .. } => Message::IndexCodebase(crate::proto::IndexCodebase {
-                repo_path,
-                auth_token,
-            }),
-            Self::Sync { is_full_sync } => {
-                let mode = if is_full_sync {
-                    crate::proto::CodebaseResyncMode::Full
-                } else {
-                    crate::proto::CodebaseResyncMode::Incremental
-                };
-                Message::ResyncCodebase(crate::proto::ResyncCodebase {
-                    repo_path,
-                    auth_token,
-                    mode: mode.into(),
-                })
-            }
-            Self::Drop => Message::DropCodebaseIndex(crate::proto::DropCodebaseIndex {
-                repo_path,
-                auth_token,
-            }),
-        }
-    }
-}
-
 /// Classification of a remote server client error for telemetry.
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -2242,17 +2194,11 @@ impl RemoteServerManager {
         }
 
         // Phase 2: Initialize handshake.
-        let auth_token = auth_context.get_auth_token().await;
         let resp = client
-            .initialize(
-                auth_token.as_deref(),
-                InitializeParams {
-                    user_id: auth_context.user_id().to_owned(),
-                    user_email: auth_context.user_email().to_owned(),
-                    crash_reporting_enabled: auth_context.crash_reporting_enabled(),
-                    codebase_index_limits,
-                },
-            )
+            .initialize(InitializeParams {
+                crash_reporting_enabled: auth_context.crash_reporting_enabled(),
+                codebase_index_limits,
+            })
             .await
             .map_err(|e| ConnectAndHandshakeError::Initialize(anyhow::anyhow!("{e:#}")))?;
 
@@ -2423,42 +2369,6 @@ impl RemoteServerManager {
         })
     }
 
-    /// Rotates the daemon-wide auth credential on each connected remote host.
-    ///
-    /// Only sessions whose stored `identity_key` matches the current identity
-    /// (from `auth_context`) receive the notification. This prevents a stale
-    /// session established under a previous user identity from receiving a
-    /// newly-rotated bearer token that belongs to a different user.
-    ///
-    /// Within the matching identity, a daemon may have multiple client
-    /// connections. The credential is stored daemon-wide, so sending one
-    /// notification per connected host is sufficient.
-    pub fn rotate_auth_token(&self, token: String) {
-        let Some(ref auth_context) = self.auth_context else {
-            log::warn!("Remote server rotate_auth_token: no auth_context available, skipping");
-            return;
-        };
-        let current_identity_key = auth_context.remote_server_identity_key();
-        let mut authenticated_hosts = HashSet::new();
-        for state in self.sessions.values() {
-            let RemoteSessionState::Connected {
-                client,
-                host_id,
-                identity_key,
-                ..
-            } = state
-            else {
-                continue;
-            };
-            if identity_key != &current_identity_key {
-                continue;
-            }
-            if authenticated_hosts.insert(host_id.clone()) {
-                client.authenticate(&token);
-            }
-        }
-    }
-
     /// Returns the connection state for this session.
     pub fn session(&self, session_id: SessionId) -> Option<&RemoteSessionState> {
         self.sessions.get(&session_id)
@@ -2502,206 +2412,6 @@ impl RemoteServerManager {
     /// reverse index.
     pub fn sessions_for_host(&self, host_id: &HostId) -> Option<&HashSet<SessionId>> {
         self.host_to_sessions.get(host_id)
-    }
-
-    fn connected_session_for_host(
-        &self,
-        host_id: &HostId,
-        expected_identity_key: &str,
-    ) -> Option<(SessionId, Arc<RemoteServerClient>, String)> {
-        let sessions = self.host_to_sessions.get(host_id)?;
-        sessions.iter().find_map(|session_id| {
-            let RemoteSessionState::Connected {
-                client,
-                identity_key,
-                ..
-            } = self.sessions.get(session_id)?
-            else {
-                return None;
-            };
-            if identity_key != expected_identity_key {
-                return None;
-            }
-            Some((*session_id, client.clone(), identity_key.clone()))
-        })
-    }
-
-    /// Ensures a codebase index exists for this remote path without resyncing an existing index.
-    pub fn ensure_codebase_indexed(
-        &mut self,
-        remote_path: RemotePath,
-        mutation_kind: RemoteCodebaseIndexUpdateOperation,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.mutate_codebase_index(remote_path, mutation_kind, ctx);
-    }
-
-    /// Sends a `ResyncCodebase` request to a connected daemon for this remote path.
-    pub fn resync_codebase(&mut self, remote_path: RemotePath, ctx: &mut ModelContext<Self>) {
-        self.mutate_codebase_index(
-            remote_path,
-            RemoteCodebaseIndexUpdateOperation::Sync { is_full_sync: true },
-            ctx,
-        );
-    }
-
-    /// Sends a `ResyncCodebase` request in incremental mode to a connected daemon for this remote path.
-    pub fn trigger_codebase_incremental_sync(
-        &mut self,
-        remote_path: RemotePath,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        self.mutate_codebase_index(
-            remote_path,
-            RemoteCodebaseIndexUpdateOperation::Sync {
-                is_full_sync: false,
-            },
-            ctx,
-        )
-    }
-
-    /// Sends a `DropCodebaseIndex` request to a connected daemon for this remote path.
-    pub fn drop_codebase_index(&mut self, remote_path: RemotePath, ctx: &mut ModelContext<Self>) {
-        self.mutate_codebase_index(remote_path, RemoteCodebaseIndexUpdateOperation::Drop, ctx);
-    }
-
-    fn mutate_codebase_index(
-        &mut self,
-        remote_path: RemotePath,
-        mutation_kind: RemoteCodebaseIndexUpdateOperation,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        let operation = mutation_kind.operation();
-        let host_id = remote_path.host_id.clone();
-        let repo_path = remote_path.path.as_str().to_string();
-
-        let Some(auth_context) = self.auth_context.clone() else {
-            log::warn!(
-                "Remote server codebase index mutation: no auth context \
-                 operation={operation:?} host={host_id} repo_path={repo_path}"
-            );
-            return false;
-        };
-        let current_identity_key = auth_context.remote_server_identity_key();
-        let Some((session_id, _client, remote_identity_key)) =
-            self.connected_session_for_host(&host_id, &current_identity_key)
-        else {
-            log::warn!(
-                "Remote server codebase index mutation: no connected client for current identity \
-                 operation={operation:?} host={host_id} repo_path={repo_path}"
-            );
-            return false;
-        };
-        log::info!(
-            "[Remote codebase indexing] Manager requesting codebase index mutation: \
-             operation={operation:?} host={host_id} session={session_id:?} \
-             remote_identity_key={remote_identity_key} repo_path={repo_path}"
-        );
-
-        let handle = self.host_request_handle(&host_id);
-        let spawner = self.spawner.clone();
-        ctx.background_executor()
-            .spawn(async move {
-                let repo_path_for_log = repo_path.clone();
-                let Some(auth_token) = auth_context.get_auth_token().await else {
-                    log::warn!(
-                        "Remote server codebase index mutation: missing auth token \
-                         operation={operation:?} host={host_id} session={session_id:?} \
-                         repo_path={repo_path_for_log}"
-                    );
-                    let _ = spawner
-                        .spawn(move |_me, ctx| {
-                            ctx.emit(RemoteServerManagerEvent::ClientRequestFailed {
-                                session_id,
-                                operation,
-                                error_kind: RemoteServerErrorKind::Other,
-                            });
-                            ctx.emit(RemoteServerManagerEvent::CodebaseIndexMutationFailed {
-                                session_id,
-                                mutation_kind,
-                                error_kind: RemoteServerErrorKind::Other,
-                            });
-                        })
-                        .await;
-                    return;
-                };
-
-                let proto_msg = mutation_kind.to_proto_message(repo_path, auth_token);
-                match handle.send(proto_msg).await {
-                    Ok(msg) => {
-                        // Parse CodebaseIndexStatusUpdated from response.
-                        let status = match msg.message {
-                            Some(crate::proto::server_message::Message::CodebaseIndexStatusUpdated(update)) => {
-                                crate::codebase_index_proto::proto_to_codebase_index_status_updated(&update)
-                            }
-                            _ => None,
-                        };
-                        if let Some(status) = status {
-                            log::info!(
-                                "[Remote codebase indexing] Manager received codebase index mutation response: \
-                                 operation={operation:?} host={host_id} session={session_id:?} \
-                                 remote_identity_key={remote_identity_key} repo_path={} state={:?} \
-                                 failure_message={:?}",
-                                status.repo_path,
-                                status.state,
-                                status.failure_message
-                            );
-                            let remote_path = remote_path_for_status(&host_id, &status).unwrap_or(remote_path);
-                            let _ = spawner
-                                .spawn(move |_me, ctx| {
-                                    ctx.emit(RemoteServerManagerEvent::CodebaseIndexStatusUpdated {
-                                        session_id: Some(session_id),
-                                        remote_path,
-                                        status,
-                                        mutation_kind: Some(mutation_kind),
-                                    });
-                                })
-                                .await;
-                        } else {
-                            log::warn!(
-                                "Remote server codebase index mutation: unexpected response \
-                                 operation={operation:?} host={host_id} session={session_id:?} \
-                                 repo_path={repo_path_for_log}"
-                            );
-                            let _ = spawner
-                                .spawn(move |_me, ctx| {
-                                    ctx.emit(RemoteServerManagerEvent::CodebaseIndexMutationFailed {
-                                        session_id,
-                                        mutation_kind,
-                                        error_kind: RemoteServerErrorKind::Other,
-                                    });
-                                })
-                                .await;
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Remote server codebase index mutation failed: \
-                             operation={operation:?} host={host_id} session={session_id:?} \
-                             repo_path={repo_path_for_log} error={e}"
-                        );
-                        let error_kind = match &e {
-                            HostRequestError::AllSessionsDisconnected => RemoteServerErrorKind::Disconnected,
-                            HostRequestError::Timeout => RemoteServerErrorKind::Timeout,
-                            HostRequestError::ServerError { .. }
-                            | HostRequestError::OperationFailed(_) => RemoteServerErrorKind::ServerError,
-                            HostRequestError::UnexpectedResponse
-                            | HostRequestError::Aborted => RemoteServerErrorKind::Other,
-                        };
-                        let _ = spawner
-                            .spawn(move |_me, ctx| {
-                                ctx.emit(RemoteServerManagerEvent::CodebaseIndexMutationFailed {
-                                    session_id,
-                                    mutation_kind,
-                                    error_kind,
-                                });
-                            })
-                            .await;
-                    }
-                }
-            })
-            .detach();
-        true
     }
 
     /// Sends a `NavigatedToDirectory` request to the remote server for

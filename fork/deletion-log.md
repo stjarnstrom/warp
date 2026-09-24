@@ -436,3 +436,45 @@ cloud_action_confirmation_dialog}`. `folders` is a cloud object type: goes with 
   Linux/Windows and unsupported WASM were not exercised (`oz-dev` is unavailable here). Live Conn
   and CLI-agent sessions were not exercised. Existing account credentials may still drive background
   cloud requests until the backend slice removes them; disabled accounts retain local state.
+
+
+## Account and cloud backends (2026-09-24)
+
+- Deleted `app/src/auth`, `app/src/cloud_object`, plural `app/src/workspaces`, account/teams/object
+  server clients, GraphQL application schemas, cloud listeners/sync queues, server experiments,
+  cloud preferences, managed-secret startup and authenticated tracing export. Removed `--api-key`
+  and `WARP_API_KEY` launch handling. No account providers or credential-refresh tasks are registered.
+- Deleted cloud workflow loading, cloud workflow aliases, workflow environment collection selection,
+  notebook cloud embeddings, team switching, cloud API-key settings, hosted block sharing, and
+  shared-session network/viewer managers and their controls. Local workflows and shell aliases,
+  command arguments, Markdown/Jupyter, editor/LSP, code review, CLI agents and Conn remain.
+- Preferences persist locally. Removed organization-forced telemetry/redaction and cloud conversation
+  settings; user secret patterns and privacy toggles remain. Preserved installation IDs under their
+  historical preference key. First-run terminal/theme/font defaults now run locally and respect
+  explicit choices; local onboarding completion is separate from the one-time HOA feature tour.
+- The public HTTP client still supports changelogs, updates, clock skew and optional telemetry, with
+  network-log hooks and anonymous installation identity. It cannot refresh or attach Warp credentials.
+  SSH sidecars use the local installation ID to partition sockets; their handshake omits account
+  tokens/user/email, and token rotation and cloud-index mutation senders are deleted.
+- Local SQLite snapshots, command/block history, projects and LSP metadata remain. Removed profile
+  and cloud-object reads/writes from app persistence without deleting old tables or migrations.
+  Historical cloud pane/ID variants still deserialize and are skipped during local pane restoration.
+- Compatibility cleanup remains: lower-level cloud crates/types, shared-session rendering/model
+  markers, old protobuf fields, settings sync annotations and account-era schema tables are still
+  present. They no longer have the removed app services or transports driving them. They should be
+  removed in a separate slice while keeping old local snapshots/history readable.
+- Validation: the app/Conn/CLI/remote-server nextest run passed 2,486 tests (3 skipped). After the
+  SSH and persistence cleanup, 1,153 affected tests passed; both local onboarding migration/modal
+  tests passed after the final onboarding changes. GUI-enabled all-targets check and Clippy with
+  `-D warnings` passed for the app, integration crate, remote server and CLI.
+- Built and bundled the macOS app with `./script/run --dont-open`. With `WARP_API_KEY` unset, an
+  isolated fresh profile opened the local welcome screen; a terminal bootstrapped and executed a
+  smoke command. Computer-use verified Appearance settings and secret-redaction search. Relaunch
+  restored the terminal output and Settings tab. The previous account-gate test profile also launched
+  and bootstrapped successfully. Stopped all test-owned instances. The visual check caught and fixed
+  obsolete Drive/Oz wording in the privacy description; rebuilt and visually verified the new text.
+  Settings content clipped beside the wide Conn panel after restore; recorded as a remaining UI slice.
+- Finished with `./script/format`; `crates/warpui` is untouched. Verification is local macOS only:
+  `oz-dev` is unavailable, so Linux/Windows were not exercised; WASM remains unsupported. Integration
+  tests were compiled/linted, not run on a display. Live SSH, Conn and CLI-agent sessions were not
+  exercised; SSH handshake behavior and Conn remain covered by the targeted unit suites.

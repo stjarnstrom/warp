@@ -7,12 +7,8 @@
 //! `Setting` parameter, and an anonymous argument-position parameter keeps
 //! those call sites working untouched.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-
-use settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
-use warpui::elements::{Element, Fill, MouseStateHandle};
+use warpui::elements::{Element, Fill};
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::ui_components::switch::SwitchStateHandle;
 use warpui::{Action, AppContext, SingletonEntity, View, ViewContext, ViewHandle};
@@ -41,18 +37,17 @@ pub fn update_editor_interaction_state<V: View>(
 }
 
 /// A settings row: label on the left, switch on the right.
-pub fn render_ai_setting_toggle<S: Setting>(
+pub fn render_ai_setting_toggle(
     label: impl Into<String>,
     action: impl Action + Clone,
     is_setting_enabled: bool,
     is_setting_toggleable: bool,
     switch_state: SwitchStateHandle,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     let appearance = Appearance::as_ref(app);
     build_toggle_element(
-        setting_label_element::<S>(label, is_setting_toggleable, tooltip_states, app),
+        setting_label_element(label, is_setting_toggleable, app),
         render_ai_feature_switch(
             switch_state,
             is_setting_enabled,
@@ -68,22 +63,16 @@ pub fn render_ai_setting_toggle<S: Setting>(
 /// `render_body_item_label` is generic over an action type only to type its
 /// optional click target. Settings labels never have one, so the parameter is
 /// pinned here instead of being threaded through every caller.
-fn setting_label_element<S: Setting>(
+fn setting_label_element(
     label: impl Into<String>,
     is_setting_toggleable: bool,
-    tooltip_states: &RefCell<HashMap<String, MouseStateHandle>>,
     app: &AppContext,
 ) -> Box<dyn Element> {
     render_body_item_label::<SettingsAction>(
         label.into(),
         Some(styles::header_font_color(is_setting_toggleable, app)),
         None,
-        LocalOnlyIconState::for_setting(
-            S::storage_key(),
-            S::sync_to_cloud(),
-            &mut tooltip_states.borrow_mut(),
-            app,
-        ),
+        LocalOnlyIconState::Hidden,
         ToggleState::Enabled,
         Appearance::as_ref(app),
     )

@@ -4555,7 +4555,7 @@ fn active_cli_agent_ignores_non_agent_long_running_command() {
         });
 
         terminal.read(&app, |view, ctx| {
-            assert_eq!(CLIAgent::detect("vim", None, None, ctx), None);
+            assert_eq!(CLIAgent::detect("vim", None, None), None);
             assert_eq!(
                 view.active_cli_agent(ctx),
                 None,

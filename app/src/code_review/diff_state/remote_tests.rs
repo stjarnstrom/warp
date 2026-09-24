@@ -4,7 +4,6 @@ use remote_server::manager::RemoteServerManagerEvent;
 use warp_util::remote_path::RemotePath;
 
 use super::InternalRemoteDiffState;
-use crate::auth::AuthStateProvider;
 use crate::code_review::diff_size_limits::DiffSize;
 use crate::code_review::diff_state::{
     DiffHunk, DiffLine, DiffLineType, DiffMetadata, DiffMetadataAgainstBase, DiffMode, DiffState,
@@ -132,7 +131,8 @@ fn test_metadata(branch: &str) -> DiffMetadata {
 }
 
 fn initialize_test_app(app: &mut warpui::App) {
-    app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+    app.update(crate::settings::init_and_register_user_preferences);
+
     app.add_singleton_model(AppTelemetryContextProvider::new_context_provider);
 }
 #[test]

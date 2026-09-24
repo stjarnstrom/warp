@@ -39,20 +39,6 @@ fn match_data_countable_zero_is_not_truthy() {
 // ── slug / from_slug ───────────────────────────────────────────────
 
 #[test]
-fn renamed_sections_keep_the_slug_they_were_seeded_with() {
-    // The section dropped "Oz" from what the user reads, but persisted sessions
-    // and `surface.settings.open --page` still speak the original slug.
-    assert_eq!(
-        SettingsSection::WarpCloudAgentAPIKeys.to_string(),
-        "API keys"
-    );
-    assert_eq!(
-        SettingsSection::WarpCloudAgentAPIKeys.slug(),
-        "Oz Cloud API Keys"
-    );
-}
-
-#[test]
 fn from_slug_rejects_unknown_input() {
     assert_eq!(SettingsSection::from_slug("Not a page"), None);
     assert_eq!(SettingsSection::from_slug(""), None);
