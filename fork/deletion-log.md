@@ -396,3 +396,43 @@ cloud_action_confirmation_dialog}`. `folders` is a cloud object type: goes with 
 - Finished with `./script/format`. `crates/warpui` is untouched. Verification was local macOS only;
   Linux/Windows runtime behavior and unsupported WASM were not exercised. The account-switch
   dialog, editor save, and live CLI-agent/Conn sessions were not exercised.
+
+
+## Account gate (2026-09-24)
+
+- `RootView` now owns a `Workspace` directly. Removed auth/onboarding state transitions, SSO
+  lockouts, account-switch modals, login screen rendering and auth-dependent focus/action guards.
+  New/restored windows and settings/file/session deep links reach the workspace unconditionally.
+  Changelog checks and update polling start with the workspace.
+- Deleted login/signup/SSO/anonymous-user UI, browser token-paste/handoff flows and their unused
+  auth-manager helpers. Removed the native `auth` URI host, `ForceLogin` (including Preview's
+  override), the skip-Firebase flag and obsolete login/onboarding experiments.
+- Removed logout menus/actions, account name/avatar display, reauthentication banners and dead
+  modal state. The header gear opens the existing settings/help menu. Removed the Account settings
+  page (identity, logout, cloud-sync and staging IAP controls) and account-deletion web link. About
+  still shows version information; existing workspace/palette update commands remain. Appearance
+  is the default settings page, and persisted `Account` slugs restore to Appearance.
+- Removed logout's SQLite deletion/pause/reconstruction protocol and sync-queue reset helper.
+  Disabled-account server events only mark backend credentials as needing refresh; they cannot
+  destroy the workspace or delete its persisted state. No database schema or migration changed.
+- Auth-state providers, stored credentials, startup refresh/API-key validation, server clients,
+  cloud preferences, cloud objects, account telemetry and remaining server-backed settings remain
+  for the next backend slice. Conn, local files/editor/LSP, CLI agents and code review are retained.
+- Added regressions for rejecting auth redirects without exposing credentials and restoring the
+  old Account settings target. Removed tests specific to deleted login redirects/logout URL/state;
+  retained credential validation/persistence tests. Updated settings navigation integration cases.
+- Validation: nextest passed all 2,510 tests across `warp`, `warp_features` and `conn` (6 skipped).
+  After pruning the newly unused login and database-reset helpers, all 405 affected auth,
+  persistence, server, URI, settings and workspace tests passed. Targeted all-targets Clippy passes
+  with `-D warnings` for `warp`, `warp_features` and `integration` with GUI enabled.
+- `./script/run --dont-open` built and bundled the macOS app. Launched an isolated
+  `WARP_DATA_PROFILE=account-gate-20260924` with `WARP_API_KEY` unset: logs show no stored credentials,
+  workspace creation and successful shell bootstrap. Relaunched that profile and the normal restored
+  profile without a crash. Stopped the test-owned processes after verification.
+- Visual smoke testing is incomplete: computer-use repeatedly returned `cgWindowNotFound` for the
+  rebuilt app despite live processes and successful bootstrap logs. Settings interactions and visual
+  layout were not verified; the integration crate was compiled/linted, not run on a display.
+- Finished with `./script/format`; no `crates/warpui` changes. Verification is local macOS only;
+  Linux/Windows and unsupported WASM were not exercised (`oz-dev` is unavailable here). Live Conn
+  and CLI-agent sessions were not exercised. Existing account credentials may still drive background
+  cloud requests until the backend slice removes them; disabled accounts retain local state.

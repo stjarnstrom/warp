@@ -21,8 +21,14 @@ Drive-remnant cleanup removes `app/src/drive`, export and deep-link entry points
 state, and Drive-only styling/flags/telemetry. Local workflow arguments and icon colors remain;
 cloud-folder models now live under `cloud_object`. See the final deletion-log entry for validation.
 
+Account-gate removal makes every root window own a workspace directly, independent of login,
+SSO or account status. Login/logout/account UI, browser auth callbacks and logout database-reset
+plumbing are gone. Settings opens Appearance; legacy Account settings targets resolve there.
+Auth credential refresh, cloud sync and server-backed surfaces remain for the backend slice.
+See the final deletion-log entry for validation.
+
 Candidate next slices (the user picks):
-- Account gate, then `server` / `auth` / `cloud_object`
+- `server` / `auth` / `cloud_object`
 - Conn slice 2 (`conn-plan.md` §7): SQLite persistence, cross-window overview, read-watermark
 - Small UI fixes: Conn empty state for non-terminal panes, Rendered/Raw overlap
 

@@ -11,11 +11,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::{Result, anyhow, ensure};
-use itertools::Itertools;
 use url::Url;
 use warp_util::path::LineAndColumnArg;
 use warpui::notification::UserNotification;
-use warpui::platform::TerminationMode;
 use warpui::{AppContext, SingletonEntity as _, TypedActionView, WindowId};
 
 use self::docker::open_docker_container;
@@ -58,7 +56,6 @@ pub enum OpenSettingsArgs {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum UriHost {
-    Auth,
     /// A host prefix for all actions (e.g.: new tab, new window).
     Action,
     /// A host prefix for all actions that involve launch configurations
@@ -79,7 +76,6 @@ impl FromStr for UriHost {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "auth" => Ok(Self::Auth),
             "action" => Ok(Self::Action),
             "launch" => Ok(Self::Launch),
             "settings" => Ok(Self::Settings),
@@ -95,27 +91,6 @@ impl UriHost {
     fn handle(&self, primary_window_id: Option<WindowId>, url: &Url, ctx: &mut AppContext) {
         // Handle host
         match self {
-            UriHost::Auth => {
-                ctx.window_ids()
-                    .collect_vec()
-                    .into_iter()
-                    .for_each(|window_id| {
-                        let Some(root_view_id) = ctx.root_view_id(window_id) else {
-                            return;
-                        };
-                        safe_info!(
-                            safe: ("Dispatched auth url to window {window_id}"),
-                            full: ("Dispatched auth url {url} to window {window_id}")
-                        );
-                        ctx.dispatch_action(
-                            window_id,
-                            &[root_view_id],
-                            "root_view:handle_incoming_auth_url",
-                            &url.clone(),
-                            log::Level::Info,
-                        );
-                    });
-            }
             UriHost::Action => {
                 match Action::parse(url) {
                     Ok(action) => action.handle(primary_window_id, url, ctx),
@@ -289,9 +264,6 @@ impl UriHost {
     fn window_behavior_hint(&self) -> WindowBehaviorHint {
         use WindowBehaviorHint as W;
         match self {
-            Self::Auth => W::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow {
-                replace_existing: true,
-            }),
             Self::Settings => W::default(),
             // These URLs always open new windows.
             Self::Launch | Self::Home => W::Nothing,
@@ -317,9 +289,7 @@ enum WindowBehaviorHint {
 
 impl Default for WindowBehaviorHint {
     fn default() -> Self {
-        Self::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow {
-            replace_existing: false,
-        })
+        Self::ShowPrimaryWindow(WindowActivationFallbackBehavior::NewWindow)
     }
 }
 
@@ -362,13 +332,7 @@ enum WindowActivationFallbackBehavior {
     /// notification.
     Notify { title: String, description: String },
     /// Create a new window to handle the URI.
-    NewWindow {
-        /// Close the former "primary window" as determined by [`get_primary_window`]. This should
-        /// generally default to `false` to avoid closing a window with information that the user
-        /// may still want. One exception is the Auth route where the old window just showed the
-        /// auth page.
-        replace_existing: bool,
-    },
+    NewWindow,
 }
 
 impl WindowActivationFallbackBehavior {
@@ -404,12 +368,8 @@ impl WindowActivationFallbackBehavior {
                 }
                 Some(primary_window_id)
             }
-            WindowActivationFallbackBehavior::NewWindow { replace_existing } => {
+            WindowActivationFallbackBehavior::NewWindow => {
                 let new_window_id = open_new_window_get_handles(None, ctx).0;
-                if replace_existing {
-                    ctx.windows()
-                        .close_window(primary_window_id, TerminationMode::Cancellable);
-                }
                 Some(new_window_id)
             }
         }
@@ -718,8 +678,7 @@ impl Action {
     }
 }
 
-/// Handles all incoming urls. These urls are file urls, auth urls for login,
-/// and team urls for opening team settings.
+/// Handles incoming file URLs and supported application deep links.
 pub fn handle_incoming_uri(url: &Url, ctx: &mut AppContext) {
     safe_info!(
         safe: ("received url"),
@@ -1069,8 +1028,8 @@ fn validate_custom_uri(url: &Url) -> Result<UriHost> {
         | UriHost::Settings
         | UriHost::TabConfig
         | UriHost::Session => true,
-        // Auth and Home only allow the desktop redirect path
-        UriHost::Auth | UriHost::Home => false,
+        // Home only allows the desktop redirect path
+        UriHost::Home => false,
     };
 
     ensure!(

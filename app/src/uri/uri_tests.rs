@@ -528,7 +528,7 @@ fn validate_custom_uri_errors_do_not_leak_query_string() {
 
     // Unexpected path for a host that doesn't allow arbitrary paths.
     let url = Url::parse(&format!(
-        "{}://auth/not_the_redirect?refresh_token=LEAKED",
+        "{}://home/not_the_redirect?refresh_token=LEAKED",
         ChannelState::url_scheme()
     ))
     .unwrap();
@@ -800,4 +800,17 @@ fn drive_web_url_is_not_rewritten_to_native_intent() {
     .unwrap();
 
     assert!(web_intent_parser::maybe_rewrite_web_url_to_intent(&url).is_none());
+}
+
+#[test]
+fn auth_redirect_is_rejected_without_exposing_credentials() {
+    let url = Url::parse(&format!(
+        "{}://auth/desktop_redirect?refresh_token=SECRET&state=STATE",
+        ChannelState::url_scheme()
+    ))
+    .unwrap();
+    let error = validate_custom_uri(&url).unwrap_err().to_string();
+    assert!(!error.contains("SECRET"));
+    assert!(!error.contains("STATE"));
+    assert!(UriHost::from_str("auth").is_err());
 }

@@ -497,3 +497,11 @@ fn category_header_with_trailing_element_and_no_subtitle_does_not_panic_flex_lay
         });
     });
 }
+
+#[test]
+fn restored_account_settings_open_appearance() {
+    assert_eq!(
+        SettingsSection::from_slug("Account"),
+        Some(SettingsSection::Appearance)
+    );
+}

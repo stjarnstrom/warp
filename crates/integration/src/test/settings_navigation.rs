@@ -53,7 +53,7 @@ pub fn test_settings_keyboard_navigation_up_into_collapsed_umbrella() -> Builder
 pub fn test_settings_search_filters_top_level_pages() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_settings_page(SettingsSection::Account))
+        .with_step(open_settings_page(SettingsSection::Appearance))
         .with_step(type_settings_search("keyboard shortcut"))
         .with_step(assert_settings_nav_page_visible(
             SettingsSection::Keybindings,
@@ -63,7 +63,7 @@ pub fn test_settings_search_filters_top_level_pages() -> Builder {
             SettingsSection::About,
             false,
         ))
-        // Account no longer matches, so the selection follows the filter.
+        // Appearance no longer matches, so the selection follows the filter.
         .with_step(assert_settings_section(SettingsSection::Keybindings))
 }
 
@@ -76,7 +76,7 @@ pub fn test_settings_search_filters_top_level_pages() -> Builder {
 pub fn test_settings_search_subpage_still_renders_content() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_settings_page(SettingsSection::Account))
+        .with_step(open_settings_page(SettingsSection::Appearance))
         // The CLI agent widget lives on the Third party CLI agents subpage, and
         // nothing has rendered it yet.
         .with_step(assert_settings_widget_rendered(
@@ -98,7 +98,7 @@ pub fn test_settings_search_subpage_still_renders_content() -> Builder {
 pub fn test_settings_search_clear_restores_umbrella_state() -> Builder {
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_settings_page(SettingsSection::Account))
+        .with_step(open_settings_page(SettingsSection::Appearance))
         .with_step(assert_umbrella_expanded(AGENTS_UMBRELLA, false))
         .with_step(type_settings_search("codex"))
         .with_step(assert_umbrella_expanded(AGENTS_UMBRELLA, true))

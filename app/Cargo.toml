@@ -662,7 +662,6 @@ default = [
     "codex_notifications",
     "codex_plugin",
     "trim_trailing_blank_lines",
-    "skip_firebase_anonymous_user",
     "settings_file",
     "directory_tab_colors",
     "git_credential_refresh",
@@ -993,7 +992,6 @@ handoff_local_cloud = []
 hoa_notifications = []
 open_code_notifications = []
 transfer_control_tool = []
-skip_firebase_anonymous_user = []
 custom_model_routers = []
 solo_user_byok = []
 gpt_configurable_context_window = []

@@ -133,11 +133,7 @@ use crate::app_state::{
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::auth::auth_override_warning_modal::{
-    AuthOverrideWarningModal, AuthOverrideWarningModalEvent, AuthOverrideWarningModalVariant,
-};
 use crate::auth::auth_state::AuthState;
-use crate::auth::auth_view_modal::AuthRedirectPayload;
 use crate::autoupdate::{
     AutoupdateState, AutoupdateStateEvent, RelaunchModel, is_incoming_version_past_current,
 };
@@ -219,7 +215,6 @@ use crate::server::telemetry::{
     LaunchConfigUiLocation, NotificationsTurnedOnSource, PaletteSource, TabRenameEvent,
 };
 use crate::session_management::{SessionNavigationData, SessionSource, TabNavigationData};
-use crate::settings::cloud_preferences::CloudPreferencesSettings;
 use crate::settings::{
     AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
     CLIAgentSettings, ChangelogSettings, CodeSettings, CodeSettingsChangedEvent, CtrlTabBehavior,
@@ -298,8 +293,6 @@ use crate::ui_components::icons;
 use crate::ui_components::red_notification_dot::RedNotificationDot;
 use crate::ui_components::window_focus_dimming::WindowFocusDimming;
 use crate::undo_close::UndoCloseStack;
-#[cfg(target_family = "wasm")]
-use crate::uri::browser_url_handler::{parse_current_url, update_browser_url};
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 #[cfg(feature = "local_fs")]
 use crate::user_config::{
@@ -489,9 +482,6 @@ pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
 // The max length of the window title (matching conversation title truncation).
 const MAX_WINDOW_TITLE_LENGTH: usize = 80;
 
-/// The default display name used for the user if they have no associated display name.
-pub const DEFAULT_USER_DISPLAY_NAME: &str = "User";
-
 lazy_static! {
     static ref PANEL_CORNER_RADIUS: CornerRadius = CornerRadius::with_all(Radius::Pixels(8.));
     static ref PANEL_HEADER_CORNER_RADIUS: CornerRadius =
@@ -514,10 +504,6 @@ pub enum WorkspaceBanner {
     UnableToUpdateToNewVersion,
     /// to display the AutoupdateStage::UnableToLaunchNewVersion
     UnableToLaunchNewVersion,
-    /// to display when the user needs to reauthenticate
-    Reauth,
-    // to display an anonymous user has X days left to sign in
-    AnonymousUserAuth,
     /// to display when recovering from a crash that may have been due to use
     /// of Wayland
     #[cfg(target_os = "linux")]
@@ -535,8 +521,6 @@ impl WorkspaceBanner {
             Self::UnableToUpdateToNewVersion => true,
             Self::UnableToLaunchNewVersion => true,
             Self::VersionDeprecated => false,
-            Self::AnonymousUserAuth => false,
-            Self::Reauth => true,
             #[cfg(target_os = "linux")]
             Self::WaylandCrashRecovery => true,
             Self::InvalidSettings => true,
@@ -788,10 +772,8 @@ pub struct Workspace {
     command_search_view: ViewHandle<CommandSearchView>,
     autoupdate_unable_to_update_banner_dismissed: bool,
     autoupdate_unable_to_launch_new_version: bool,
-    reauth_banner_dismissed: bool,
     settings_file_error: Option<crate::settings::SettingsFileError>,
     settings_error_banner_dismissed: bool,
-    auth_override_warning_modal: ViewHandle<AuthOverrideWarningModal>,
     prompt_editor_modal: ViewHandle<PromptEditorModal>,
     header_toolbar_editor_modal: ViewHandle<HeaderToolbarEditorModal>,
     header_toolbar_context_menu: ViewHandle<Menu<WorkspaceAction>>,
@@ -1330,33 +1312,6 @@ impl Workspace {
         });
 
         (settings_pane, theme_chooser_view)
-    }
-
-    fn build_auth_override_warning_modal(
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<AuthOverrideWarningModal> {
-        let auth_override_warning_modal = ctx.add_typed_action_view(|ctx| {
-            AuthOverrideWarningModal::new(ctx, AuthOverrideWarningModalVariant::WorkspaceModal)
-        });
-
-        ctx.subscribe_to_view(&auth_override_warning_modal, |me, _, event, ctx| {
-            me.handle_auth_override_warning_modal_event(event, ctx);
-        });
-
-        auth_override_warning_modal
-    }
-
-    fn handle_auth_override_warning_modal_event(
-        &mut self,
-        event: &AuthOverrideWarningModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            AuthOverrideWarningModalEvent::Close => {
-                self.current_workspace_state.is_auth_override_modal_open = false;
-                ctx.notify();
-            }
-        }
     }
 
     fn build_theme_creator_modal(ctx: &mut ViewContext<Self>) -> ViewHandle<ThemeCreatorModal> {
@@ -2085,8 +2040,6 @@ impl Workspace {
         let resource_center_view =
             Self::build_resource_center_view(ctx, tips_completed.clone(), changelog_model.clone());
 
-        let auth_override_warning_modal = Self::build_auth_override_warning_modal(ctx);
-
         let theme_creator_modal = Self::build_theme_creator_modal(ctx);
 
         let theme_deletion_modal = Self::build_theme_deletion_modal(ctx);
@@ -2288,10 +2241,8 @@ impl Workspace {
             command_search_view,
             autoupdate_unable_to_update_banner_dismissed: false,
             autoupdate_unable_to_launch_new_version: false,
-            reauth_banner_dismissed: false,
             settings_file_error,
             settings_error_banner_dismissed: false,
-            auth_override_warning_modal,
             theme_creator_modal,
             theme_deletion_modal,
             window_id: ctx.window_id(),
@@ -6961,10 +6912,6 @@ impl Workspace {
 
     fn user_menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
         let mut items = Vec::new();
-        if !self.auth_state.is_anonymous_or_logged_out() {
-            let name = self.auth_state.username_for_display().unwrap_or_default();
-            items.push(MenuItemFields::new(name).with_disabled(true).into_item())
-        }
 
         let appearance = Appearance::as_ref(app);
 
@@ -7040,20 +6987,12 @@ impl Workspace {
                 .into_item(),
         );
 
-        items.extend([
+        items.push(
             MenuItemFields::new("Join our Slack community")
                 .with_on_select_action(WorkspaceAction::JoinSlack)
                 .into_item(),
-            MenuItem::Separator,
-        ]);
+        );
 
-        if !self.auth_state.is_anonymous_or_logged_out() {
-            items.push(
-                MenuItemFields::new("Log out")
-                    .with_on_select_action(WorkspaceAction::LogOut)
-                    .into_item(),
-            );
-        }
         items
     }
 
@@ -8448,15 +8387,7 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            AuthManagerEvent::LoginOverrideDetected(interrupted_auth_payload) => {
-                self.open_auth_override_warning_modal(interrupted_auth_payload.clone(), ctx);
-            }
             AuthManagerEvent::AuthComplete => {
-                // This workspace can survive an anonymous user signing up from
-                // inside the app. Refresh the cached auth state and recompute
-                // effective toolbelt availability so onboarding preferences
-                // (for example, Warp Drive and conversation history) take
-                // effect without requiring an off/on toggle.
                 self.auth_state = AuthStateProvider::as_ref(ctx).get().clone();
                 self.update_left_panel_available_views(ctx);
                 ctx.notify();
@@ -10225,20 +10156,6 @@ impl Workspace {
         }
     }
 
-    fn open_auth_override_warning_modal(
-        &mut self,
-        auth_payload: AuthRedirectPayload,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.close_all_overlays(ctx);
-        self.auth_override_warning_modal.update(ctx, |modal, _| {
-            modal.set_interrupted_auth_payload(auth_payload);
-        });
-        self.current_workspace_state.is_auth_override_modal_open = true;
-        ctx.focus(&self.auth_override_warning_modal);
-        ctx.notify();
-    }
-
     fn open_palette(
         &mut self,
         mode: PaletteMode,
@@ -10530,9 +10447,6 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            SettingsViewEvent::CheckForUpdate => {
-                self.manual_check_for_update(ctx);
-            }
             SettingsViewEvent::LaunchNetworkLogging => {
                 self.open_network_log_pane(ctx);
             }
@@ -14352,26 +14266,8 @@ impl Workspace {
     }
 
     fn render_avatar_button(&self, appearance: &Appearance, ctx: &AppContext) -> Box<dyn Element> {
-        let is_anonymous = self.auth_state.is_anonymous_or_logged_out();
-        let display_name = self
-            .auth_state
-            .username_for_display()
-            .unwrap_or(DEFAULT_USER_DISPLAY_NAME.to_owned());
-
-        let avatar_content = if self.auth_state.is_anonymous_or_logged_out() {
-            AvatarContent::Icon(icons::Icon::Gear)
-        } else {
-            self.auth_state
-                .user_photo_url()
-                .map(|url| AvatarContent::Image {
-                    url,
-                    display_name: display_name.clone(),
-                })
-                .unwrap_or(AvatarContent::DisplayName(display_name.clone()))
-        };
-
         let mut avatar = Avatar::new(
-            avatar_content,
+            AvatarContent::Icon(icons::Icon::Gear),
             UiComponentStyles {
                 width: Some(20.),
                 height: Some(20.),
@@ -14412,12 +14308,11 @@ impl Workspace {
                 if !state.is_clicked() {
                     container = container.with_background(appearance.theme().surface_2());
                 }
-                // On hover, show tooltip of user's display name (if it exists)
-                if !self.is_user_menu_open && !is_anonymous {
+                if !self.is_user_menu_open {
                     stack.add_positioned_overlay_child(
                         appearance
                             .ui_builder()
-                            .tool_tip(display_name.clone())
+                            .tool_tip("Settings and help".to_owned())
                             .with_style(UiComponentStyles {
                                 background: Some(appearance.theme().tooltip_background().into()),
                                 font_color: Some(appearance.theme().background().into_solid()),
@@ -14817,13 +14712,8 @@ impl Workspace {
     // warning on mac)
     #[allow(clippy::let_and_return)]
     fn banner_fields(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
-        // The settings error banner sits just below reauth in priority — it's
-        // more important that users are notified their settings file is broken
-        // than that they continue to see any of the autoupdate or crash recovery
-        // banners.
         let banner_fields = self
-            .render_reauth_banner_element()
-            .or_else(|| self.render_settings_error_banner())
+            .render_settings_error_banner()
             .or_else(|| self.render_autoupdate_banner_element(app));
 
         #[cfg(enable_crash_recovery)]
@@ -14861,27 +14751,6 @@ impl Workspace {
     ) -> Option<Box<dyn Element>> {
         self.banner_fields(app)
             .map(|fields| self.render_workspace_banner(fields, appearance))
-    }
-
-    fn render_reauth_banner_element(&self) -> Option<WorkspaceBannerFields> {
-        if self.reauth_banner_dismissed || !self.auth_state.needs_reauth() {
-            return None;
-        }
-
-        Some(WorkspaceBannerFields {
-            banner_type: WorkspaceBanner::Reauth,
-            severity: BannerSeverity::Warning,
-            heading: Some("Your login has expired.".into()),
-            description: "Please sign in again to restore access to cloud-based features.".into(),
-            secondary_button: None,
-            button: Some(WorkspaceBannerButtonDetails {
-                text: "Sign in".into(),
-                action: WorkspaceAction::Reauth,
-                variant: BannerButtonVariant::Outlined,
-                icon: None,
-                more_info_button_action: None,
-            }),
-        })
     }
 
     fn render_autoupdate_banner_element(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
@@ -15220,10 +15089,7 @@ impl Workspace {
                 self.autoupdate_unable_to_launch_new_version = true;
             }
             WorkspaceBanner::VersionDeprecated => {}
-            WorkspaceBanner::AnonymousUserAuth => {}
-            WorkspaceBanner::Reauth => {
-                self.reauth_banner_dismissed = true;
-            }
+
             #[cfg(all(enable_crash_recovery, target_os = "linux"))]
             WorkspaceBanner::WaylandCrashRecovery => {
                 crash_recovery::dismiss_workspace_banner(ctx);
@@ -15712,11 +15578,6 @@ impl Workspace {
             context.set.insert(flags::TELEMETRY_FLAG);
         }
 
-        let cloud_preferences_settings = CloudPreferencesSettings::as_ref(app);
-        if *cloud_preferences_settings.settings_sync_enabled.value() {
-            context.set.insert(flags::SETTINGS_SYNC_FLAG);
-        }
-
         if *block_list_settings
             .show_jump_to_bottom_of_block_button
             .value()
@@ -16046,33 +15907,6 @@ impl Workspace {
         UserWorkspaces::as_ref(app)
             .team_for_window(self.window_id)
             .map(|team| team.uid)
-    }
-
-    fn redirect_to_sign_in(&mut self) {
-        #[cfg(target_family = "wasm")]
-        if let Some(current_url) = parse_current_url() {
-            update_browser_url(
-                Url::parse(&format!(
-                    "{}/login?redirect_to={}",
-                    ChannelState::server_root_url(),
-                    current_url.path()
-                ))
-                .ok(),
-                true,
-            );
-        } else {
-            update_browser_url(
-                Url::parse(&format!("{}/login", ChannelState::server_root_url())).ok(),
-                true,
-            );
-        }
-    }
-
-    /// Triggers the necessary cleanup for when a user logs out.
-    pub fn on_log_out(&mut self, ctx: &mut ViewContext<Self>) {
-        // Logging out should mimic the same behaviour as closing a window.
-        // This gives views a chance to clean up any state through on_view_detached before being dropped.
-        self.on_window_closed(ctx);
     }
 
     fn open_left_panel_view(&mut self, action: &LeftPanelAction, ctx: &mut ViewContext<Self>) {
@@ -16495,11 +16329,7 @@ impl TypedActionView for Workspace {
             }
             AutoupdateFailureLink => self.open_autoupdate_failure_link(ctx),
             ApplyUpdate => self.apply_update(ctx),
-            LogOut => {
-                // Need to dispatch global action, or else we will not be able to retrieve
-                // the currently active session in the log out modal.
-                ctx.dispatch_global_action("app:maybe_log_out", ());
-            }
+
             CopyVersion(version) => self.copy_version(version, ctx),
             DownloadNewVersion => self.download_new_version(ctx),
             ConfigureKeybindingSettings { keybinding_name } => {
@@ -16997,16 +16827,7 @@ impl TypedActionView for Workspace {
                 });
                 send_telemetry_from_ctx!(TelemetryEvent::DisableInputSync, ctx);
             }
-            Reauth => {
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    let sign_in_url = auth_manager.sign_in_url();
-                    ctx.open_url(&sign_in_url);
-                });
-                send_telemetry_from_ctx!(TelemetryEvent::InitiateReauth, ctx);
-            }
-            SignInAnonymousWebUser => {
-                self.redirect_to_sign_in();
-            }
+
             OpenPromptEditor { open_source } => {
                 self.open_prompt_editor(*open_source, ctx);
             }
@@ -18160,10 +17981,6 @@ impl View for Workspace {
 
         if self.current_workspace_state.is_ctrl_tab_palette_open {
             stack.add_child(ChildView::new(&self.ctrl_tab_palette).finish());
-        }
-
-        if self.current_workspace_state.is_auth_override_modal_open {
-            stack.add_child(ChildView::new(&self.auth_override_warning_modal).finish());
         }
 
         if self.current_workspace_state.is_theme_creator_modal_open {

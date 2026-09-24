@@ -40,12 +40,12 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 use workspace::WorkspaceClient;
 
 use super::experiments::{ServerExperiment, ServerExperiments};
+use crate::ChannelState;
 use crate::auth::auth_manager::AuthManager;
 use crate::auth::auth_state::AuthState;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryApi;
 use crate::settings::PrivacySettingsSnapshot;
-use crate::{ChannelState, settings_view};
 
 pub const FETCH_CHANNEL_VERSIONS_TIMEOUT: std::time::Duration = Duration::from_secs(60);
 
@@ -448,15 +448,7 @@ impl ServerApiProvider {
             event_receiver,
             move |_, event, ctx| {
                 match event {
-                    AuthEvent::UserAccountDisabled => {
-                        // We dispatch a global action here because the log out code requires
-                        // `server_api`, causing a circular model reference panic when it calls
-                        // `ServerApiProvider` to get access.
-                        // TODO: We should remove this pattern where `ServerApiProvider` responds
-                        // to events; it's prone to these sorts of circular reference issues.
-                        ctx.dispatch_global_action("app:log_out", ());
-                    }
-                    AuthEvent::NeedsReauth => {
+                    AuthEvent::UserAccountDisabled | AuthEvent::NeedsReauth => {
                         // AuthManager depends on a reference to ServerApi, so ServerApi can't easily
                         // hold a ref to AuthManager. To get around this, we emit an event on ServerApi
                         // and handle calling the AuthManager here instead.
@@ -493,8 +485,6 @@ impl ServerApiProvider {
         ServerExperiments::handle(ctx).update(ctx, |state, ctx| {
             state.apply_latest_state(experiments, ctx);
         });
-
-        settings_view::handle_experiment_change(ctx);
     }
 
     /// Constructs a new SeverApiProvider for tests.

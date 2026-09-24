@@ -926,14 +926,6 @@ pub fn init(app: &mut AppContext) {
         ]);
     }
 
-    app.register_editable_bindings([EditableBinding::new(
-        "workspace:log_out",
-        "Log out",
-        WorkspaceAction::LogOut,
-    )
-    .with_group(bindings::BindingGroup::Settings.as_str())
-    .with_context_predicate(id!("Workspace") & !id!("IsAnonymousUser"))]);
-
     if !FeatureFlag::AvatarInTabBar.is_enabled() {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:toggle_resource_center",
@@ -1062,14 +1054,6 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_context_predicate(id!("Workspace"))
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_custom_action(CustomAction::ShowSettings),
-        EditableBinding::new(
-            "workspace:show_settings_account_page",
-            "Open Settings: Account",
-            WorkspaceAction::ShowSettingsPage(SettingsSection::Account),
-        )
-        .with_context_predicate(id!("Workspace"))
-        .with_group(bindings::BindingGroup::Settings.as_str())
-        .with_custom_action(CustomAction::ShowAccount),
         EditableBinding::new(
             "workspace:show_settings_appearance_page",
             BindingDescription::new("Open Settings: Appearance")
