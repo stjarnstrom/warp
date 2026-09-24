@@ -2,6 +2,14 @@
 
 This file provides guidance when working with code in this repository.
 
+## Fork status — read first
+
+This is a hard fork being cut down around Conn. Start every session by reading `fork/README.md`:
+current status, decisions, next slices, and pointers to `fork/conn-plan.md` and
+`fork/deletion-log.md`. Record progress there, in the same commit as the change, not in agent
+memory. Parts of this file below describe upstream features that are deleted (e.g. `ai/`, Drive,
+the TUI front-end).
+
 ## Development Commands
 
 ### Build and Run
