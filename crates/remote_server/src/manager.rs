@@ -300,11 +300,7 @@ pub enum RemoteSessionState {
     Connected {
         client: Arc<RemoteServerClient>,
         host_id: HostId,
-        /// Identity key that was active when this session was established.
-        /// Used by `rotate_auth_token` to ensure token rotation notifications
-        /// are only delivered to sessions that belong to the current user
-        /// identity, preventing a stale session for a previous identity from
-        /// receiving a different user's bearer token.
+        /// Installation identity active when this session was established.
         identity_key: String,
         /// The transport's owning `Child`. See `Initializing::_child`.
         #[cfg(not(target_family = "wasm"))]

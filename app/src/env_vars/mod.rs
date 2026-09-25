@@ -1,5 +1,6 @@
-pub use cloud_object_models::{EnvVar, EnvVarValue};
+mod types;
 use itertools::Itertools;
+pub use types::{EnvVar, EnvVarValue};
 use warp_util::path::ShellFamily;
 
 pub mod env_var_collection_block;

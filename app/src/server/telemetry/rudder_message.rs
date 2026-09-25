@@ -6,9 +6,10 @@
 //! 3. We want to use our own HTTP client which has before/after request logging hooks
 //! We can consider using the SDK if it adds support for an async HTTP client, tracked by this issue: https://github.com/rudderlabs/rudder-sdk-rust/issues/23
 use chrono::{DateTime, Utc};
-use cloud_objects::auth::UserUid;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::server::user_uid::UserUid;
 
 /// An enum containing all values which may be sent to RudderStack's API.
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]

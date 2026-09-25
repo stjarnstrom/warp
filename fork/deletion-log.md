@@ -478,3 +478,37 @@ cloud_action_confirmation_dialog}`. `folders` is a cloud object type: goes with 
   `oz-dev` is unavailable, so Linux/Windows were not exercised; WASM remains unsupported. Integration
   tests were compiled/linted, not run on a display. Live SSH, Conn and CLI-agent sessions were not
   exercised; SSH handshake behavior and Conn remain covered by the targeted unit suites.
+
+
+## Dormant cloud crates and compatibility fields (2026-09-25)
+
+- Deleted the disconnected cloud object client/model/persistence, server client/auth, GraphQL,
+  schema, managed-secret, WASM managed-secret and Firebase crates. The network log model now
+  belongs to the app; the remaining local workflow, environment variable, MCP transport and
+  historical ID types sit with their consumers. Removed the obsolete cloud workspace dependencies,
+  GraphQL codegen/WebSocket adapter, dormant AWS BYO-LLM dependencies and unused Tink patches.
+- Removed settings cloud-sync annotations, platform sync policies, cloud-origin setters and
+  settings-manager sync callbacks. Local storage, TOML reload and private preference routing stay
+  intact. Removed IAP configuration and token injection from the HTTP client, along with the unused
+  OAuth HTTP adapter and RTC URL override.
+- Remote-server initialization no longer carries account token, user ID or email. The removed
+  notification and authentication fields in old code-index messages are reserved in protobuf so
+  their wire numbers cannot be reused. Crash reporting and code-index limits still initialize.
+- Historical notebook/workflow/generic-object ID prefixes and client-ID JSON forms remain for
+  local SQLite and snapshot decoding. Added ID round-trip tests. Legacy cloud panes still decode
+  and are skipped during restoration. Account-era SQLite tables and window columns are not dropped
+  in this slice; they require an explicit migration that protects local snapshot/history reads.
+- Dormant shared-session rendering/model markers and remote code-index status types remain for a
+  separate cleanup. The shared-session transport has already been removed.
+- Validation: 2,600 targeted app/settings/remote/MCP/CLI/core tests passed before the final
+  dependency pruning (3 skipped); 2,516 app/settings/remote/WebSocket tests passed on the final
+  graph (3 skipped). Four settings doctests passed. All-targets Clippy with `-D warnings` passed
+  for the affected crates and integration target, including a rerun after the final dependency
+  change. `./script/run --dont-open` built and signed the macOS bundle.
+- Launched that bundle with a fresh isolated `WARP_DATA_PROFILE` and no API key. Logs show local
+  database creation, terminal-server startup, a window opening and its first frame; no panic or
+  error was logged. Stopped the test-owned process and removed its isolated profile. The launch
+  did not exercise shell input or settings interactions. Cross-platform cloud verification could
+  not run because `oz-dev` is unavailable here; Linux/Windows and unsupported WASM were not
+  exercised. `crates/warpui` is untouched.
+- Finished with `./script/format`.

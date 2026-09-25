@@ -1,4 +1,5 @@
 #[cfg(not(target_family = "wasm"))]
+pub mod config;
 pub mod oauth;
 #[cfg(not(target_family = "wasm"))]
 pub mod runtime;

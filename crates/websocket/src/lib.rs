@@ -1,11 +1,4 @@
-//! A common websocket API that works for native and `wasm` targets.
-//! The returned [`WebSocket`] implements [graphql_ws_client::websockets::WebsocketMessage],
-//! allowing the returned socket to be used as the backing socket for a graphql websocket client.
-//! Unfortunately, this means that this crate depends on [`graphql_ws_client`] as a dependency even
-//! though it doesn't assume anything about the underlying protocol of the websocket. To remove this
-//! dependency, we would need to move the [`WebsocketMessage`] trait and
-//! `graphql_ws_client::wasm_websocket_combined_split` into a common location that both this crate
-//! and[`graphql_ws_client`] depend on.
+//! A common websocket API for native and WASM targets.
 
 #[cfg_attr(not(target_family = "wasm"), path = "native.rs")]
 #[cfg_attr(target_family = "wasm", path = "wasm.rs")]
@@ -150,26 +143,6 @@ impl WebSocket {
             }
         }
     }
-
-    pub async fn into_graphql_client_builder(self) -> graphql_ws_client::ClientBuilder {
-        self.0.into_graphql_client_builder().await
-    }
-}
-
-/// If `err` originated from a websocket handshake that received a non-101 HTTP
-/// response (e.g. an auth or proxy challenge), returns that response so callers
-/// can inspect its status and headers (for example, to detect a GCP IAP
-/// challenge). Native-only: wasm websockets do not surface the handshake
-/// response on error.
-#[cfg(not(target_family = "wasm"))]
-pub fn connect_error_http_response(
-    err: &anyhow::Error,
-) -> Option<&tungstenite::http::Response<Option<Vec<u8>>>> {
-    err.chain()
-        .find_map(|cause| match cause.downcast_ref::<tungstenite::Error>() {
-            Some(tungstenite::Error::Http(response)) => Some(response),
-            _ => None,
-        })
 }
 
 /// Builds a native websocket client request for `url`, attaching the provided

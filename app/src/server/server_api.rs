@@ -14,10 +14,10 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use warp_core::telemetry::TelemetryEvent;
-use warp_server_client::network_logging::NetworkLogModel;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 use crate::ChannelState;
+use crate::server::network_logging::NetworkLogModel;
 use crate::server::telemetry::TelemetryApi;
 use crate::settings::PrivacySettingsSnapshot;
 

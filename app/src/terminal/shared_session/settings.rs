@@ -1,14 +1,13 @@
 use std::time::Duration;
 
 use settings::macros::define_settings_group;
-use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use settings::{Setting, SupportedPlatforms};
 
 define_settings_group!(SharedSessionSettings, settings: [
     onboarding_block_shown: SessionSharingOnboardingBlockShown {
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     inactivity_period_before_ending_session: InactivityPeriodBeforeEndingSession {
@@ -16,7 +15,6 @@ define_settings_group!(SharedSessionSettings, settings: [
         // After a total of 30 min of inactivity, we will end the session
         default: Duration::from_secs(1800),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     inactivity_period_before_warning: InactivityPeriodBeforeWarning {
@@ -24,7 +22,6 @@ define_settings_group!(SharedSessionSettings, settings: [
         // After a total of 25 min of inactivity, we will show a warning modal
         default: Duration::from_secs(1500),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     inactivity_period_before_revoking_roles: InactivityPeriodBeforeRevokingRoles {
@@ -32,7 +29,6 @@ define_settings_group!(SharedSessionSettings, settings: [
         // After a total of 10 min of inactivity, we will revoke all executor roles
         default: Duration::from_secs(600),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     // Killswitch: when false, the sharer ignores viewer terminal size reports.
@@ -40,7 +36,6 @@ define_settings_group!(SharedSessionSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
 ]);

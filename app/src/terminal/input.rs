@@ -23,7 +23,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_channel::Sender;
-use cloud_object_models::workflow_enum::EnumVariants;
 use futures::FutureExt as _;
 use futures::stream::AbortHandle;
 use itertools::Itertools;
@@ -177,6 +176,7 @@ use crate::workflows::command_parser::{
 };
 use crate::workflows::info_box::{WORKFLOW_PARAMETER_HIGHLIGHT_COLOR, WorkflowsMoreInfoView};
 use crate::workflows::local_workflows::LocalWorkflows;
+use crate::workflows::workflow_enum::EnumVariants;
 use crate::workflows::{self, WorkflowSelectionSource, WorkflowSource, WorkflowType};
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::{CommandSearchOptions, InitContent, ToastStack, WorkspaceAction};

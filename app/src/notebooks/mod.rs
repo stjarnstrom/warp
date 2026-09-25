@@ -5,7 +5,18 @@ pub mod link;
 mod styles;
 pub mod telemetry;
 
-pub use cloud_object_models::NotebookId;
+use crate::server::ids::{ServerId, SyncId};
+
+/// Historical server notebook ID retained for local snapshot decoding.
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct NotebookId(ServerId);
+crate::server_id_traits! { NotebookId, "Notebook" }
+
+impl From<NotebookId> for SyncId {
+    fn from(id: NotebookId) -> Self {
+        Self::ServerId(id.into())
+    }
+}
 use serde::{Deserialize, Serialize};
 use warpui::AppContext;
 

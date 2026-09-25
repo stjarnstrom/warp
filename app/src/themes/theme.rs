@@ -146,15 +146,6 @@ impl ThemeKind {
         let theme_name = format!("{self}").to_lowercase();
         theme_name.contains(&query.to_lowercase())
     }
-
-    pub(crate) fn is_custom_theme_reference_syncable(&self) -> bool {
-        match self {
-            ThemeKind::Custom(custom_theme) | ThemeKind::CustomBase16(custom_theme) => {
-                custom_theme_path_is_portable(&custom_theme.path, &crate::user_config::themes_dir())
-            }
-            _ => true,
-        }
-    }
 }
 
 #[derive(
@@ -230,6 +221,7 @@ fn custom_theme_path_storage_value(path: &Path, theme_root: &Path) -> serde_json
     }
 }
 
+#[cfg(test)]
 pub(crate) fn custom_theme_path_is_portable(path: &Path, theme_root: &Path) -> bool {
     if path_is_absolute_or_foreign_absolute(path) {
         return portable_custom_theme_storage_string(path, theme_root).is_some();
@@ -319,10 +311,12 @@ fn path_starts_with_windows_drive_prefix_using_forward_slash(path: &Path) -> boo
     bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'/'
 }
 
+#[cfg(test)]
 fn path_is_absolute_or_foreign_absolute(path: &Path) -> bool {
     path.has_root() || path_looks_like_foreign_windows_absolute(path)
 }
 
+#[cfg(test)]
 fn path_looks_like_foreign_windows_absolute(path: &Path) -> bool {
     if path.has_root() {
         return false;

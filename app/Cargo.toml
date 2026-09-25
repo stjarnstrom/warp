@@ -76,8 +76,6 @@ cfg-if.workspace = true
 channel_versions.workspace = true
 chrono.workspace = true
 clap.workspace = true
-cloud_object_models.workspace = true
-cloud_objects.workspace = true
 command = { workspace = true }
 command-corrections.workspace = true
 computer_use.workspace = true
@@ -86,7 +84,6 @@ crc.workspace = true
 content_inspector = "0.2.4"
 concat-idents.workspace = true
 csv = "1.3.1"
-cynic.workspace = true
 dashmap.workspace = true
 deltae = "0.3.1"
 derivative.workspace = true
@@ -148,7 +145,6 @@ memo-map.workspace = true
 mermaid_to_svg.workspace = true
 num-traits.workspace = true
 num_cpus = "1.13.0"
-oauth2.workspace = true
 once_cell.workspace = true
 ordered-float.workspace = true
 os_info = { version = "3.7.0", default-features = false }
@@ -172,7 +168,7 @@ reqwest.workspace = true
 rust-embed.workspace = true
 sentry-log = { workspace = true, optional = true }
 inventory = "0.3"
-schemars = "1"
+schemars = { version = "1", features = ["uuid1"] }
 secret_redaction.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
@@ -231,7 +227,6 @@ warp_core.workspace = true
 warp_errors = { workspace = true, features = ["reqwest-errors"] }
 warp_editor.workspace = true
 warp_search_core.workspace = true
-warp_server_client.workspace = true
 warp_util.workspace = true
 warpui = { workspace = true, features = ["schema_gen", "settings_value"] }
 warpui_core.workspace = true
@@ -298,7 +293,6 @@ app-installation-detection.workspace = true
 async-io.workspace = true
 axum.workspace = true
 build_cache.workspace = true
-cloud_object_persistence.workspace = true
 comfy-table = "7.1.4"
 inquire = "0.9.1"
 diesel = { workspace = true, features = ["sqlite", "chrono"] }
@@ -321,11 +315,6 @@ tracing-opentelemetry.workspace = true
 tracing-subscriber.workspace = true
 warp_errors = { workspace = true, features = ["tokio-errors", "websocket-errors"] }
 
-# AWS SDK (loading credentials for BYO LLM)
-aws-config = { version = "1.8.16", features = ["credentials-login"] }
-aws-credential-types = "1"
-aws-sdk-sts = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
-aws-types = "1"
 
 notify-debouncer-full.workspace = true
 rustls.workspace = true
@@ -410,7 +399,6 @@ winreg.workspace = true
 [dev-dependencies]
 async-process.workspace = true
 computer_use = { workspace = true, features = ["test-util"] }
-firebase.workspace = true
 jsonschema = { workspace = true, default-features = false }
 async-executor = "1.5.1"
 command = { workspace = true, features = ["test-util"] }
@@ -424,7 +412,6 @@ virtual-fs.workspace = true
 warp_completer = { workspace = true, features = ["test-util"] }
 warp_core = { workspace = true, features = ["test-util"] }
 warp_editor = { workspace = true, features = ["test-util"] }
-warp_server_client = { workspace = true, features = ["test-util"] }
 warp_terminal = { workspace = true, features = ["test-util"] }
 warpui = { workspace = true, features = ["test-util"] }
 warpui_core = { workspace = true, features = ["test-util"] }
@@ -701,7 +688,7 @@ interactive_conversation_management_view = []
 default_waterfall_mode = []
 suggested_agent_mode_workflows = []
 extern_plist = []
-fast_dev = ["skip_login"]
+fast_dev = []
 full_screen_zen_mode = []
 global_ai_analytics_banner = []
 global_ai_analytics_collection = []
@@ -730,11 +717,9 @@ agent_mode_evals = [
     "warpui/defer_scene_build",
     "full_source_code_embedding",
     "cross_repo_context",
-    "cloud_object_models/agent_mode_evals",
     "rust-embed/debug-embed",
     "warpui/log_named_telemetry_events",
     "warp_logging/agent_mode_evals",
-    "warp_server_client/agent_mode_evals",
 ]
 ambient_agents_command_line = []
 ambient_agents_image_upload = []
@@ -813,7 +798,6 @@ selectable_prompt = []
 settings_file = []
 sequential_storage = []
 session_sharing_acls = []
-skip_login = ["warp_server_client/skip_login"]
 # This feature should only be enabled when building a self-contained binary with the bundle script.
 standalone = ["warp_assets/standalone", "warp_core/standalone"]
 prompt_suggestions_via_maa = []
@@ -823,7 +807,6 @@ test-util = [
     "http_client/test-util",
     "warp_core/test-util",
     "warp_terminal/test-util",
-    "warp_server_client/test-util",
 ]
 terminal_lifecycle_recovery = []
 # Feature enabled only when app is compiled for integration tests.
@@ -833,7 +816,6 @@ integration_tests = [
     "warpui/test-util",
     "warp_core/integration_tests",
     "warp_terminal/integration_tests",
-    "warp_server_client/integration_tests",
 ]
 traces = []
 workflow_aliases = []

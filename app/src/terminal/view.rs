@@ -1,4 +1,4 @@
-use cloud_objects::UserUid;
+use crate::server::user_uid::UserUid;
 mod action;
 mod block_banner;
 pub mod block_onboarding;

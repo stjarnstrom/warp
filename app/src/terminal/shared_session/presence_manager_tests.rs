@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
-use cloud_objects::auth::UserUid;
 use itertools::Itertools;
 use session_sharing_protocol::common::{
     ParticipantId, ParticipantInfo, ParticipantList, ProfileData, Role, Selection, Sharer, Viewer,
@@ -9,6 +8,7 @@ use session_sharing_protocol::common::{
 use warp_core::command::ExitCode;
 use warpui::App;
 
+use crate::server::user_uid::UserUid;
 use crate::terminal::model::ansi::{
     CommandFinishedValue, CompletionMetadata, Handler, PrecmdValue, PromptMetadata,
 };

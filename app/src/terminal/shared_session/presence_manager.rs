@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::iter;
 
 use asset_cache::AssetCacheExt as _;
-use cloud_objects::auth::UserUid;
 use futures::future::BoxFuture;
 use futures_util::future::join_all;
 use itertools::{Either, Itertools};
@@ -18,6 +17,7 @@ use warpui::image_cache::ImageType;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
 use crate::editor::{CursorColors, PeerSelectionData};
+use crate::server::user_uid::UserUid;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::blocks::BlockList;
 use crate::terminal::model::terminal_model::BlockIndex;

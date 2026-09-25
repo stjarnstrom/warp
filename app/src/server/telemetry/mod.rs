@@ -14,7 +14,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use chrono::Utc;
-use cloud_objects::auth::UserUid;
 pub use collector::*;
 pub use context::telemetry_context;
 pub use events::*;
@@ -31,6 +30,7 @@ use crate::ChannelState;
 use crate::features::FeatureFlag;
 use crate::server::telemetry::context::AttachContext;
 use crate::server::telemetry_ext::TelemetryExt;
+use crate::server::user_uid::UserUid;
 use crate::settings::PrivacySettingsSnapshot;
 
 /// Filename for file where telemetry events are written on app quit.

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
+use settings::SupportedPlatforms;
 use warp_core::define_settings_group;
 
 #[derive(
@@ -34,13 +34,12 @@ pub enum SLPBlockState {
 // we want to remember that they have already been shown it.
 // That way, we skip displaying it in the future and prevent it from becoming
 // an annoyance. We use a Setting for this, so we get the underlying infrastructure
-// for free e.g. cloud-syncing.
+// for free e.g. storage.
 define_settings_group!(SameLinePromptBlockSettings, settings: [
     same_line_prompt_block_state: SameLinePromptBlockState {
         type: SLPBlockState,
         default: SLPBlockState::NotShown,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
 ]);

@@ -34,7 +34,6 @@ use ::settings::{Setting, ToggleableSetting};
 #[cfg(target_os = "macos")]
 use anyhow::Result;
 use autoupdate::AutoupdateStage;
-use cloud_objects::drive::CloudObjectTypeAndId;
 #[cfg(target_os = "macos")]
 use command::blocking::Command;
 use instant::Instant;
@@ -11299,7 +11298,6 @@ impl Workspace {
     /// terminal pane according to the [`UnavailableTerminalBehavior`].
     fn focus_terminal_input(
         &mut self,
-        object_id: Option<CloudObjectTypeAndId>,
         fallback_behavior: TerminalSessionFallbackBehavior,
         ctx: &mut ViewContext<Self>,
     ) -> Option<ViewHandle<TerminalView>> {
@@ -11338,13 +11336,12 @@ impl Workspace {
             // The active terminal exists but is busy, and the fallback behavior is
             // RequireExisting or OpenIfNone. In those cases, show a toast and no-op.
             self.toast_stack.update(ctx, |toast_stack, ctx| {
-                let mut toast = DismissibleToast::error(
-                    "A command in this session is still running.".to_string(),
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error(
+                        "A command in this session is still running.".to_string(),
+                    ),
+                    ctx,
                 );
-                if let Some(id) = object_id {
-                    toast = toast.with_object_id(id.uid());
-                }
-                toast_stack.add_ephemeral_toast(toast, ctx);
             });
             return None;
         }
@@ -11410,8 +11407,7 @@ impl Workspace {
         if self.is_readonly_shared_session_active(ctx) {
             return;
         }
-        if let Some(terminal_view_handle) = self.focus_terminal_input(None, fallback_behavior, ctx)
-        {
+        if let Some(terminal_view_handle) = self.focus_terminal_input(fallback_behavior, ctx) {
             let terminal_input =
                 terminal_view_handle.read(ctx, |terminal_view, _| terminal_view.input().clone());
             terminal_input.update(ctx, |input, ctx| {

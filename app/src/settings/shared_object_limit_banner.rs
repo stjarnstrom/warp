@@ -1,4 +1,4 @@
-use settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
+use settings::SupportedPlatforms;
 use warp_core::define_settings_group;
 
 use crate::banner::BannerState;
@@ -15,14 +15,12 @@ define_settings_group!(SharedObjectLimitBannerSettings, settings: [
         type: BannerState,
         default: BannerState::NotDismissed,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     workflow_limit_banner_state: WorkflowLimitBannerState {
         type: BannerState,
         default: BannerState::NotDismissed,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
 ]);

@@ -25,12 +25,11 @@ To connect Warp client to a local warp-server instance:
 WITH_LOCAL_SERVER=1 ./script/run
 
 # Connect to server on custom port (e.g., 8082)
-WITH_LOCAL_SERVER=1 SERVER_ROOT_URL=http://localhost:8082 WS_SERVER_URL=ws://localhost:8082/graphql/v2 ./script/run
+WITH_LOCAL_SERVER=1 SERVER_ROOT_URL=http://localhost:8082 ./script/run
 ```
 
 Environment variables:
 - `SERVER_ROOT_URL` - HTTP endpoint (default: `http://localhost:8080`)
-- `WS_SERVER_URL` - WebSocket endpoint (default: `ws://localhost:8080/graphql/v2`)
 
 ### Testing
 - `cargo nextest run --no-fail-fast --workspace` - Run tests with nextest

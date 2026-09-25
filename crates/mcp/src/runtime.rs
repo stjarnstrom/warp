@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::future::Future;
 
 use cfg_if::cfg_if;
-use cloud_object_models::{StaticEnvVar, TransportType};
 use futures::FutureExt as _;
 use rmcp::ServiceExt as _;
 use rmcp::transport::ConfigureCommandExt as _;
@@ -19,6 +18,7 @@ use uuid::Uuid;
 use warp_errors::report_error;
 
 use super::TemplatableMCPServerInfo;
+use crate::config::{StaticEnvVar, TransportType};
 
 type ReqwestHttpTransport = rmcp::transport::StreamableHttpClientTransport<reqwest::Client>;
 type ReqwestSseTransport = crate::sse_transport::SseClientTransport<reqwest::Client>;

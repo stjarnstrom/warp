@@ -1,6 +1,6 @@
-pub use cloud_object_models::WorkflowId;
 use serde::{Deserialize, Serialize};
 use warpui::AppContext;
+pub use workflow::WorkflowId;
 
 pub mod categories;
 use workflow::Workflow;
@@ -10,6 +10,7 @@ pub mod command_parser;
 pub mod info_box;
 pub mod local_workflows;
 pub mod workflow;
+pub mod workflow_enum;
 
 pub use categories::{CategoriesView, CategoriesViewEvent, WorkflowsViewAction};
 

@@ -832,7 +832,6 @@ impl ServerModel {
                     Some(notification::Message::Abort(m)) => {
                         self.handle_abort(m, &request_id, ctx);
                     }
-                    Some(notification::Message::Authenticate(_)) => {}
                     Some(notification::Message::UpdatePreferences(m)) => {
                         self.handle_update_preferences(m, ctx);
                     }

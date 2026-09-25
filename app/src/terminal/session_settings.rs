@@ -7,8 +7,8 @@ use lazy_static::lazy_static;
 pub use new_session_shell::*;
 use serde::{Deserialize, Serialize};
 pub use startup_shell::*;
+use warp_core::settings::SupportedPlatforms;
 use warp_core::settings::macros::define_settings_group;
-use warp_core::settings::{RespectUserSyncSetting, SupportedPlatforms, SyncToCloud};
 pub use working_directory_config::*;
 
 use crate::context_chips::prompt::PromptSelection;
@@ -137,7 +137,6 @@ define_settings_group!(SessionSettings, settings: [
         type: StartupShell,
         default: StartupShell::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "session.startup_shell_override",
         description: "The shell to use when Warp starts up.",
@@ -146,7 +145,6 @@ define_settings_group!(SessionSettings, settings: [
         type: Option<NewSessionShell>,
         default: None,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: false,
         toml_path: "session.new_session_shell_override",
         description: "The shell to use when opening a new session.",
@@ -155,7 +153,6 @@ define_settings_group!(SessionSettings, settings: [
         type: bool,
         default: false,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "terminal.input.honor_ps1",
         description: "Whether to use your shell's PS1 prompt instead of the Warp prompt.",
@@ -164,14 +161,12 @@ define_settings_group!(SessionSettings, settings: [
         type: PromptSelection,
         default: PromptSelection::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     should_add_agent_mode_chip: ShouldAddAgentModeChip {
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     },
     // Value is saved here but not shown in ui (can't be toggled in settings)
@@ -179,14 +174,12 @@ define_settings_group!(SessionSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     }
     notifications: Notifications {
         type: NotificationsSettings,
         default: NotificationsSettings::default(),
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "notifications.preferences",
         max_table_depth: 1,
@@ -199,7 +192,6 @@ define_settings_group!(SessionSettings, settings: [
         type: bool,
         default: true,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
         storage_key: "GitPromptDirtyIndicator",
     },
@@ -207,7 +199,6 @@ define_settings_group!(SessionSettings, settings: [
         type: u64,
         default: 8,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,
         toml_path: "notifications.toast_duration_secs",
         description: "How long notification toasts are displayed, in seconds.",
@@ -218,7 +209,6 @@ define_settings_group!(SessionSettings, settings: [
         type: GithubPrPromptChipDefaultValidation,
         default: GithubPrPromptChipDefaultValidation::Unvalidated,
         supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
         private: true,
     },
 ]);
@@ -227,7 +217,6 @@ settings::macros::implement_setting_for_enum!(
     WorkingDirectoryConfig,
     SessionSettings,
     SupportedPlatforms::ALL,
-    SyncToCloud::Never,
     private: false,
     toml_path: "session.working_directory_config",
     max_table_depth: 1,

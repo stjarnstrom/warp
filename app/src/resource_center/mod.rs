@@ -229,7 +229,7 @@ impl FeatureSectionData {
     }
 }
 
-/// Marks the welcome tip as used, writes their current state to a cloud synced preference.
+/// Marks the welcome tip as used and stores the current state locally.
 pub fn mark_feature_used_and_write_to_user_defaults(
     feature: Tip,
     tips_completed: &mut TipsCompleted,

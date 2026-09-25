@@ -344,9 +344,6 @@ impl RemoteServerClient {
         let msg = ClientMessage::session_scoped(
             request_id.to_string(),
             session_scoped_request::Message::Initialize(Initialize {
-                auth_token: String::new(),
-                user_id: String::new(),
-                user_email: String::new(),
                 crash_reporting_enabled: params.crash_reporting_enabled,
                 codebase_index_limits: params.codebase_index_limits,
             }),

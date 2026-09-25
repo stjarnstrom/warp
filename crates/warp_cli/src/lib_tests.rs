@@ -39,14 +39,11 @@ fn hidden_server_overrides_still_parse() {
         "warp",
         "--server-root-url",
         "http://localhost:8080",
-        "--ws-server-url",
-        "ws://localhost:8082/graphql/v2",
         "--session-sharing-server-url",
         "http://localhost:8083",
     ])
     .unwrap();
     assert_eq!(args.server_root_url(), Some("http://localhost:8080"));
-    assert_eq!(args.ws_server_url(), Some("ws://localhost:8082/graphql/v2"));
     assert_eq!(
         args.session_sharing_server_url(),
         Some("http://localhost:8083")

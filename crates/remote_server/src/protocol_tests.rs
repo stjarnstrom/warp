@@ -12,9 +12,6 @@ async fn round_trip_client_message() {
     let msg = ClientMessage::session_scoped(
         "test-123".to_string(),
         session_scoped_request::Message::Initialize(Initialize {
-            auth_token: String::new(),
-            user_id: String::new(),
-            user_email: String::new(),
             crash_reporting_enabled: true,
             codebase_index_limits: None,
         }),
@@ -195,9 +192,6 @@ fn try_extract_request_id_from_valid_message() {
     let msg = ClientMessage::session_scoped(
         "abc-123".to_string(),
         session_scoped_request::Message::Initialize(Initialize {
-            auth_token: String::new(),
-            user_id: String::new(),
-            user_email: String::new(),
             crash_reporting_enabled: true,
             codebase_index_limits: None,
         }),

@@ -6,8 +6,6 @@ use std::sync::{Arc, Once};
 use std::{fs, thread};
 
 use anyhow::{Context, Result, anyhow, bail};
-use cloud_objects::cloud_object::ObjectIdType;
-use cloud_objects::ids::GenericStringObjectId;
 use diesel::connection::{DefaultLoadingMode, SimpleConnection};
 use diesel::result::Error;
 use diesel::sqlite::SqliteConnection;
@@ -52,7 +50,9 @@ use crate::notebooks::NotebookId;
 use crate::persisted_workspace::EnablementState;
 use crate::persistence::block_list::get_all_restored_blocks;
 use crate::persistence::model::{CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND};
-use crate::server::ids::{ClientId, HashableId, ServerId, SyncId};
+use crate::server::ids::{
+    ClientId, GenericStringObjectId, HashableId, ObjectIdType, ServerId, SyncId,
+};
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::SettingsSection;
 use crate::suggestions::ignored_suggestions_model::SuggestionType;

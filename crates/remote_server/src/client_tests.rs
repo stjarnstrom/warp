@@ -221,14 +221,12 @@ async fn initialize_round_trip() {
 }
 
 #[tokio::test]
-async fn initialize_omits_account_credentials() {
+async fn initialize_sends_local_preferences() {
     let (client, _disconnect_rx, _executor) = setup_mock_client(|msg| {
         let session_scoped_request::Message::Initialize(init) = unwrap_session_scoped(msg) else {
             panic!("Expected Initialize");
         };
-        assert!(init.auth_token.is_empty());
-        assert!(init.user_id.is_empty());
-        assert!(init.user_email.is_empty());
+        assert!(init.crash_reporting_enabled);
         server_message::Message::InitializeResponse(InitializeResponse {
             server_version: "test-0.1.0".to_string(),
             host_id: "test-host-id".to_string(),
